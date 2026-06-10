@@ -18,10 +18,14 @@ class DashboardController extends Controller
             ->orderByDesc('summary_month')
             ->first();
         $latestMonth = $latestSummary?->summary_month;
+        $billedMrcTotal = (float) MonthlySummary::where('summary_month', $latestMonth)->sum('total_mrc');
+        $collectionTotal = $this->currentMonthCollectionTotal($latestMonth);
 
         return view('dashboard.dashboard', [
             'clientCount' => Client::query()->count(),
-            'collectionTotal' => $this->currentMonthCollectionTotal($latestMonth),
+            'billedMrcTotal' => $billedMrcTotal,
+            'collectionTotal' => $collectionTotal,
+            'currentMonthOs' => max($billedMrcTotal - $collectionTotal, 0),
             'latestOutstanding' => MonthlySummary::where('summary_month', $latestMonth)->sum('total_latest_os'),
             'highRiskCount' => $this->currentMonthHighRiskCount($latestMonth),
             'latestSummary' => $latestSummary,
@@ -40,12 +44,18 @@ class DashboardController extends Controller
                 ->get(),
             'metricComparisons' => [
                 'clients' => $this->metricComparison('total_clients'),
+                'mrc' => $this->metricComparison('total_mrc'),
                 'collection' => $this->metricComparison('total_collection'),
+                'current_month_os' => $this->metricComparison('current_month_os'),
                 'os' => $this->metricComparison('latest_os'),
                 'risk' => $this->metricComparison('high_risk'),
             ],
             'collectionEfficiency' => $this->collectionEfficiency($latestMonth),
             'kamPerformance' => $this->kamPerformance($latestMonth),
+            'teams' => $this->teamPerformance($latestMonth, 'team_name'),
+            'collectionKams' => $this->teamPerformance($latestMonth, 'collection_kam'),
+            'supervisors' => $this->teamPerformance($latestMonth, 'collection_supervisor'),
+            'smKams' => $this->teamPerformance($latestMonth, 'sm_kam'),
         ]);
     }
 
@@ -238,7 +248,13 @@ class DashboardController extends Controller
             ->selectRaw('
                 summary_month,
                 COUNT(DISTINCT client_id) as total_clients,
+                SUM(total_mrc) as total_mrc,
                 SUM(total_collection) as total_collection,
+                CASE
+                    WHEN SUM(total_mrc) > SUM(total_collection)
+                    THEN SUM(total_mrc) - SUM(total_collection)
+                    ELSE 0
+                END as current_month_os,
                 SUM(total_latest_os) as latest_os,
                 SUM(
                     CASE
@@ -326,6 +342,38 @@ class DashboardController extends Controller
             'worst' => $performance->last(),
         ];
     }     
+
+    private function teamPerformance($latestMonth, string $clientField): array
+    {
+        if (! $latestMonth) {
+            return [];
+        }
+
+        return MonthlySummary::query()
+            ->with('client')
+            ->whereDate('summary_month', $latestMonth)
+            ->get()
+            ->groupBy(fn ($summary) => data_get($summary->client, $clientField) ?: 'Unassigned')
+            ->map(function ($items, $name) {
+                $collection = (float) $items->sum('total_collection');
+                $maturity = (float) $items->sum('total_maturity');
+
+                return [
+                    'name' => $name,
+                    'clients' => $items->count(),
+                    'collection' => $collection,
+                    'maturity' => $maturity,
+                    'efficiency' => $maturity > 0 ? ($collection / $maturity) * 100 : 0,
+                    'latest_os' => (float) $items->sum('total_latest_os'),
+                    'high_risk' => $items
+                        ->filter(fn ($summary) => in_array($summary->latest_rating_category, ['High', 'Critical', 'Severe'], true))
+                        ->count(),
+                ];
+            })
+            ->sortByDesc('efficiency')
+            ->values()
+            ->all();
+    }
     
     public function clientDrilldown(Request $request)
     {

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CollectionEntryController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MonthlySummaryController;
 use App\Http\Controllers\SettingsController;
@@ -30,9 +31,41 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:view collections')
         ->name('collection-entry.index');
 
+    Route::get('/collection-entry/client-metrics', [CollectionEntryController::class, 'clientMetrics'])
+        ->middleware('permission:view collections')
+        ->name('collection-entry.client-metrics');
+
+    Route::get('/collection-entry/recent-entries', [CollectionEntryController::class, 'recentEntries'])
+        ->middleware('permission:view collections')
+        ->name('collection-entry.recent-entries');
+
     Route::post('/collection-entry', [CollectionEntryController::class, 'store'])
         ->middleware('permission:create collections')
         ->name('collection-entry.store');
+
+    Route::get('/clients', [ClientController::class, 'index'])
+        ->middleware('permission:view clients')
+        ->name('clients.index');
+
+    Route::get('/clients/create', [ClientController::class, 'create'])
+        ->middleware('permission:create clients')
+        ->name('clients.create');
+
+    Route::post('/clients', [ClientController::class, 'store'])
+        ->middleware('permission:create clients')
+        ->name('clients.store');
+
+    Route::get('/clients/{client}/edit', [ClientController::class, 'edit'])
+        ->middleware('permission:update clients')
+        ->name('clients.edit');
+
+    Route::put('/clients/{client}', [ClientController::class, 'update'])
+        ->middleware('permission:update clients')
+        ->name('clients.update');
+
+    Route::post('/clients/{client}/discontinue', [ClientController::class, 'discontinue'])
+        ->middleware('permission:update clients')
+        ->name('clients.discontinue');
 
     Route::get('/monthly-summary', [MonthlySummaryController::class, 'index'])
         ->middleware('permission:view monthly summaries')

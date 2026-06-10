@@ -87,6 +87,8 @@
 
     .modal-content.large {
         width: 90%;
+        max-height: 90vh;
+        margin: 3% auto;
     }
 
     .close {
@@ -282,6 +284,91 @@
         height: 250px;
     }
 
+    /* Client details grid styling */
+    .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 20px;
+        margin-top: 15px;
+    }
+
+    .details-section {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        background: #f8fafc;
+    }
+
+    .details-section h3 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        font-size: 15px;
+        color: var(--primary-dark);
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 6px;
+    }
+
+    .details-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px dashed #e2e8f0;
+        font-size: 13px;
+        gap: 12px;
+    }
+
+    .details-row:last-child {
+        border-bottom: none;
+    }
+
+    .details-label {
+        font-weight: 600;
+        color: var(--muted);
+    }
+
+    .details-value {
+        font-weight: 700;
+        color: var(--ink);
+        text-align: right;
+    }
+
+    .client-detail-link {
+        color: var(--primary);
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        border-bottom: 1px dashed var(--primary);
+    }
+
+    .client-detail-link:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+    }
+
+    .modal-client-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--line);
+        padding-bottom: 12px;
+    }
+
+    .modal-client-title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--primary-dark);
+    }
+
+    .modal-client-badge {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-weight: 700;
+        background: #edf2f7;
+    }
+
 </style>
 @endpush
 
@@ -356,7 +443,47 @@
                 <tr>
 
                     <td>
-                        {{ $c->client->client_name ?? 'N/A' }}
+                        @if ($c->client)
+                            <a href="javascript:void(0)" class="client-detail-link" data-summary="{{ json_encode([
+                                'client_name' => $c->client->client_name,
+                                'opus_id' => $c->client->opus_id,
+                                'client_status' => $c->client->client_status,
+                                'barring_priority' => $c->client->barring_priority,
+                                'btrc_license_discontinuation_date' => $c->client->btrc_license_discontinuation_date?->format('Y-m-d'),
+                                'legal' => $c->client->legal ? 'Yes' : 'No',
+                                'service_discontinuation_date' => $c->client->service_discontinuation_date?->format('Y-m-d'),
+                                'billing_modality_kpi' => $c->client->billing_modality_kpi,
+                                'service_type_billing' => $c->client->service_type_billing,
+                                'license_billing' => $c->client->license_billing,
+                                'btrc_letter' => $c->client->btrc_letter,
+                                'security_coverage' => $c->client->security_coverage,
+                                'payment_plan' => $c->client->payment_plan,
+                                'other_upstream' => $c->client->other_upstream ? 'Yes' : 'No',
+                                'sm_kam' => $c->client->sm_kam,
+                                'team_name' => $c->client->team_name,
+                                'collection_kam' => $c->client->collection_kam,
+                                'collection_supervisor' => $c->client->collection_supervisor,
+                                'nttn_billing_kam' => $c->client->nttn_billing_kam,
+                                'iig_itc_billing_kam' => $c->client->iig_itc_billing_kam,
+                                'nttn_billing_commencement_date' => $c->client->nttn_billing_commencement_date?->format('Y-m-d'),
+                                'iig_itc_billing_commencement_date' => $c->client->iig_itc_billing_commencement_date?->format('Y-m-d'),
+                                
+                                'opening_cr' => number_format($c->opening_cr, 2),
+                                'opening_os' => number_format($c->total_opening_os, 2),
+                                'closing_cr' => number_format($c->latest_cr, 2),
+                                'closing_os' => number_format($c->total_latest_os, 2),
+                                'mrc' => number_format($c->total_mrc, 2),
+                                'backlog' => number_format($c->net_backlog_total, 2),
+                                'collection' => number_format($c->total_collection, 2),
+                                'payment_plan_amount' => number_format($c->total_payment_plan, 2),
+                                'shortfall' => number_format($c->shortfall_from_payment_plan ?? 0, 2),
+                                'current_month_remarks' => $c->current_month_remarks,
+                            ]) }}">
+                                {{ $c->client->client_name }}
+                            </a>
+                        @else
+                            N/A
+                        @endif
                     </td>
 
                     <td class="amount">
@@ -459,6 +586,22 @@
 
     </div>
 
+</div>
+
+{{-- CLIENT DETAILS MODAL --}}
+<div id="clientDetailsModal" class="modal">
+    <div class="modal-content large">
+        <span class="close" onclick="closeClientDetails()">&times;</span>
+        
+        <div class="modal-client-header">
+            <h2 class="modal-client-title" id="m-clientName">Client Details</h2>
+            <span class="modal-client-badge" id="m-clientStatus">Status</span>
+        </div>
+
+        <div id="clientDetailsModalBody">
+            <!-- Populated via Javascript -->
+        </div>
+    </div>
 </div>
 
 @endsection
@@ -680,6 +823,179 @@
 
     }
 
-</script>
+    function closeClientDetails() {
+        document.getElementById('clientDetailsModal').style.display = 'none';
+    }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatRemarks(str) {
+        if (!str) return 'No remarks provided.';
+        return escapeHtml(str).replace(/\n/g, '<br>');
+    }
+
+    document.querySelectorAll('.client-detail-link').forEach(link => {
+        link.addEventListener('click', function() {
+            const data = JSON.parse(this.dataset.summary);
+            
+            document.getElementById('m-clientName').innerText = data.client_name || 'N/A';
+            document.getElementById('m-clientStatus').innerText = data.client_status ? `Status: ${data.client_status}` : 'Status: Unknown';
+            
+            const body = document.getElementById('clientDetailsModalBody');
+            
+            body.innerHTML = `
+                <div class="details-grid">
+                    <!-- Section 1: Financial Summary -->
+                    <div class="details-section">
+                        <h3>Financial Metrics (This Month)</h3>
+                        <div class="details-row">
+                            <span class="details-label">Opening CR:</span>
+                            <span class="details-value">${data.opening_cr}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Closing CR:</span>
+                            <span class="details-value">${data.closing_cr}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Billed MRC:</span>
+                            <span class="details-value">${data.mrc}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Collection:</span>
+                            <span class="details-value">${data.collection}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Net Backlog:</span>
+                            <span class="details-value">${data.backlog}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Opening OS:</span>
+                            <span class="details-value">${data.opening_os}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Closing OS:</span>
+                            <span class="details-value">${data.closing_os}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Payment Plan:</span>
+                            <span class="details-value">${data.payment_plan_amount}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Shortfall:</span>
+                            <span class="details-value">${data.shortfall}</span>
+                        </div>
+                        <div class="details-row" style="flex-direction: column; align-items: flex-start; border-bottom: none; margin-top: 10px; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--line);">
+                            <span class="details-label" style="margin-bottom: 4px; color: var(--primary-dark);">Current Month Remarks:</span>
+                            <span class="details-value" style="text-align: left; font-weight: normal; color: var(--ink); line-height: 1.4; word-break: break-word; width: 100%;">${formatRemarks(data.current_month_remarks)}</span>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Account & KAM Assignment -->
+                    <div class="details-section">
+                        <h3>Account Details</h3>
+                        <div class="details-row">
+                            <span class="details-label">OPUS ID:</span>
+                            <span class="details-value">${data.opus_id || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Service Type:</span>
+                            <span class="details-value">${data.service_type_billing || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Team:</span>
+                            <span class="details-value">${data.team_name || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Collection KAM:</span>
+                            <span class="details-value">${data.collection_kam || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Collection Supervisor:</span>
+                            <span class="details-value">${data.collection_supervisor || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">SM KAM:</span>
+                            <span class="details-value">${data.sm_kam || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">NTTN Billing KAM:</span>
+                            <span class="details-value">${data.nttn_billing_kam || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">IIG/ITC Billing KAM:</span>
+                            <span class="details-value">${data.iig_itc_billing_kam || 'N/A'}</span>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Compliance & Legal -->
+                    <div class="details-section">
+                        <h3>Compliance & Dates</h3>
+                        <div class="details-row">
+                            <span class="details-label">Barring Priority:</span>
+                            <span class="details-value">${data.barring_priority || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Legal Status:</span>
+                            <span class="details-value">${data.legal}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Security Coverage:</span>
+                            <span class="details-value">${data.security_coverage || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">BTRC Letter:</span>
+                            <span class="details-value">${data.btrc_letter || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">License Billing:</span>
+                            <span class="details-value">${data.license_billing || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Other Upstream:</span>
+                            <span class="details-value">${data.other_upstream}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">BTRC Discontinuation:</span>
+                            <span class="details-value">${data.btrc_license_discontinuation_date || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">Service Discontinuation:</span>
+                            <span class="details-value">${data.service_discontinuation_date || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">NTTN Commenced:</span>
+                            <span class="details-value">${data.nttn_billing_commencement_date || 'N/A'}</span>
+                        </div>
+                        <div class="details-row">
+                            <span class="details-label">IIG/ITC Commenced:</span>
+                            <span class="details-value">${data.iig_itc_billing_commencement_date || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('clientDetailsModal').style.display = 'block';
+        });
+    });
+
+    window.addEventListener('click', (e) => {
+        const detailsModal = document.getElementById('clientDetailsModal');
+        const trendModal = document.getElementById('trendModal');
+        if (e.target === detailsModal) {
+            detailsModal.style.display = 'none';
+        }
+        if (e.target === trendModal) {
+            trendModal.style.display = 'none';
+        }
+    });
+
+</script>
 @endpush

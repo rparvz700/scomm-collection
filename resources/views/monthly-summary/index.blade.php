@@ -4,7 +4,33 @@
 
 @push('styles')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.6.0/dist/handsontable.full.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
+        /* Select2 overrides */
+        .select2-container--default .select2-selection--single {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            background: #ffffff;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 34px;
+        }
+        .select2-container .select2-selection--single .select2-selection__rendered {
+            color: var(--ink);
+            font-size: 13px;
+        }
+        .select2-dropdown {
+            border-color: var(--line);
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+        }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: var(--primary);
+        }
         .sheet-toolbar {
             display: flex;
             align-items: center;
@@ -62,13 +88,30 @@
         </div>
     </section>
 
-    <section class="sheet-toolbar">
+    <section class="sheet-toolbar" style="flex-wrap: wrap; gap: 20px;">
         <div class="sheet-actions">
             <button id="saveSheet" class="button primary" type="button">Save changes</button>
             <button id="validateSheet" class="button" type="button">Validate</button>
             <button id="addRow" class="button" type="button">Add row</button>
             <button id="exportCsv" class="button" type="button">Export CSV</button>
         </div>
+
+        <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+            <!-- Column Finder -->
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <label for="columnSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 13px;">Find Column:</label>
+                <select id="columnSearch" style="width: 180px;">
+                    <option value="">Select column...</option>
+                </select>
+            </div>
+            
+            <!-- Global Row Filter -->
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <label for="rowSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 13px;">Search Rows:</label>
+                <input id="rowSearch" type="text" placeholder="Type to filter..." style="min-width: 180px; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font-size: 13px; outline: none; background: #ffffff;">
+            </div>
+        </div>
+
         <div id="sheetStatus" class="sheet-status">Ready</div>
     </section>
 
@@ -82,6 +125,8 @@
 @endsection
 
 @push('scripts')
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable@14.6.0/dist/handsontable.full.min.js"></script>
     <script>
         const clients = @json($clients);
@@ -342,6 +387,73 @@
                     setStatus(`Validation failed at row ${first.row}, ${first.label}.`, 'error');
                 }
             },
+        });
+
+        $(document).ready(function() {
+            // Populate Column Finder select options
+            const colSelect = $('#columnSearch');
+            serverColumns.forEach((col) => {
+                colSelect.append(new Option(col.label, col.key));
+            });
+
+            // Initialize Select2 on Column Finder
+            colSelect.select2({
+                placeholder: "Search column...",
+                allowClear: true
+            });
+
+            // Scroll to column on select
+            colSelect.on('change select2:select', function() {
+                const colKey = $(this).val();
+                if (colKey) {
+                    const colIndex = hot.propToCol(colKey);
+                    if (colIndex >= 0) {
+                        // Scroll to column and highlight first cell
+                        hot.selectCell(0, colIndex);
+                        hot.scrollViewportTo(0, colIndex);
+                    }
+                }
+            });
+
+            // Global Row Filter using hiddenRows plugin
+            const rowSearchInput = document.getElementById('rowSearch');
+            rowSearchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase().trim();
+                const hiddenRowsPlugin = hot.getPlugin('hiddenRows');
+                
+                if (!query) {
+                    // Show all rows
+                    const count = hot.countRows();
+                    const allRows = Array.from({ length: count }, (_, i) => i);
+                    hiddenRowsPlugin.showRows(allRows);
+                    hot.render();
+                    return;
+                }
+
+                const rowsToHide = [];
+                const count = hot.countRows();
+
+                for (let r = 0; r < count; r++) {
+                    const rowData = hot.getSourceDataAtRow(r);
+                    if (!rowData) continue;
+
+                    // Check if any value matches query
+                    const matches = Object.values(rowData).some((val) => {
+                        if (val === null || val === undefined) return false;
+                        return String(val).toLowerCase().includes(query);
+                    });
+
+                    if (!matches) {
+                        rowsToHide.push(r);
+                    }
+                }
+
+                // Show all first to reset, then hide non-matching
+                const allRows = Array.from({ length: count }, (_, i) => i);
+                hiddenRowsPlugin.showRows(allRows);
+                hiddenRowsPlugin.hideRows(rowsToHide);
+                hot.render();
+            });
         });
 
         const validateGrid = () => new Promise((resolve) => {

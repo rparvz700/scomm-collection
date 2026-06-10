@@ -43,10 +43,7 @@
             flex-direction: column;
             justify-content: space-between;
             padding: 54px;
-            background:
-                linear-gradient(135deg, rgba(7, 89, 133, .92), rgba(15, 118, 110, .9)),
-                url("https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=1600&q=80") center/cover;
-            background-blend-mode: multiply;
+            
             color: #ffffff;
         }
 
@@ -203,7 +200,7 @@
 </head>
 <body>
     <main class="login-shell">
-        <section class="brand-panel" aria-label="SCOMM Collection">
+        <section class="brand-panel" aria-label="SCOMM Collection" style="background: linear-gradient(135deg, rgba(80, 103, 116, 0.7), rgba(15, 118, 109, 0.7)), url('{{ asset('/image/login_bg.png') }}');background-size: cover;background-position: center;background-repeat: no-repeat;">
             <div class="brand-mark">SCOMM Collection</div>
             <div class="brand-copy">
                 <h1>Collection control room</h1>

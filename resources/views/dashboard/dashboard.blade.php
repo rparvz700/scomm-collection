@@ -135,27 +135,48 @@
         .metric-advanced {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 6px;
+            padding: 14px 16px;
+        }
+
+        .metric-advanced span {
+            font-size: 11px;
+        }
+
+        .metric-advanced strong {
+            font-size: clamp(20px, 2.5vw, 26px);
+            margin-top: 2px;
         }
 
         .metric-insights {
             display: grid;
-            gap: 10px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            border-top: 1px solid var(--line);
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+
+        .metric-month {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
         }
 
         .metric-change {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 1px;
         }
 
         .metric-change strong {
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 800;
         }
 
         .metric-change span {
-            font-size: 12px;
+            font-size: 10px;
             color: var(--muted);
         }
 
@@ -165,6 +186,10 @@
 
         .metric-change.bad strong {
             color: #b42318;
+        }
+
+        .metric-change.neutral strong {
+            color: var(--muted);
         }
 
         .trend-card {
@@ -185,6 +210,47 @@
             white-space: nowrap;
         }
 
+        .team-performance-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .team-performance-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .team-performance-heading h2 {
+            margin: 0;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1.08;
+        }
+
+        .team-performance-heading span {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .team-performance-summary {
+            margin-bottom: 18px;
+        }
+
+        .team-performance-table th,
+        .team-performance-table td {
+            white-space: nowrap;
+        }
+
+        .team-performance-table td:first-child {
+            white-space: normal;
+            min-width: 180px;
+        }
+
         .panel {
             overflow-x: auto;
         }
@@ -193,11 +259,24 @@
             .dashboard-hero {
                 grid-template-columns: 1fr;
             }
+
+            .team-performance-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .team-performance-heading {
+                align-items: flex-start;
+                flex-direction: column;
+            }
         }
     </style>
 @endpush
 
 @section('content')
+
+@php
+    $currentMonthLabel = optional($latestSummary?->summary_month)->format('M Y') ?? 'No data';
+@endphp
 
 <div class="dashboard-slideshow">
 
@@ -225,7 +304,7 @@
                     <p class="dashboard-snapshot-label">Latest snapshot</p>
 
                     <p class="dashboard-snapshot-value">
-                        {{ optional($latestSummary?->summary_month)->format('M Y') ?? 'No data' }}
+                        {{ $currentMonthLabel }}
                     </p>
 
                     <div class="insight-statements">
@@ -237,28 +316,6 @@
                                 {{ number_format($collectionEfficiency, 2) }}%
                             </span>
                         </div>
-
-                        @if ($kamPerformance['best'])
-                            <div class="insight-statement">
-                                <strong>Best performing KAM:</strong>
-                                {{ $kamPerformance['best']['kam'] }}
-
-                                <span class="insight-change up">
-                                    {{ number_format($kamPerformance['best']['efficiency'], 2) }}%
-                                </span>
-                            </div>
-                        @endif
-
-                        @if ($kamPerformance['worst'])
-                            <div class="insight-statement">
-                                <strong>Worst performing KAM:</strong>
-                                {{ $kamPerformance['worst']['kam'] }}
-
-                                <span class="insight-change down">
-                                    {{ number_format($kamPerformance['worst']['efficiency'], 2) }}%
-                                </span>
-                            </div>
-                        @endif
 
                         <div class="insight-statement">
                             <strong>AI Insight:</strong>
@@ -281,6 +338,9 @@
         {{-- SLIDE 2 --}}
         <section class="dashboard-slide">
 
+        
+            <h3>{{ $currentMonthLabel }}</h3>
+
             <section class="grid four" aria-label="Collection metrics">
 
                 @php
@@ -293,8 +353,8 @@
                         ],
                         [
                             'title' => 'Total Billed MRC',
-                            'value' => number_format((float) $collectionTotal, 2),
-                            'comparison' => $metricComparisons['collection'],
+                            'value' => number_format((float) $billedMrcTotal, 2),
+                            'comparison' => $metricComparisons['mrc'],
                             'positive' => 'green',
                         ],
                         [
@@ -304,7 +364,13 @@
                             'positive' => 'green',
                         ],
                         [
-                            'title' => 'Latest OS',
+                            'title' => 'This month OS',
+                            'value' => number_format((float) $currentMonthOs, 2),
+                            'comparison' => $metricComparisons['current_month_os'],
+                            'positive' => 'red',
+                        ],
+                        [
+                            'title' => 'Latest total OS',
                             'value' => number_format((float) $latestOutstanding, 2),
                             'comparison' => $metricComparisons['os'],
                             'positive' => 'red',
@@ -326,34 +392,47 @@
 
                         <strong>{{ $card['value'] }}</strong>
 
-                        <div class="metric-insights">
+                        @if ($card['comparison'])
 
-                            @foreach ([
-                                'vs last month' => $card['comparison']['mom'],
-                                'vs last quarter' => $card['comparison']['qoq'],
-                            ] as $label => $change)
+                            <div class="metric-insights">
 
-                                @php
-                                    $isIncrease = $change >= 0;
+                                @foreach ([
+                                    'MoM' => $card['comparison']['mom'],
+                                    'QoQ' => $card['comparison']['qoq'],
+                                ] as $label => $change)
 
-                                    $class =
-                                        $card['positive'] === 'green'
-                                            ? ($isIncrease ? 'good' : 'bad')
-                                            : ($isIncrease ? 'bad' : 'good');
-                                @endphp
+                                    @php
+                                        $hasChange = $change !== null;
+                                        $isIncrease = $hasChange && $change >= 0;
 
-                                <div class="metric-change {{ $class }}">
-                                    <strong>
-                                        {{ number_format(abs($change ?? 0), 2) }}%
-                                        {{ $isIncrease ? '↑' : '↓' }}
-                                    </strong>
+                                        $class =
+                                            ! $hasChange
+                                                ? 'neutral'
+                                                : (
+                                                    $card['positive'] === 'green'
+                                                        ? ($isIncrease ? 'good' : 'bad')
+                                                        : ($isIncrease ? 'bad' : 'good')
+                                                );
+                                    @endphp
 
-                                    <span>{{ $label }}</span>
-                                </div>
+                                    <div class="metric-change {{ $class }}">
+                                        <strong>
+                                            @if ($hasChange)
+                                                {{ number_format(abs($change), 2) }}%
+                                                {{ $isIncrease ? '↑' : '↓' }}
+                                            @else
+                                                N/A
+                                            @endif
+                                        </strong>
 
-                            @endforeach
+                                        <span>{{ $label }}</span>
+                                    </div>
 
-                        </div>
+                                @endforeach
+
+                            </div>
+
+                        @endif
 
                     </article>
 
@@ -365,7 +444,7 @@
 
                 <div class="panel-header">
                     <h2>Backlog and collection trend</h2>
-                    <span>Month on month</span>
+                    <span>{{ $currentMonthLabel }} · Month on month</span>
                 </div>
 
                 <div class="trend-canvas-wrap">
@@ -385,7 +464,7 @@
 
                     <div class="panel-header">
                         <h2>{{ $segmentAnalysis[0]['name'] }}</h2>
-                        <span>Latest monthly summary</span>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                     </div>
 
                     <table class="segment-table">
@@ -511,7 +590,7 @@
 
                     <div class="panel-header">
                         <h2>{{ $segmentAnalysis[1]['name'] }}</h2>
-                        <span>Latest monthly summary</span>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                     </div>
 
                     <table class="segment-table">
@@ -637,7 +716,7 @@
 
                     <div class="panel-header">
                         <h2>Recent collections</h2>
-                        <span>Latest 5</span>
+                        <span>{{ $currentMonthLabel }} · Latest 5</span>
                     </div>
 
                     @if ($recentCollections->isNotEmpty())
@@ -688,7 +767,7 @@
 
                     <div class="panel-header">
                         <h2>Recent risk events</h2>
-                        <span>Latest 5</span>
+                        <span>{{ $currentMonthLabel }} · Latest 5</span>
                     </div>
 
                     @if ($recentRisks->isNotEmpty())
@@ -743,17 +822,116 @@
 
         </section>
 
+        {{-- SLIDE 6 --}}
+        <section class="dashboard-slide">
+
+            <section>
+
+                <div class="team-performance-heading">
+                    <h2>Team performance</h2>
+                    <span>{{ $currentMonthLabel }}</span>
+                </div>
+
+                <div class="team-performance-summary insight-statements">
+
+                    @if ($kamPerformance['best'])
+                        <div class="insight-statement">
+                            <strong>Best performing KAM:</strong>
+                            {{ $kamPerformance['best']['kam'] }}
+
+                            <span class="insight-change up">
+                                {{ number_format($kamPerformance['best']['efficiency'], 2) }}%
+                            </span>
+                        </div>
+                    @endif
+
+                    @if ($kamPerformance['worst'])
+                        <div class="insight-statement">
+                            <strong>Worst performing KAM:</strong>
+                            {{ $kamPerformance['worst']['kam'] }}
+
+                            <span class="insight-change down">
+                                {{ number_format($kamPerformance['worst']['efficiency'], 2) }}%
+                            </span>
+                        </div>
+                    @endif
+
+                </div>
+
+                @php
+                    $performanceTables = [
+                        'Teams' => $teams,
+                        'Collection KAMs' => $collectionKams,
+                        'Supervisors' => $supervisors,
+                        'SM KAMs' => $smKams,
+                    ];
+                @endphp
+
+                <div class="team-performance-grid">
+
+                    @foreach ($performanceTables as $title => $rows)
+
+                        <article class="panel">
+
+                            <div class="panel-header">
+                                <h2>{{ $title }}</h2>
+                                <span>{{ $currentMonthLabel }} · By efficiency</span>
+                            </div>
+
+                            @if (! empty($rows))
+
+                                <table class="team-performance-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Clients</th>
+                                            <th>Collection</th>
+                                            <th>Maturity</th>
+                                            <th>Efficiency</th>
+                                            <th>Latest OS</th>
+                                            <th>High risk</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        @foreach ($rows as $row)
+
+                                            <tr>
+                                                <td>{{ $row['name'] }}</td>
+                                                <td class="amount">{{ number_format($row['clients']) }}</td>
+                                                <td class="amount">{{ number_format($row['collection'], 2) }}</td>
+                                                <td class="amount">{{ number_format($row['maturity'], 2) }}</td>
+                                                <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
+                                                <td class="amount">{{ number_format($row['latest_os'], 2) }}</td>
+                                                <td class="amount">{{ number_format($row['high_risk']) }}</td>
+                                            </tr>
+
+                                        @endforeach
+
+                                    </tbody>
+                                </table>
+
+                            @else
+
+                                <div class="empty">
+                                    No performance data found.
+                                </div>
+
+                            @endif
+
+                        </article>
+
+                    @endforeach
+
+                </div>
+
+            </section>
+
+        </section>
+
     </div>
 
-</div>
-<div id="clientModal" class="modal">
-    <div class="modal-content large">
-        <span class="close" id="closeClientModal">&times;</span>
-
-        <h2>Client Details</h2>
-
-        <div id="clientModalBody"></div>
-    </div>
 </div>
 @endsection
 
@@ -849,63 +1027,6 @@
 
 </script>
 
-<script>
-    document.querySelectorAll('.client-drilldown').forEach(el => {
-        el.addEventListener('click', async function () {
 
-            const segment = this.dataset.segment;
-            const range = this.dataset.range;
-
-            const res = await fetch(`/dashboard/clients/drilldown?segment=${segment}&range=${range}`);
-            const data = await res.json();
-
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Client</th>
-                            <th>Opening CR</th>
-                            <th>Opening OS</th>
-                            <th>Closing CR</th>
-                            <th>Closing OS</th>
-                            <th>MRC</th>
-                            <th>Backlog</th>
-                            <th>Collection</th>
-                            <th>Payment Plan</th>
-                            <th>Shortfall</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            data.forEach(c => {
-                html += `
-                    <tr>
-                        <td>${c.client_name}</td>
-                        <td>${c.opening_cr}</td>
-                        <td>${c.opening_os}</td>
-                        <td>${c.closing_cr}</td>
-                        <td>${c.closing_os}</td>
-                        <td>${c.mrc}</td>
-                        <td>${c.backlog}</td>
-                        <td>${c.collection}</td>
-                        <td>${c.payment_plan}</td>
-                        <td>${c.shortfall_payment_plan}</td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table>`;
-
-            document.getElementById('clientModalBody').innerHTML = html;
-            document.getElementById('clientModal').style.display = 'block';
-        });
-    });
-
-    document.getElementById('closeClientModal').onclick = () => {
-        document.getElementById('clientModal').style.display = 'none';
-    };
-
-</script>
 
 @endpush
