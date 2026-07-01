@@ -4,6 +4,10 @@
 
 @push('styles')
     <style>
+        :root {
+            --shadow: 0 10px 25px rgba(15, 23, 42, 0.16), 0 2px 10px rgba(15, 23, 42, 0.08);
+        }
+
         .dashboard-slideshow {
             position: relative;
             overflow: hidden;
@@ -61,6 +65,7 @@
             gap: 22px;
             align-items: stretch;
             margin-bottom: 24px;
+            min-height: 65vh;
         }
 
         .dashboard-hero-main {
@@ -72,6 +77,9 @@
                 url("https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1400&q=80") center/cover;
             background-blend-mode: multiply;
             box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         .dashboard-hero-main h1 {
@@ -93,6 +101,9 @@
             padding: 24px;
             background: var(--panel);
             box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         .dashboard-snapshot-label {
@@ -202,7 +213,18 @@
         }
 
         .segment-table {
-            min-width: 1680px;
+            width: 100%;
+            min-width: 100%;
+        }
+
+        .breakdown-table {
+            min-width: 1350px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            width: 100%;
+            -webkit-overflow-scrolling: touch;
         }
 
         .segment-table th,
@@ -255,9 +277,35 @@
             overflow-x: auto;
         }
 
+        .subtotal-row {
+            background-color: #f1f5f9;
+        }
+        .grand-subtotal-row {
+            background-color: #cbd5e1; /* distinct darker slate color */
+        }
+        .subtotal-row td,
+        .grand-subtotal-row td {
+            color: var(--ink) !important;
+            border-top: 2px solid var(--line);
+            border-bottom: 2px solid var(--line);
+        }
+
+        /* Lower font-weight for regular values, higher weight for subtotal rows */
+        .breakdown-table td,
+        .breakdown-table td a {
+            font-weight: 500 !important;
+        }
+        .breakdown-table tr.subtotal-row td,
+        .breakdown-table tr.subtotal-row td a,
+        .breakdown-table tr.grand-subtotal-row td,
+        .breakdown-table tr.grand-subtotal-row td a {
+            font-weight: 800 !important;
+        }
+
         @media (max-width: 1100px) {
             .dashboard-hero {
                 grid-template-columns: 1fr;
+                min-height: auto;
             }
 
             .team-performance-grid {
@@ -269,6 +317,108 @@
                 flex-direction: column;
             }
         }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media print {
+            /* Set print page size and margins */
+            @page {
+                size: A4 landscape;
+                margin: 8mm;
+            }
+
+            /* Reset background and text colors */
+            body {
+                background: #ffffff !important;
+                color: #162033 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            /* Hide application toolbar, navigation buttons, and PDF export button */
+            .topbar,
+            .slide-nav,
+            #exportPdfBtn,
+            .no-print {
+                display: none !important;
+            }
+
+            /* Remove layout margins/padding from page container */
+            .page {
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: none !important;
+                box-shadow: none !important;
+            }
+
+            /* Ensure slideshow is fully visible and width-optimized */
+            .dashboard-slideshow {
+                width: 100% !important;
+                overflow: visible !important;
+                background: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            /* Arrange slideshow pages vertically for printing */
+            #slidesTrack {
+                display: block !important;
+                transform: none !important;
+                width: 100% !important;
+            }
+
+            /* Zoom out slide layout to fit Landscape A4 width beautifully */
+            .dashboard-slide {
+                width: 100% !important;
+                min-width: 100% !important;
+                page-break-before: always !important;
+                break-before: page !important;
+                zoom: 0.62;
+                padding: 0 !important;
+                margin: 0 0 24px 0 !important;
+            }
+
+            /* Expand scrollable panels fully and disable shadow overrides */
+            .panel {
+                overflow: visible !important;
+                overflow-x: visible !important;
+                max-width: none !important;
+                width: 100% !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+                border: 1px solid var(--line) !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin-bottom: 20px !important;
+            }
+
+            /* Make table fill full width and wrap cells where appropriate */
+            .segment-table {
+                width: 100% !important;
+                min-width: 0 !important;
+                table-layout: auto !important;
+            }
+
+            .segment-table th,
+            .segment-table td {
+                font-size: 11px !important;
+                padding: 10px 12px !important;
+                white-space: normal !important;
+            }
+
+            /* Stack side-by-side grids vertically to make tables readable */
+            .team-performance-grid,
+            .grid.two {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 20px !important;
+                width: 100% !important;
+            }
+        }
     </style>
 @endpush
 
@@ -276,6 +426,31 @@
 
 @php
     $currentMonthLabel = optional($latestSummary?->summary_month)->format('M Y') ?? 'No data';
+
+    $formatMil = function($val) {
+        if ($val === null || $val === '') return '';
+        return number_format((float) $val / 1000000, 1) . 'M';
+    };
+
+    $renderMoMArrow = function($currVal, $prevVal, $type) {
+        $curr = (float) $currVal;
+        $prev = (float) $prevVal;
+        if ($curr === $prev) return '';
+        
+        if ($type === 'good-up') {
+            if ($curr > $prev) {
+                return '<span style="color: #16a34a; margin-left: 4px; font-weight: bold;">▲</span>';
+            } else {
+                return '<span style="color: #dc2626; margin-left: 4px; font-weight: bold;">▼</span>';
+            }
+        } else { // good-down
+            if ($curr < $prev) {
+                return '<span style="color: #16a34a; margin-left: 4px; font-weight: bold;">▼</span>';
+            } else {
+                return '<span style="color: #dc2626; margin-left: 4px; font-weight: bold;">▲</span>';
+            }
+        }
+    };
 @endphp
 
 <div class="dashboard-slideshow">
@@ -317,15 +492,14 @@
                             </span>
                         </div>
 
-                        <div class="insight-statement">
-                            <strong>AI Insight:</strong>
-                            Potential risk spike detected in high backlog ISP customers.
-                        </div>
-
-                        <div class="insight-statement">
-                            <strong>AI Insight:</strong>
-                            Collection momentum improved during first 10 days.
-                        </div>
+                        @foreach ($dynamicInsights as $insight)
+                            <div class="insight-statement">
+                                <strong>Insight:</strong>
+                                <span class="insight-change {{ $insight['status'] }}">
+                                    {{ $insight['message'] }}
+                                </span>
+                            </div>
+                        @endforeach
 
                     </div>
 
@@ -346,55 +520,135 @@
                 @php
                     $cards = [
                         [
-                            'title' => 'Total clients',
-                            'value' => number_format($clientCount),
-                            'comparison' => $metricComparisons['clients'],
+                            'title' => 'Active clients',
+                            'value' => number_format($activeClientCount),
+                            'comparison' => $metricComparisons['active_clients'],
                             'positive' => 'green',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
                         ],
                         [
+                            'title' => 'Discont./Barred Clients',
+                            'value' => '<div style="display:flex; justify-content:space-between; width:100%;">
+
+                                            <div>
+                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                    ' . number_format($barredSubCount) . '
+                                                </span>
+                                                <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
+                                                    Barred
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                    ' . number_format($discontinuedSubCount) . '
+                                                </span>
+                                                <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
+                                                    Discont.
+                                                </span>
+                                            </div>
+
+                                        </div>',
+                            'is_html' => true,
+                            'comparison' => $metricComparisons['discontinued_clients'],
+                            'positive' => 'red',
+                            'bg_style' => 'background-color: #fef2f2 !important; border-color: #fecaca !important;',
+                            'text_style' => 'color: #991b1b !important;',
+                            'muted_style' => 'color: #b91c1c !important;',
+                        ],
+
+                        [
                             'title' => 'Total Billed MRC',
-                            'value' => number_format((float) $billedMrcTotal, 2),
+                            'value' => $formatMil($billedMrcTotal),
                             'comparison' => $metricComparisons['mrc'],
                             'positive' => 'green',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
                         ],
                         [
                             'title' => 'Total collection',
-                            'value' => number_format((float) $collectionTotal, 2),
+                            'value' => $formatMil($collectionTotal),
                             'comparison' => $metricComparisons['collection'],
                             'positive' => 'green',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
                         ],
                         [
                             'title' => 'This month OS',
-                            'value' => number_format((float) $currentMonthOs, 2),
+                            'value' => $formatMil($currentMonthOs),
                             'comparison' => $metricComparisons['current_month_os'],
                             'positive' => 'red',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
                         ],
                         [
                             'title' => 'Latest total OS',
-                            'value' => number_format((float) $latestOutstanding, 2),
+                            'value' => $formatMil($latestOutstanding),
                             'comparison' => $metricComparisons['os'],
                             'positive' => 'red',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
                         ],
                         [
                             'title' => 'High risk clients',
                             'value' => number_format($highRiskCount),
                             'comparison' => $metricComparisons['risk'],
                             'positive' => 'red',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
+                        ],
+                        [
+                            'title' => 'Discontinued Collection vs OS',
+                            'value' => '<div style="display:flex; justify-content:space-between; width:100%;">
+                                            <div>
+                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                    ' . $formatMil($discontinuedCollection) . '
+                                                </span>
+                                                <span style="font-size:11px; font-weight:500; color:#166534; text-transform:uppercase;">
+                                                    Coll.
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                    ' . $formatMil($discontinuedOpeningOs) . '
+                                                </span>
+                                                <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
+                                                    OS
+                                                </span>
+                                            </div>
+                                        </div>',
+                            'is_html' => true,
+                            'comparison' => $discontinuedComparison,
+                            'positive' => 'green',
+                            'bg_style' => 'background-color: #fef2f2 !important; border-color: #fecaca !important;',
+                            'text_style' => 'color: #991b1b !important;',
+                            'muted_style' => 'color: #b91c1c !important;',
                         ],
                     ];
                 @endphp
 
                 @foreach ($cards as $card)
 
-                    <article class="metric metric-advanced">
+                    <article class="metric metric-advanced" style="{{ $card['bg_style'] ?? '' }}">
 
-                        <span>{{ $card['title'] }}</span>
+                        <span style="{{ $card['muted_style'] ?? '' }}">{{ $card['title'] }}</span>
 
-                        <strong>{{ $card['value'] }}</strong>
+                        @if ($card['is_html'] ?? false)
+                            <strong style="{{ $card['text_style'] ?? '' }}">{!! $card['value'] !!}</strong>
+                        @else
+                            <strong style="{{ $card['text_style'] ?? '' }}">{{ $card['value'] }}</strong>
+                        @endif
 
                         @if ($card['comparison'])
 
-                            <div class="metric-insights">
+                            <div class="metric-insights" style="{{ isset($card['bg_style']) ? 'border-top-color: rgba(0,0,0,0.06) !important;' : '' }}">
 
                                 @foreach ([
                                     'MoM' => $card['comparison']['mom'],
@@ -415,7 +669,7 @@
                                                 );
                                     @endphp
 
-                                    <div class="metric-change {{ $class }}">
+                                    <div class="metric-change {{ $class }}" style="{{ $label === 'QoQ' ? 'align-items: flex-end; text-align: right;' : '' }}">
                                         <strong>
                                             @if ($hasChange)
                                                 {{ number_format(abs($change), 2) }}%
@@ -425,7 +679,7 @@
                                             @endif
                                         </strong>
 
-                                        <span>{{ $label }}</span>
+                                        <span style="{{ $card['muted_style'] ?? '' }}">{{ $label }}</span>
                                     </div>
 
                                 @endforeach
@@ -460,14 +714,84 @@
 
             @if(isset($segmentAnalysis[0]))
 
-                <article class="panel">
+                <article class="panel" style="margin-bottom: 24px;">
 
                     <div class="panel-header">
-                        <h2>{{ $segmentAnalysis[0]['name'] }}</h2>
-                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                        <h2>{{ $segmentAnalysis[0]['name'] }} - Month-on-Month Summary</h2>
                     </div>
 
                     <table class="segment-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="amount">Number of Clients</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">MRC</th>
+                                <th class="amount">Net Backlog</th>
+                                <th class="amount">Opening Avg. CR</th>
+                                <th class="amount">Latest OS</th>
+                                <th class="amount">Latest Avg. CR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $current0 = $segmentAnalysis[0]['comparisons'][0];
+                                $previous0 = $segmentAnalysis[0]['comparisons'][1];
+                            @endphp
+                            <tr>
+                                <td><strong>{{ $current0['month'] }}</strong></td>
+                                <td class="amount">
+                                    {{ number_format($current0['clients_count']) }}
+                                    {!! $renderMoMArrow($current0['clients_count'], $previous0['clients_count'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current0['opening_os_sum']) }}
+                                    {!! $renderMoMArrow($current0['opening_os_sum'], $previous0['opening_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current0['mrc_sum']) }}
+                                    {!! $renderMoMArrow($current0['mrc_sum'], $previous0['mrc_sum'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current0['backlog_sum']) }}
+                                    {!! $renderMoMArrow($current0['backlog_sum'], $previous0['backlog_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($current0['opening_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($current0['opening_cr_avg'], $previous0['opening_cr_avg'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current0['latest_os_sum']) }}
+                                    {!! $renderMoMArrow($current0['latest_os_sum'], $previous0['latest_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($current0['latest_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($current0['latest_cr_avg'], $previous0['latest_cr_avg'], 'good-down') !!}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>{{ $previous0['month'] }}</strong></td>
+                                <td class="amount">{{ number_format($previous0['clients_count']) }}</td>
+                                <td class="amount">{{ $formatMil($previous0['opening_os_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previous0['mrc_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previous0['backlog_sum']) }}</td>
+                                <td class="amount">{{ number_format($previous0['opening_cr_avg'], 2) }}</td>
+                                <td class="amount">{{ $formatMil($previous0['latest_os_sum']) }}</td>
+                                <td class="amount">{{ number_format($previous0['latest_cr_avg'], 2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </article>
+
+                <article class="panel">
+
+                    <div class="panel-header">
+                        <h2>{{ $segmentAnalysis[0]['name'] }} - CR Range Breakdown</h2>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                    </div>
+
+                    <table class="segment-table breakdown-table">
 
                         <thead>
                             <tr>
@@ -491,13 +815,73 @@
                         </thead>
 
                         <tbody>
+                            @php
+                                $subtotal1_client_count = 0;
+                                $subtotal1_opening_os_sum = 0;
+                                $subtotal1_latest_mrc_sum = 0;
+                                $subtotal1_net_backlog_sum = 0;
+                                $subtotal1_collection_this_month = 0;
+                                $subtotal1_closing_os_sum = 0;
+                                $subtotal1_cr_above_251 = 0;
+                                $subtotal1_proposed_for_barring = 0;
+                                $subtotal1_already_barred = 0;
+                                $subtotal1_opening_cr_weighted_sum = 0;
+                                $subtotal1_closing_cr_weighted_sum = 0;
+                                $subtotal1_percentage_total_net_backlog = 0;
+                                $subtotal1_percentage_total_mrc = 0;
+
+                                $subtotal2_client_count = 0;
+                                $subtotal2_opening_os_sum = 0;
+                                $subtotal2_latest_mrc_sum = 0;
+                                $subtotal2_net_backlog_sum = 0;
+                                $subtotal2_collection_this_month = 0;
+                                $subtotal2_closing_os_sum = 0;
+                                $subtotal2_cr_above_251 = 0;
+                                $subtotal2_proposed_for_barring = 0;
+                                $subtotal2_already_barred = 0;
+                                $subtotal2_opening_cr_weighted_sum = 0;
+                                $subtotal2_closing_cr_weighted_sum = 0;
+                                $subtotal2_percentage_total_net_backlog = 0;
+                                $subtotal2_percentage_total_mrc = 0;
+                            @endphp
 
                             @foreach ($segmentAnalysis[0]['rows'] as $row)
+                                @php
+                                    if ($loop->iteration <= 3) {
+                                        $subtotal1_client_count += $row['client_count'];
+                                        $subtotal1_opening_os_sum += $row['opening_os_sum'];
+                                        $subtotal1_latest_mrc_sum += $row['latest_mrc_sum'];
+                                        $subtotal1_net_backlog_sum += $row['net_backlog_sum'];
+                                        $subtotal1_collection_this_month += $row['collection_this_month'];
+                                        $subtotal1_closing_os_sum += $row['closing_os_sum'];
+                                        $subtotal1_cr_above_251 += $row['cr_above_251'];
+                                        $subtotal1_proposed_for_barring += $row['proposed_for_barring'];
+                                        $subtotal1_already_barred += $row['already_barred'];
+                                        $subtotal1_opening_cr_weighted_sum += $row['opening_avg_cr'] * $row['client_count'];
+                                        $subtotal1_closing_cr_weighted_sum += $row['closing_avg_cr'] * $row['client_count'];
+                                        $subtotal1_percentage_total_net_backlog += $row['percentage_total_net_backlog'];
+                                        $subtotal1_percentage_total_mrc += $row['percentage_total_mrc'];
+                                    } else {
+                                        $subtotal2_client_count += $row['client_count'];
+                                        $subtotal2_opening_os_sum += $row['opening_os_sum'];
+                                        $subtotal2_latest_mrc_sum += $row['latest_mrc_sum'];
+                                        $subtotal2_net_backlog_sum += $row['net_backlog_sum'];
+                                        $subtotal2_collection_this_month += $row['collection_this_month'];
+                                        $subtotal2_closing_os_sum += $row['closing_os_sum'];
+                                        $subtotal2_cr_above_251 += $row['cr_above_251'];
+                                        $subtotal2_proposed_for_barring += $row['proposed_for_barring'];
+                                        $subtotal2_already_barred += $row['already_barred'];
+                                        $subtotal2_opening_cr_weighted_sum += $row['opening_avg_cr'] * $row['client_count'];
+                                        $subtotal2_closing_cr_weighted_sum += $row['closing_avg_cr'] * $row['client_count'];
+                                        $subtotal2_percentage_total_net_backlog += $row['percentage_total_net_backlog'];
+                                        $subtotal2_percentage_total_mrc += $row['percentage_total_mrc'];
+                                    }
+                                @endphp
 
                                 <tr>
 
                                     <td>
-                                        <span class="pill {{ in_array($row['risk_category'], ['High', 'Critical', 'Severe'], true) ? 'high' : '' }}">
+                                        <span class="pill {{ in_array($row['risk_category'], ['Risky', 'High Risky', 'Most Risky'], true) ? 'high' : '' }}">
                                             {{ $row['cr_range'] }}
                                         </span>
                                     </td>
@@ -520,23 +904,23 @@
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['opening_os_sum'], 2) }}
+                                        {{ $formatMil($row['opening_os_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['latest_mrc_sum'], 2) }}
+                                        {{ $formatMil($row['latest_mrc_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['net_backlog_sum'], 2) }}
+                                        {{ $formatMil($row['net_backlog_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['collection_this_month'], 2) }}
+                                        {{ $formatMil($row['collection_this_month']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['closing_os_sum'], 2) }}
+                                        {{ $formatMil($row['closing_os_sum']) }}
                                     </td>
 
                                     <td class="amount">
@@ -544,7 +928,7 @@
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['total_net_backlog'], 2) }}
+                                        {{ $formatMil($row['total_net_backlog']) }}
                                     </td>
 
                                     <td class="amount">
@@ -569,6 +953,86 @@
 
                                 </tr>
 
+                                @if ($loop->iteration === 3)
+                                    <tr class="subtotal-row">
+                                        <td>Subtotal (0.00 - 2.50)</td>
+                                        <td>Best - Moderate</td>
+                                        <td class="amount">{{ number_format($subtotal1_client_count) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal1_client_count > 0 ? ($subtotal1_opening_cr_weighted_sum / $subtotal1_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal1_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal1_client_count > 0 ? ($subtotal1_closing_cr_weighted_sum / $subtotal1_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_already_barred) }}</td>
+                                    </tr>
+                                @endif
+
+                                @if ($loop->iteration === 6)
+                                    <tr class="subtotal-row">
+                                        <td>Subtotal (>= 2.51)</td>
+                                        <td>Risky - Most Risky</td>
+                                        <td class="amount">{{ number_format($subtotal2_client_count) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal2_client_count > 0 ? ($subtotal2_opening_cr_weighted_sum / $subtotal2_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal2_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal2_client_count > 0 ? ($subtotal2_closing_cr_weighted_sum / $subtotal2_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal2_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal2_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_already_barred) }}</td>
+                                    </tr>
+
+                                    <tr class="grand-subtotal-row">
+                                        <td>Total / Grand Subtotal</td>
+                                        <td>All Categories</td>
+                                        <td class="amount">{{ number_format($subtotal1_client_count + $subtotal2_client_count) }}</td>
+                                        <td class="amount">
+                                            @php
+                                                $grand_client_count = $subtotal1_client_count + $subtotal2_client_count;
+                                                $grand_opening_avg = $grand_client_count > 0 ? (($subtotal1_opening_cr_weighted_sum + $subtotal2_opening_cr_weighted_sum) / $grand_client_count) : 0;
+                                            @endphp
+                                            {{ number_format($grand_opening_avg, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal1_opening_os_sum + $subtotal2_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_latest_mrc_sum + $subtotal2_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_net_backlog_sum + $subtotal2_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_collection_this_month + $subtotal2_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_closing_os_sum + $subtotal2_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            @php
+                                                $grand_closing_avg = $grand_client_count > 0 ? (($subtotal1_closing_cr_weighted_sum + $subtotal2_closing_cr_weighted_sum) / $grand_client_count) : 0;
+                                            @endphp
+                                            {{ number_format($grand_closing_avg, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_net_backlog + $subtotal2_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_mrc + $subtotal2_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_cr_above_251 + $subtotal2_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_proposed_for_barring + $subtotal2_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_already_barred + $subtotal2_already_barred) }}</td>
+                                    </tr>
+                                @endif
+
                             @endforeach
 
                         </tbody>
@@ -586,14 +1050,84 @@
 
             @if(isset($segmentAnalysis[1]))
 
-                <article class="panel">
+                <article class="panel" style="margin-bottom: 24px;">
 
                     <div class="panel-header">
-                        <h2>{{ $segmentAnalysis[1]['name'] }}</h2>
-                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                        <h2>{{ $segmentAnalysis[1]['name'] }} - Month-on-Month Summary</h2>
                     </div>
 
                     <table class="segment-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="amount">Number of Clients</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">MRC</th>
+                                <th class="amount">Net Backlog</th>
+                                <th class="amount">Opening Avg. CR</th>
+                                <th class="amount">Latest OS</th>
+                                <th class="amount">Latest Avg. CR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $current1 = $segmentAnalysis[1]['comparisons'][0];
+                                $previous1 = $segmentAnalysis[1]['comparisons'][1];
+                            @endphp
+                            <tr>
+                                <td><strong>{{ $current1['month'] }}</strong></td>
+                                <td class="amount">
+                                    {{ number_format($current1['clients_count']) }}
+                                    {!! $renderMoMArrow($current1['clients_count'], $previous1['clients_count'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current1['opening_os_sum']) }}
+                                    {!! $renderMoMArrow($current1['opening_os_sum'], $previous1['opening_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current1['mrc_sum']) }}
+                                    {!! $renderMoMArrow($current1['mrc_sum'], $previous1['mrc_sum'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current1['backlog_sum']) }}
+                                    {!! $renderMoMArrow($current1['backlog_sum'], $previous1['backlog_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($current1['opening_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($current1['opening_cr_avg'], $previous1['opening_cr_avg'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($current1['latest_os_sum']) }}
+                                    {!! $renderMoMArrow($current1['latest_os_sum'], $previous1['latest_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($current1['latest_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($current1['latest_cr_avg'], $previous1['latest_cr_avg'], 'good-down') !!}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>{{ $previous1['month'] }}</strong></td>
+                                <td class="amount">{{ number_format($previous1['clients_count']) }}</td>
+                                <td class="amount">{{ $formatMil($previous1['opening_os_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previous1['mrc_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previous1['backlog_sum']) }}</td>
+                                <td class="amount">{{ number_format($previous1['opening_cr_avg'], 2) }}</td>
+                                <td class="amount">{{ $formatMil($previous1['latest_os_sum']) }}</td>
+                                <td class="amount">{{ number_format($previous1['latest_cr_avg'], 2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </article>
+
+                <article class="panel">
+
+                    <div class="panel-header">
+                        <h2>{{ $segmentAnalysis[1]['name'] }} - CR Range Breakdown</h2>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                    </div>
+
+                    <table class="segment-table breakdown-table">
 
                         <thead>
                             <tr>
@@ -617,13 +1151,73 @@
                         </thead>
 
                         <tbody>
+                            @php
+                                $subtotal1_client_count = 0;
+                                $subtotal1_opening_os_sum = 0;
+                                $subtotal1_latest_mrc_sum = 0;
+                                $subtotal1_net_backlog_sum = 0;
+                                $subtotal1_collection_this_month = 0;
+                                $subtotal1_closing_os_sum = 0;
+                                $subtotal1_cr_above_251 = 0;
+                                $subtotal1_proposed_for_barring = 0;
+                                $subtotal1_already_barred = 0;
+                                $subtotal1_opening_cr_weighted_sum = 0;
+                                $subtotal1_closing_cr_weighted_sum = 0;
+                                $subtotal1_percentage_total_net_backlog = 0;
+                                $subtotal1_percentage_total_mrc = 0;
+
+                                $subtotal2_client_count = 0;
+                                $subtotal2_opening_os_sum = 0;
+                                $subtotal2_latest_mrc_sum = 0;
+                                $subtotal2_net_backlog_sum = 0;
+                                $subtotal2_collection_this_month = 0;
+                                $subtotal2_closing_os_sum = 0;
+                                $subtotal2_cr_above_251 = 0;
+                                $subtotal2_proposed_for_barring = 0;
+                                $subtotal2_already_barred = 0;
+                                $subtotal2_opening_cr_weighted_sum = 0;
+                                $subtotal2_closing_cr_weighted_sum = 0;
+                                $subtotal2_percentage_total_net_backlog = 0;
+                                $subtotal2_percentage_total_mrc = 0;
+                            @endphp
 
                             @foreach ($segmentAnalysis[1]['rows'] as $row)
+                                @php
+                                    if ($loop->iteration <= 3) {
+                                        $subtotal1_client_count += $row['client_count'];
+                                        $subtotal1_opening_os_sum += $row['opening_os_sum'];
+                                        $subtotal1_latest_mrc_sum += $row['latest_mrc_sum'];
+                                        $subtotal1_net_backlog_sum += $row['net_backlog_sum'];
+                                        $subtotal1_collection_this_month += $row['collection_this_month'];
+                                        $subtotal1_closing_os_sum += $row['closing_os_sum'];
+                                        $subtotal1_cr_above_251 += $row['cr_above_251'];
+                                        $subtotal1_proposed_for_barring += $row['proposed_for_barring'];
+                                        $subtotal1_already_barred += $row['already_barred'];
+                                        $subtotal1_opening_cr_weighted_sum += $row['opening_avg_cr'] * $row['client_count'];
+                                        $subtotal1_closing_cr_weighted_sum += $row['closing_avg_cr'] * $row['client_count'];
+                                        $subtotal1_percentage_total_net_backlog += $row['percentage_total_net_backlog'];
+                                        $subtotal1_percentage_total_mrc += $row['percentage_total_mrc'];
+                                    } else {
+                                        $subtotal2_client_count += $row['client_count'];
+                                        $subtotal2_opening_os_sum += $row['opening_os_sum'];
+                                        $subtotal2_latest_mrc_sum += $row['latest_mrc_sum'];
+                                        $subtotal2_net_backlog_sum += $row['net_backlog_sum'];
+                                        $subtotal2_collection_this_month += $row['collection_this_month'];
+                                        $subtotal2_closing_os_sum += $row['closing_os_sum'];
+                                        $subtotal2_cr_above_251 += $row['cr_above_251'];
+                                        $subtotal2_proposed_for_barring += $row['proposed_for_barring'];
+                                        $subtotal2_already_barred += $row['already_barred'];
+                                        $subtotal2_opening_cr_weighted_sum += $row['opening_avg_cr'] * $row['client_count'];
+                                        $subtotal2_closing_cr_weighted_sum += $row['closing_avg_cr'] * $row['client_count'];
+                                        $subtotal2_percentage_total_net_backlog += $row['percentage_total_net_backlog'];
+                                        $subtotal2_percentage_total_mrc += $row['percentage_total_mrc'];
+                                    }
+                                @endphp
 
                                 <tr>
 
                                     <td>
-                                        <span class="pill {{ in_array($row['risk_category'], ['High', 'Critical', 'Severe'], true) ? 'high' : '' }}">
+                                        <span class="pill {{ in_array($row['risk_category'], ['Risky', 'High Risky', 'Most Risky'], true) ? 'high' : '' }}">
                                             {{ $row['cr_range'] }}
                                         </span>
                                     </td>
@@ -646,23 +1240,23 @@
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['opening_os_sum'], 2) }}
+                                        {{ $formatMil($row['opening_os_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['latest_mrc_sum'], 2) }}
+                                        {{ $formatMil($row['latest_mrc_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['net_backlog_sum'], 2) }}
+                                        {{ $formatMil($row['net_backlog_sum']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['collection_this_month'], 2) }}
+                                        {{ $formatMil($row['collection_this_month']) }}
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['closing_os_sum'], 2) }}
+                                        {{ $formatMil($row['closing_os_sum']) }}
                                     </td>
 
                                     <td class="amount">
@@ -670,7 +1264,7 @@
                                     </td>
 
                                     <td class="amount">
-                                        {{ number_format($row['total_net_backlog'], 2) }}
+                                        {{ $formatMil($row['total_net_backlog']) }}
                                     </td>
 
                                     <td class="amount">
@@ -695,6 +1289,86 @@
 
                                 </tr>
 
+                                @if ($loop->iteration === 3)
+                                    <tr class="subtotal-row">
+                                        <td>Subtotal (0.00 - 2.50)</td>
+                                        <td>Best - Moderate</td>
+                                        <td class="amount">{{ number_format($subtotal1_client_count) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal1_client_count > 0 ? ($subtotal1_opening_cr_weighted_sum / $subtotal1_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal1_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal1_client_count > 0 ? ($subtotal1_closing_cr_weighted_sum / $subtotal1_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_already_barred) }}</td>
+                                    </tr>
+                                @endif
+
+                                @if ($loop->iteration === 6)
+                                    <tr class="subtotal-row">
+                                        <td>Subtotal (>= 2.51)</td>
+                                        <td>Risky - Most Risky</td>
+                                        <td class="amount">{{ number_format($subtotal2_client_count) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal2_client_count > 0 ? ($subtotal2_opening_cr_weighted_sum / $subtotal2_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal2_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal2_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            {{ number_format($subtotal2_client_count > 0 ? ($subtotal2_closing_cr_weighted_sum / $subtotal2_client_count) : 0, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal2_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal2_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal2_already_barred) }}</td>
+                                    </tr>
+
+                                    <tr class="grand-subtotal-row">
+                                        <td>Total / Grand Subtotal</td>
+                                        <td>All Categories</td>
+                                        <td class="amount">{{ number_format($subtotal1_client_count + $subtotal2_client_count) }}</td>
+                                        <td class="amount">
+                                            @php
+                                                $grand_client_count = $subtotal1_client_count + $subtotal2_client_count;
+                                                $grand_opening_avg = $grand_client_count > 0 ? (($subtotal1_opening_cr_weighted_sum + $subtotal2_opening_cr_weighted_sum) / $grand_client_count) : 0;
+                                            @endphp
+                                            {{ number_format($grand_opening_avg, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($subtotal1_opening_os_sum + $subtotal2_opening_os_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_latest_mrc_sum + $subtotal2_latest_mrc_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_net_backlog_sum + $subtotal2_net_backlog_sum) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_collection_this_month + $subtotal2_collection_this_month) }}</td>
+                                        <td class="amount">{{ $formatMil($subtotal1_closing_os_sum + $subtotal2_closing_os_sum) }}</td>
+                                        <td class="amount">
+                                            @php
+                                                $grand_closing_avg = $grand_client_count > 0 ? (($subtotal1_closing_cr_weighted_sum + $subtotal2_closing_cr_weighted_sum) / $grand_client_count) : 0;
+                                            @endphp
+                                            {{ number_format($grand_closing_avg, 2) }}
+                                        </td>
+                                        <td class="amount">{{ $formatMil($row['total_net_backlog']) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_net_backlog + $subtotal2_percentage_total_net_backlog, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_percentage_total_mrc + $subtotal2_percentage_total_mrc, 2) }}%</td>
+                                        <td class="amount">{{ number_format($subtotal1_cr_above_251 + $subtotal2_cr_above_251) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_proposed_for_barring + $subtotal2_proposed_for_barring) }}</td>
+                                        <td class="amount">{{ number_format($subtotal1_already_barred + $subtotal2_already_barred) }}</td>
+                                    </tr>
+                                @endif
+
                             @endforeach
 
                         </tbody>
@@ -710,115 +1384,153 @@
         {{-- SLIDE 5 --}}
         <section class="dashboard-slide">
 
-            <section class="grid two">
+            @if(!empty($discontinuedAnalysis) && isset($discontinuedAnalysis['comparisons'][0]))
 
-                <article class="panel">
+                <article class="panel" style="margin-bottom: 24px;">
 
                     <div class="panel-header">
-                        <h2>Recent collections</h2>
-                        <span>{{ $currentMonthLabel }} · Latest 5</span>
+                        <h2>Discontinued Clients - Month-on-Month Summary</h2>
                     </div>
 
-                    @if ($recentCollections->isNotEmpty())
-
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Client</th>
-                                    <th>Type</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-
-                                @foreach ($recentCollections as $collection)
-
-                                    <tr>
-                                        <td>{{ $collection->client->client_name ?? 'Unknown client' }}</td>
-
-                                        <td>
-                                            <span class="pill">
-                                                {{ str_replace('_', ' ', $collection->collection_type) }}
-                                            </span>
-                                        </td>
-
-                                        <td class="amount">
-                                            {{ number_format((float) $collection->collection_amount, 2) }}
-                                        </td>
-                                    </tr>
-
-                                @endforeach
-
-                            </tbody>
-                        </table>
-
-                    @else
-
-                        <div class="empty">
-                            No collection records found.
-                        </div>
-
-                    @endif
+                    <table class="segment-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="amount">Number of Clients</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">Target</th>
+                                <th class="amount">Collection</th>
+                                <th class="amount">Latest OS</th>
+                                <th class="amount">Shortfall Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $discCurrent = $discontinuedAnalysis['comparisons'][0];
+                                $discPrevious = $discontinuedAnalysis['comparisons'][1];
+                            @endphp
+                            <tr>
+                                <td><strong>{{ $discCurrent['month'] }}</strong></td>
+                                <td class="amount">
+                                    {{ number_format($discCurrent['clients_count']) }}
+                                    {!! $renderMoMArrow($discCurrent['clients_count'], $discPrevious['clients_count'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($discCurrent['opening_os_sum']) }}
+                                    {!! $renderMoMArrow($discCurrent['opening_os_sum'], $discPrevious['opening_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($discCurrent['target_sum']) }}
+                                    {!! $renderMoMArrow($discCurrent['target_sum'], $discPrevious['target_sum'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($discCurrent['collection_sum']) }}
+                                    {!! $renderMoMArrow($discCurrent['collection_sum'], $discPrevious['collection_sum'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($discCurrent['latest_os_sum']) }}
+                                    {!! $renderMoMArrow($discCurrent['latest_os_sum'], $discPrevious['latest_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($discCurrent['shortfall_sum']) }}
+                                    {!! $renderMoMArrow($discCurrent['shortfall_sum'], $discPrevious['shortfall_sum'], 'good-down') !!}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>{{ $discPrevious['month'] }}</strong></td>
+                                <td class="amount">{{ number_format($discPrevious['clients_count']) }}</td>
+                                <td class="amount">{{ $formatMil($discPrevious['opening_os_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($discPrevious['target_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($discPrevious['collection_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($discPrevious['latest_os_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($discPrevious['shortfall_sum']) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
 
                 </article>
 
                 <article class="panel">
 
                     <div class="panel-header">
-                        <h2>Recent risk events</h2>
-                        <span>{{ $currentMonthLabel }} · Latest 5</span>
+                        <h2>Discontinued Clients - Service Category Breakdown</h2>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                     </div>
+                    <table class="segment-table">
+                        <thead>
+                            <tr>
+                                <th>Service Category</th>
+                                <th class="amount">Clients</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">Collection</th>
+                                <th class="amount">Latest OS</th>
+                                <th class="amount">Unbilled OS</th>
+                            </tr>
+                        </thead>
 
-                    @if ($recentRisks->isNotEmpty())
+                        <tbody>
+                            @php
+                                $grand_client_count = 0;
+                                $grand_opening_os = 0;
+                                $grand_collection = 0;
+                                $grand_latest_os = 0;
+                                $grand_unbilled_os = 0;
+                            @endphp
 
-                        <table>
+                            @foreach ($discontinuedAnalysis['rows'] as $row)
+                                @php
+                                    $grand_client_count += $row['client_count'];
+                                    $grand_opening_os += $row['opening_os'];
+                                    $grand_collection += $row['collection'];
+                                    $grand_latest_os += $row['latest_os'];
+                                    $grand_unbilled_os += $row['unbilled_os'];
+                                @endphp
 
-                            <thead>
                                 <tr>
-                                    <th>Client</th>
-                                    <th>Category</th>
-                                    <th>CR</th>
+                                    <td>
+                                        <span class="pill">
+                                            {{ $row['category'] }}
+                                        </span>
+                                    </td>
+                                    <td class="amount" style="font-weight: 500;">
+                                        <a href="{{ route('dashboard.discontinued-clients.index', [
+                                            'category' => $row['category'],
+                                            'month' => $discontinuedAnalysis['latestMonth'] ? ($discontinuedAnalysis['latestMonth'] instanceof \Carbon\Carbon ? $discontinuedAnalysis['latestMonth']->format('Y-m') : \Carbon\Carbon::parse($discontinuedAnalysis['latestMonth'])->format('Y-m')) : ''
+                                        ]) }}" target="_blank">
+                                            {{ number_format($row['client_count']) }}
+                                        </a>
+                                    </td>
+                                    <td class="amount" style="font-weight: 500;">
+                                        {{ $formatMil($row['opening_os']) }}
+                                    </td>
+                                    <td class="amount" style="font-weight: 500;">
+                                        {{ $formatMil($row['collection']) }}
+                                    </td>
+                                    <td class="amount" style="font-weight: 500;">
+                                        {{ $formatMil($row['latest_os']) }}
+                                    </td>
+                                    <td class="amount" style="font-weight: 500;">
+                                        {{ $formatMil($row['unbilled_os']) }}
+                                    </td>
                                 </tr>
-                            </thead>
+                            @endforeach
 
-                            <tbody>
+                            <tr class="grand-subtotal-row" style="background-color: #cbd5e1 !important; font-weight: 800;">
+                                <td>Total / Grand Subtotal</td>
+                                <td class="amount" style="font-weight: 800;">{{ number_format($grand_client_count) }}</td>
+                                <td class="amount" style="font-weight: 800;">{{ $formatMil($grand_opening_os) }}</td>
+                                <td class="amount" style="font-weight: 800;">{{ $formatMil($grand_collection) }}</td>
+                                <td class="amount" style="font-weight: 800;">{{ $formatMil($grand_latest_os) }}</td>
+                                <td class="amount" style="font-weight: 800;">{{ $formatMil($grand_unbilled_os) }}</td>
+                            </tr>
 
-                                @foreach ($recentRisks as $risk)
+                        </tbody>
 
-                                    <tr>
-
-                                        <td>{{ $risk->client->client_name ?? 'Unknown client' }}</td>
-
-                                        <td>
-                                            <span class="pill {{ $risk->rating_category === 'High' ? 'high' : '' }}">
-                                                {{ $risk->rating_category }}
-                                            </span>
-                                        </td>
-
-                                        <td class="amount">
-                                            {{ number_format((float) $risk->cr_value, 2) }}
-                                        </td>
-
-                                    </tr>
-
-                                @endforeach
-
-                            </tbody>
-
-                        </table>
-
-                    @else
-
-                        <div class="empty">
-                            No risk events found.
-                        </div>
-
-                    @endif
+                    </table>
 
                 </article>
 
-            </section>
+            @endif
 
         </section>
 
@@ -900,10 +1612,10 @@
                                             <tr>
                                                 <td>{{ $row['name'] }}</td>
                                                 <td class="amount">{{ number_format($row['clients']) }}</td>
-                                                <td class="amount">{{ number_format($row['collection'], 2) }}</td>
-                                                <td class="amount">{{ number_format($row['maturity'], 2) }}</td>
+                                                <td class="amount">{{ $formatMil($row['collection']) }}</td>
+                                                <td class="amount">{{ $formatMil($row['maturity']) }}</td>
                                                 <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
-                                                <td class="amount">{{ number_format($row['latest_os'], 2) }}</td>
+                                                <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
                                                 <td class="amount">{{ number_format($row['high_risk']) }}</td>
                                             </tr>
 
@@ -927,6 +1639,132 @@
                 </div>
 
             </section>
+
+        </section>
+
+        {{-- SLIDE 7 --}}
+        <section class="dashboard-slide">
+
+            <section class="grid two">
+
+                <article class="panel">
+
+                    <div class="panel-header">
+                        <h2>Recent collections</h2>
+                        <span>{{ $currentMonthLabel }} · Latest 5</span>
+                    </div>
+
+                    @if ($recentCollections->isNotEmpty())
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach ($recentCollections as $collection)
+
+                                    <tr>
+                                        <td>{{ $collection->client->client_name ?? 'Unknown client' }}</td>
+
+                                        <td>
+                                            <span class="pill">
+                                                {{ str_replace('_', ' ', $collection->collection_type) }}
+                                            </span>
+                                        </td>
+
+                                        <td class="amount">
+                                            {{ $formatMil($collection->collection_amount) }}
+                                        </td>
+                                    </tr>
+
+                                @endforeach
+
+                            </tbody>
+                        </table>
+
+                    @else
+
+                        <div class="empty">
+                            No collection records found.
+                        </div>
+
+                    @endif
+
+                </article>
+
+                <article class="panel">
+
+                    <div class="panel-header">
+                        <h2>Recent risk events</h2>
+                        <span>{{ $currentMonthLabel }} · Latest 5</span>
+                    </div>
+
+                    @if ($recentRisks->isNotEmpty())
+
+                        <table>
+
+                            <thead>
+                                <tr>
+                                    <th>Client</th>
+                                    <th>Category</th>
+                                    <th>CR</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach ($recentRisks as $risk)
+
+                                    <tr>
+
+                                        <td>{{ $risk->client->client_name ?? 'Unknown client' }}</td>
+
+                                        <td>
+                                            <span class="pill {{ $risk->rating_category === 'High' ? 'high' : '' }}">
+                                                {{ $risk->rating_category }}
+                                            </span>
+                                        </td>
+
+                                        <td class="amount">
+                                            {{ number_format((float) $risk->cr_value, 2) }}
+                                        </td>
+
+                                    </tr>
+
+                                @endforeach
+
+                            </tbody>
+
+                        </table>
+
+                    @else
+
+                        <div class="empty">
+                            No risk events found.
+                        </div>
+
+                    @endif
+
+                </article>
+
+            </section>
+
+            <div class="no-print" style="display: flex; justify-content: center; margin-top: 30px; margin-bottom: 20px;">
+                <button id="exportPdfBtn" class="button primary" style="min-height: 48px; padding: 0 32px; font-size: 16px; font-weight: 800; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 10px 25px rgba(15, 118, 110, 0.25);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export Dashboard to PDF
+                </button>
+            </div>
 
         </section>
 
@@ -979,6 +1817,31 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(1) + 'M';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + 'M';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
             },
         });
     }
@@ -1024,9 +1887,15 @@
             prevSlideBtn.click();
         }
     });
+    document.getElementById('exportPdfBtn')?.addEventListener('click', function() {
+        window.print();
+    });
 
+    document.querySelectorAll('.segment-table').forEach(table => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+    });
 </script>
-
-
-
 @endpush

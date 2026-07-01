@@ -281,6 +281,8 @@
                     <th class="sortable" data-sort="service_type_billing">Service Type</th>
                     <th class="sortable" data-sort="team_name">Team Name</th>
                     <th class="sortable" data-sort="collection_kam">Collection KAM</th>
+                    <th class="sortable" data-sort="current_month_cr">Current Month CR</th>
+                    <th class="sortable" data-sort="risk_segment">Risk Segment</th>
                     <th style="width: 150px;">Actions</th>
                 </tr>
             </thead>
@@ -317,6 +319,37 @@
             </div>
         </form>
     </div>
+
+    {{-- CLIENT LOGS MODAL --}}
+    <div id="clientLogsModal" class="discontinue-modal" style="z-index: 10001;">
+        <div class="discontinue-modal-content" style="max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            <span style="float: right; font-size: 24px; cursor: pointer; font-weight: bold; line-height: 1; color: var(--muted); margin-top: -10px;" onclick="closeLogsModal()">&times;</span>
+            <h2 style="margin-top: 0; margin-bottom: 15px; font-size: 20px; color: var(--primary-dark); border-bottom: 2px solid var(--line); padding-bottom: 8px;">
+                Client Audit Logs: <span id="logModalClientName" style="color: var(--ink);">Client Name</span>
+            </h2>
+            
+            <div style="overflow-x: auto; margin-top: 15px; border: 1px solid var(--line); border-radius: 6px;">
+                <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
+                    <thead>
+                        <tr style="background: #f8fafc; border-bottom: 1px solid var(--line);">
+                            <th style="padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; text-align: left;">Date</th>
+                            <th style="padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; text-align: left;">Field</th>
+                            <th style="padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; text-align: left;">Old Value</th>
+                            <th style="padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; text-align: left;">New Value</th>
+                            <th style="padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; text-align: left;">Updated By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientLogsTableBody">
+                        <!-- Filled dynamically via JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button class="button primary" type="button" onclick="closeLogsModal()">Close</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -337,11 +370,65 @@
             document.getElementById('discontinueModal').style.display = 'none';
         }
 
+        async function openLogsModal(clientId, clientName) {
+            document.getElementById('logModalClientName').innerText = clientName;
+            const tableBody = document.getElementById('clientLogsTableBody');
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--muted);">Loading logs...</td></tr>`;
+            
+            const modal = document.getElementById('clientLogsModal');
+            modal.style.display = 'flex';
+            
+            try {
+                const response = await fetch(`/clients/${clientId}/logs`);
+                const logs = await response.json();
+                
+                tableBody.innerHTML = '';
+                if (logs && logs.length > 0) {
+                    logs.forEach(log => {
+                        const tr = document.createElement('tr');
+                        tr.style.borderBottom = '1px solid #edf2f7';
+                        
+                        tr.innerHTML = `
+                            <td style="padding: 10px 12px; font-size: 13px; color: var(--ink); white-space: nowrap;">${escapeHtml(log.date)}</td>
+                            <td style="padding: 10px 12px; font-size: 13px; font-weight: 700; color: var(--ink);">${escapeHtml(log.field)}</td>
+                            <td style="padding: 10px 12px; font-size: 13px; color: var(--muted);">${escapeHtml(log.old)}</td>
+                            <td style="padding: 10px 12px; font-size: 13px; font-weight: 700; color: var(--primary-dark);">${escapeHtml(log.new)}</td>
+                            <td style="padding: 10px 12px; font-size: 13px; color: var(--ink); white-space: nowrap;">${escapeHtml(log.user)}</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--muted);">No logs found for this client.</td></tr>`;
+                }
+            } catch (err) {
+                console.error(err);
+                tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">Failed to load logs. Please try again.</td></tr>`;
+            }
+        }
+
+        function closeLogsModal() {
+            document.getElementById('clientLogsModal').style.display = 'none';
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         // Close when clicking background
         window.addEventListener('click', (e) => {
             const modal = document.getElementById('discontinueModal');
             if (e.target === modal) {
                 closeDiscontinueModal();
+            }
+            const logsModal = document.getElementById('clientLogsModal');
+            if (e.target === logsModal) {
+                closeLogsModal();
             }
         });
 
@@ -351,6 +438,7 @@
             const clients = @json($clients);
             const canUpdateClients = @json(auth()->user()->can('update clients'));
             const editRouteTemplate = "{{ route('clients.edit', ':id') }}";
+            const drilldownBaseUrl = "{{ route('dashboard.clients.index') }}";
             
             let filteredClients = [...clients];
             let currentPage = 1;
@@ -376,7 +464,9 @@
                                (client.client_status && client.client_status.toLowerCase().includes(query)) ||
                                (client.service_type_billing && client.service_type_billing.toLowerCase().includes(query)) ||
                                (client.team_name && client.team_name.toLowerCase().includes(query)) ||
-                               (client.collection_kam && client.collection_kam.toLowerCase().includes(query));
+                               (client.collection_kam && client.collection_kam.toLowerCase().includes(query)) ||
+                               (client.current_month_cr && client.current_month_cr.toLowerCase().includes(query)) ||
+                               (client.risk_segment && client.risk_segment.toLowerCase().includes(query));
                     });
                 } else {
                     clearBtn.style.display = 'none';
@@ -385,8 +475,19 @@
 
                 // 2. Sort
                 filteredClients.sort((a, b) => {
-                    let valA = a[sortField] || '';
-                    let valB = b[sortField] || '';
+                    let valA = a[sortField];
+                    let valB = b[sortField];
+
+                    if (sortField === 'current_month_cr') {
+                        const numA = valA === 'N/A' || valA === null || valA === undefined ? -999999 : parseFloat(valA);
+                        const numB = valB === 'N/A' || valB === null || valB === undefined ? -999999 : parseFloat(valB);
+                        if (numA < numB) return sortDirection === 'asc' ? -1 : 1;
+                        if (numA > numB) return sortDirection === 'asc' ? 1 : -1;
+                        return 0;
+                    }
+
+                    valA = valA || '';
+                    valB = valB || '';
 
                     // Convert to lowercase strings for case-insensitive sorting if they are strings
                     if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -417,7 +518,7 @@
                 if (totalEntries === 0) {
                     clientTableBody.innerHTML = `
                         <tr>
-                            <td colspan="7" style="text-align: center; color: var(--muted); padding: 30px;">
+                            <td colspan="9" style="text-align: center; color: var(--muted); padding: 30px;">
                                 No clients match your search criteria.
                             </td>
                         </tr>
@@ -445,24 +546,33 @@
 
                     // Build actions HTML
                     let actionsHtml = '';
+                    const escName = (client.client_name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
                     if (canUpdateClients) {
                         const editUrl = editRouteTemplate.replace('%3Aid', client.client_id).replace(':id', client.client_id);
                         actionsHtml = `
                             <div class="actions-cell">
                                 <a class="action-link" href="${editUrl}">Edit</a>
-                        `;
-                        if (statusLower !== 'discontinued') {
-                            // Safe escape client name
-                            const escName = (client.client_name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
-                            actionsHtml += `
-                                <button class="action-btn-danger" type="button" onclick="openDiscontinueModal('${client.client_id}', '${escName}')">
-                                    Discontinue
+                                <button class="action-link" style="background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; font-size: inherit;" type="button" onclick="openLogsModal('${client.client_id}', '${escName}')">
+                                    Logs
                                 </button>
-                            `;
-                        }
-                        actionsHtml += `</div>`;
+                            </div>
+                        `;
                     } else {
-                        actionsHtml = `<span class="muted">No actions</span>`;
+                        actionsHtml = `
+                            <div class="actions-cell">
+                                <button class="action-link" style="background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; font-size: inherit;" type="button" onclick="openLogsModal('${client.client_id}', '${escName}')">
+                                    Logs
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    // Build drilldown URL
+                    let drilldownLink = '';
+                    if (client.summary_month) {
+                        drilldownLink = `${drilldownBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&range=${encodeURIComponent(client.cr_range)}&month=${encodeURIComponent(client.summary_month)}&client_id=${client.client_id}`;
+                    } else {
+                        drilldownLink = `${drilldownBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&client_id=${client.client_id}`;
                     }
 
                     tr.innerHTML = `
@@ -476,6 +586,12 @@
                         <td>${client.service_type_billing || 'N/A'}</td>
                         <td>${client.team_name || 'N/A'}</td>
                         <td>${client.collection_kam || 'N/A'}</td>
+                        <td>${client.current_month_cr || 'N/A'}</td>
+                        <td>
+                            <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                ${client.risk_segment || 'N/A'}
+                            </a>
+                        </td>
                         <td>${actionsHtml}</td>
                     `;
                     clientTableBody.appendChild(tr);
@@ -485,7 +601,6 @@
                         tr.style.opacity = '1';
                     }, 20);
                 });
-
                 // Update Info text
                 const showStart = totalEntries === 0 ? 0 : startIndex + 1;
                 const showEnd = endIndex;

@@ -1,0 +1,302 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Client;
+use App\Models\DataDictionary;
+use App\Models\MonthlySummaryDiscontinued;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\View\View;
+
+class MonthlySummaryDiscontinuedController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $selectedMonth = $request->input('month');
+        if (! $selectedMonth) {
+            $latestMonth = MonthlySummaryDiscontinued::query()->max('summary_month');
+            $selectedMonth = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('Y-m') : now()->format('Y-m');
+        }
+
+        $selectedMonthDate = \Carbon\Carbon::createFromFormat('Y-m', $selectedMonth)->endOfMonth();
+
+        $summaries = MonthlySummaryDiscontinued::query()
+            ->with('client')
+            ->whereDate('summary_month', $selectedMonthDate)
+            ->get();
+
+        return view('monthly-summary-discontinued.index', [
+            'summaries' => $summaries,
+            'selectedMonth' => $selectedMonth,
+            'clients' => Client::query()
+                ->orderBy('client_name')
+                ->get(['client_id', 'client_name', 'opus_id']),
+            'columns' => $this->columns(),
+        ]);
+    }
+
+    public function data(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->monthlySummaryRows($request->input('month')),
+            'columns' => $this->columns(),
+        ]);
+    }
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $rows = $request->input('rows', []);
+
+        if (! is_array($rows)) {
+            return response()->json([
+                'message' => 'Rows payload must be an array.',
+            ], 422);
+        }
+
+        $rows = collect($rows)
+            ->filter(fn ($row) => is_array($row) && ! $this->isBlankRow($row))
+            ->map(fn ($row) => $this->normalizeRow($row))
+            ->values()
+            ->all();
+
+        $validator = Validator::make(['rows' => $rows], $this->rules());
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Please fix the highlighted fields.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $saved = DB::transaction(function () use ($rows) {
+            $count = 0;
+
+            foreach ($rows as $row) {
+                if ($this->isBlankRow($row)) {
+                    continue;
+                }
+
+                $attributes = collect($row)
+                    ->except(['client_name', '__hotRow'])
+                    ->only($this->fillableColumns())
+                    ->map(fn ($value) => $value === '' ? null : $value)
+                    ->all();
+
+                $summaryId = $attributes['monthly_summary_discontinued_id'] ?? null;
+                unset($attributes['monthly_summary_discontinued_id']);
+
+                if ($summaryId) {
+                    MonthlySummaryDiscontinued::query()
+                        ->where('monthly_summary_discontinued_id', $summaryId)
+                        ->update($attributes);
+                } else {
+                    MonthlySummaryDiscontinued::query()->updateOrCreate(
+                        [
+                            'client_id' => $attributes['client_id'],
+                            'summary_month' => $attributes['summary_month'],
+                        ],
+                        $attributes
+                    );
+                }
+
+                $count++;
+            }
+
+            return $count;
+        });
+
+        return response()->json([
+            'message' => "{$saved} discontinued summary rows saved.",
+            'data' => $this->monthlySummaryRows($request->input('month')),
+        ]);
+    }
+
+    private function monthlySummaryRows($month = null)
+    {
+        $query = MonthlySummaryDiscontinued::query()
+            ->with('client')
+            ->orderByDesc('summary_month');
+
+        if ($month) {
+            $date = \Carbon\Carbon::createFromFormat('Y-m', $month)->endOfMonth();
+            $query->whereDate('summary_month', $date);
+        } else {
+            $latestMonth = MonthlySummaryDiscontinued::query()->max('summary_month');
+            if ($latestMonth) {
+                $query->whereDate('summary_month', $latestMonth);
+            }
+        }
+
+        return $query->get()
+            ->map(function (MonthlySummaryDiscontinued $summary) {
+                $row = $summary->toArray();
+                $row['client_name'] = $summary->client?->client_name;
+
+                foreach (['summary_month', 'nttn_discontinuation_date', 'iig_itc_discontinuation_date'] as $dateField) {
+                    $row[$dateField] = optional($summary->{$dateField})->format('Y-m-d');
+                }
+
+                return $row;
+            })
+            ->values();
+    }
+
+    private function columns(): array
+    {
+        $columns = [
+            ['key' => 'monthly_summary_discontinued_id', 'label' => 'ID', 'type' => 'numeric', 'readOnly' => true],
+            ['key' => 'client_id', 'label' => 'Client ID', 'type' => 'dropdown', 'required' => true],
+            ['key' => 'client_name', 'label' => 'Client Name', 'type' => 'text', 'readOnly' => true],
+            ['key' => 'summary_month', 'label' => 'Summary Month', 'type' => 'date', 'required' => true],
+            
+            ['key' => 'opening_os', 'label' => 'Opening OS', 'type' => 'money'],
+            ['key' => 'opening_os_nttn', 'label' => 'Opening OS NTTN', 'type' => 'money'],
+            ['key' => 'opening_os_iig', 'label' => 'Opening OS IIG', 'type' => 'money'],
+            ['key' => 'opening_os_itc', 'label' => 'Opening OS ITC', 'type' => 'money'],
+            ['key' => 'opening_os_nix', 'label' => 'Opening OS NIX', 'type' => 'money'],
+            
+            ['key' => 'target', 'label' => 'Target', 'type' => 'money'],
+            ['key' => 'collection_amount', 'label' => 'Collection Amount', 'type' => 'money'],
+            ['key' => 'shortfall_target', 'label' => 'Shortfall Target', 'type' => 'money'],
+            
+            ['key' => 'latest_os', 'label' => 'Latest OS', 'type' => 'money'],
+            ['key' => 'latest_os_nttn', 'label' => 'Latest OS NTTN', 'type' => 'money'],
+            ['key' => 'latest_os_iig', 'label' => 'Latest OS IIG', 'type' => 'money'],
+            ['key' => 'latest_os_itc', 'label' => 'Latest OS ITC', 'type' => 'money'],
+            ['key' => 'latest_os_nix', 'label' => 'Latest OS NIX', 'type' => 'money'],
+            
+            ['key' => 'payment_plan_description', 'label' => 'Payment Plan Description', 'type' => 'text'],
+            ['key' => 'pdc', 'label' => 'PDC', 'type' => 'money'],
+            ['key' => 'udc', 'label' => 'UDC', 'type' => 'money'],
+            ['key' => 'total_security', 'label' => 'Total Security', 'type' => 'money'],
+            ['key' => 'security_coverage', 'label' => 'Security Coverage', 'type' => 'money'],
+            ['key' => 'pdc_chq', 'label' => 'PDC Cheque No', 'type' => 'text'],
+            ['key' => 'udc_chq', 'label' => 'UDC Cheque No', 'type' => 'text'],
+            ['key' => 'expired_chq', 'label' => 'Expired Cheque Amount', 'type' => 'money'],
+            
+            ['key' => 'collection_postpaid_nttn', 'label' => 'Collection Postpaid NTTN', 'type' => 'money'],
+            ['key' => 'collection_postpaid_iig', 'label' => 'Collection Postpaid IIG', 'type' => 'money'],
+            ['key' => 'collection_postpaid_itc', 'label' => 'Collection Postpaid ITC', 'type' => 'money'],
+            ['key' => 'collection_postpaid_nix', 'label' => 'Collection Postpaid NIX', 'type' => 'money'],
+            ['key' => 'total_collection', 'label' => 'Total Collection', 'type' => 'money'],
+            
+            ['key' => 'nttn_discontinuation_date', 'label' => 'NTTN Discontinuation Date', 'type' => 'date'],
+            ['key' => 'iig_itc_discontinuation_date', 'label' => 'IIG/ITC Discontinuation Date', 'type' => 'date'],
+            
+            ['key' => 'unbilled_total', 'label' => 'Unbilled Total', 'type' => 'money'],
+            ['key' => 'unbilled_nttn_os', 'label' => 'Unbilled NTTN OS', 'type' => 'money'],
+            ['key' => 'unbilled_iig_os', 'label' => 'Unbilled IIG OS', 'type' => 'money'],
+            ['key' => 'unbilled_itc_os', 'label' => 'Unbilled ITC OS', 'type' => 'money'],
+        ];
+
+        return $this->applyDataDictionaryLabels($columns);
+    }
+
+    private function applyDataDictionaryLabels(array $columns): array
+    {
+        $columnKeys = array_column($columns, 'key');
+
+        $labels = DataDictionary::query()
+            ->whereIn('table_name', ['monthly_summary', 'monthly_summary_discontinued'])
+            ->whereIn('column_name', $columnKeys)
+            ->get(['column_name', 'business_name'])
+            ->mapWithKeys(fn (DataDictionary $field) => [
+                trim($field->column_name) => trim($field->business_name),
+            ]);
+
+        return collect($columns)
+            ->map(function (array $column) use ($labels) {
+                $column['label'] = $labels->get($column['key'], $column['key']);
+                return $column;
+            })
+            ->all();
+    }
+
+    private function rules(): array
+    {
+        $rules = [
+            'rows' => ['array'],
+            'rows.*.monthly_summary_discontinued_id' => ['nullable', 'integer', 'exists:monthly_summary_discontinued,monthly_summary_discontinued_id'],
+            'rows.*.client_id' => ['required', 'integer', 'exists:client,client_id'],
+            'rows.*.summary_month' => ['required', 'date'],
+            'rows.*.payment_plan_description' => ['nullable', 'string'],
+            'rows.*.pdc_chq' => ['nullable', 'string', 'max:255'],
+            'rows.*.udc_chq' => ['nullable', 'string', 'max:255'],
+            'rows.*.nttn_discontinuation_date' => ['nullable', 'date'],
+            'rows.*.iig_itc_discontinuation_date' => ['nullable', 'date'],
+        ];
+
+        foreach ($this->moneyColumns() as $column) {
+            $rules["rows.*.{$column}"] = ['nullable', 'numeric', 'min:0'];
+        }
+
+        return $rules;
+    }
+
+    private function fillableColumns(): array
+    {
+        return array_merge(
+            [
+                'monthly_summary_discontinued_id', 'client_id', 'summary_month', 
+                'payment_plan_description', 'pdc_chq', 'udc_chq', 
+                'nttn_discontinuation_date', 'iig_itc_discontinuation_date'
+            ],
+            $this->moneyColumns()
+        );
+    }
+
+    private function moneyColumns(): array
+    {
+        return [
+            'opening_os',
+            'opening_os_nttn',
+            'opening_os_iig',
+            'opening_os_itc',
+            'opening_os_nix',
+            'target',
+            'collection_amount',
+            'shortfall_target',
+            'latest_os',
+            'latest_os_nttn',
+            'latest_os_iig',
+            'latest_os_itc',
+            'latest_os_nix',
+            'pdc',
+            'udc',
+            'total_security',
+            'security_coverage',
+            'expired_chq',
+            'collection_postpaid_nttn',
+            'collection_postpaid_iig',
+            'collection_postpaid_itc',
+            'collection_postpaid_nix',
+            'total_collection',
+            'unbilled_total',
+            'unbilled_nttn_os',
+            'unbilled_iig_os',
+            'unbilled_itc_os',
+        ];
+    }
+
+    private function isBlankRow(array $row): bool
+    {
+        return collect($row)
+            ->except(['monthly_summary_discontinued_id', 'client_name', '__hotRow'])
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->isEmpty();
+    }
+
+    private function normalizeRow(array $row): array
+    {
+        foreach ($this->moneyColumns() as $column) {
+            if (isset($row[$column]) && is_string($row[$column])) {
+                $row[$column] = str_replace(',', '', $row[$column]);
+            }
+        }
+
+        return $row;
+    }
+}

@@ -23,10 +23,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/clients/drilldown', [DashboardController::class, 'clientDrilldown']);
     Route::get('/dashboard/clients', [DashboardController::class, 'clientsIndex'])
         ->name('dashboard.clients.index');
+    Route::get('/dashboard/discontinued-clients', [DashboardController::class, 'discontinuedClientsIndex'])
+        ->name('dashboard.discontinued-clients.index');
     
     Route::get('/dashboard/client-trend/{client}',[DashboardController::class, 'clientTrend'])
         ->name('dashboard.client.trend');
-
+    Route::get('/dashboard/client-trend-discontinued/{client}', [DashboardController::class, 'discontinuedClientTrend'])
+        ->name('dashboard.client.trend.discontinued');
     Route::get('/collection-entry', [CollectionEntryController::class, 'index'])
         ->middleware('permission:view collections')
         ->name('collection-entry.index');
@@ -46,6 +49,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/clients', [ClientController::class, 'index'])
         ->middleware('permission:view clients')
         ->name('clients.index');
+
+    Route::get('/clients/{client}/logs', [ClientController::class, 'logs'])
+        ->middleware('permission:view clients')
+        ->name('clients.logs');
 
     Route::get('/clients/create', [ClientController::class, 'create'])
         ->middleware('permission:create clients')
@@ -78,6 +85,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/monthly-summary/bulk-update', [MonthlySummaryController::class, 'bulkUpdate'])
         ->middleware('permission:update monthly summaries')
         ->name('monthly-summary.bulk-update');
+
+    Route::get('/monthly-summary-discontinued', [\App\Http\Controllers\MonthlySummaryDiscontinuedController::class, 'index'])
+        ->middleware('permission:view monthly summaries')
+        ->name('monthly-summary-discontinued.index');
+
+    Route::get('/monthly-summary-discontinued/data', [\App\Http\Controllers\MonthlySummaryDiscontinuedController::class, 'data'])
+        ->middleware('permission:view monthly summaries')
+        ->name('monthly-summary-discontinued.data');
+
+    Route::post('/monthly-summary-discontinued/bulk-update', [\App\Http\Controllers\MonthlySummaryDiscontinuedController::class, 'bulkUpdate'])
+        ->middleware('permission:update monthly summaries')
+        ->name('monthly-summary-discontinued.bulk-update');
 
     Route::get('/settings', [SettingsController::class, 'index'])
         ->middleware('permission:manage roles')

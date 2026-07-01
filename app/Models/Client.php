@@ -16,6 +16,7 @@ class Client extends Model
         'opus_id',
         'client_name',
         'client_status',
+        'agreement_status',
         'barring_priority',
         'btrc_license_discontinuation_date',
         'legal',
@@ -56,5 +57,44 @@ class Client extends Model
     {
         return $this->hasMany(Risk::class, 'client_id', 'client_id');
     }
+    public function logs(): HasMany
+    {
+        return $this->hasMany(ClientLog::class, 'client_id', 'client_id');
+    }
 
+    public static function boot()
+    {
+        parent::boot();
+
+        static::updating(function ($client) {
+            foreach ($client->getDirty() as $key => $newValue) {
+                if ($key === 'updated_at') continue;
+
+                $oldValue = $client->getOriginal($key);
+
+                if (is_bool($oldValue)) {
+                    $oldValue = $oldValue ? 'Yes' : 'No';
+                }
+                if (is_bool($newValue)) {
+                    $newValue = $newValue ? 'Yes' : 'No';
+                }
+                if ($oldValue instanceof \DateTimeInterface) {
+                    $oldValue = $oldValue->format('Y-m-d');
+                }
+                if ($newValue instanceof \DateTimeInterface) {
+                    $newValue = $newValue->format('Y-m-d');
+                }
+
+                if ((string)$oldValue === (string)$newValue) continue;
+
+                \App\Models\ClientLog::create([
+                    'client_id' => $client->client_id,
+                    'field_name' => $key,
+                    'old_value' => $oldValue === null ? null : (string) $oldValue,
+                    'new_value' => $newValue === null ? null : (string) $newValue,
+                    'updated_by' => auth()->user()?->email ?? 'System',
+                ]);
+            }
+        });
+    }
 }

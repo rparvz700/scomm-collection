@@ -106,6 +106,18 @@
                 </div>
 
                 <div class="field">
+                    <label for="agreement_status">Agreement Status</label>
+                    <select id="agreement_status" name="agreement_status">
+                        <option value="" @selected(old('agreement_status') === '')>Select Status</option>
+                        <option value="Active" @selected(old('agreement_status') === 'Active')>Active</option>
+                        <option value="Expired" @selected(old('agreement_status') === 'Expired')>Expired</option>
+                        <option value="Pending Renewal" @selected(old('agreement_status') === 'Pending Renewal')>Pending Renewal</option>
+                        <option value="Under Negotiation" @selected(old('agreement_status') === 'Under Negotiation')>Under Negotiation</option>
+                    </select>
+                    @error('agreement_status')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
                     <label for="barring_priority">Barring Priority</label>
                     <select id="barring_priority" name="barring_priority">
                         <option value="" @selected(old('barring_priority') === '')>Select Priority</option>

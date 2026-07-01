@@ -13,14 +13,24 @@ use Illuminate\View\View;
 
 class MonthlySummaryController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $selectedMonth = $request->input('month');
+        if (! $selectedMonth) {
+            $latestMonth = MonthlySummary::query()->max('summary_month');
+            $selectedMonth = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('Y-m') : now()->format('Y-m');
+        }
+
+        $selectedMonthDate = \Carbon\Carbon::createFromFormat('Y-m', $selectedMonth)->endOfMonth();
+
+        $summaries = MonthlySummary::query()
+            ->with('client')
+            ->whereDate('summary_month', $selectedMonthDate)
+            ->get();
+
         return view('monthly-summary.index', [
-            'summaries' => MonthlySummary::query()
-                ->with('client')
-                ->orderByDesc('summary_month')
-                ->take(25)
-                ->get(),
+            'summaries' => $summaries,
+            'selectedMonth' => $selectedMonth,
             'clients' => Client::query()
                 ->orderBy('client_name')
                 ->get(['client_id', 'client_name', 'opus_id']),
@@ -28,10 +38,10 @@ class MonthlySummaryController extends Controller
         ]);
     }
 
-    public function data(): JsonResponse
+    public function data(Request $request): JsonResponse
     {
         return response()->json([
-            'data' => $this->monthlySummaryRows(),
+            'data' => $this->monthlySummaryRows($request->input('month')),
             'columns' => $this->columns(),
         ]);
     }
@@ -100,16 +110,28 @@ class MonthlySummaryController extends Controller
 
         return response()->json([
             'message' => "{$saved} monthly summary rows saved.",
-            'data' => $this->monthlySummaryRows(),
+            'data' => $this->monthlySummaryRows($request->input('month')),
         ]);
     }
 
-    private function monthlySummaryRows()
+    private function monthlySummaryRows($month = null)
     {
-        return MonthlySummary::query()
+        $query = MonthlySummary::query()
             ->with('client')
-            ->orderByDesc('summary_month')
-            ->get()
+            ->orderByDesc('summary_month');
+
+        if ($month) {
+            $date = \Carbon\Carbon::createFromFormat('Y-m', $month)->endOfMonth();
+            $query->whereDate('summary_month', $date);
+        } else {
+            // Default to latest month if none specified
+            $latestMonth = MonthlySummary::query()->max('summary_month');
+            if ($latestMonth) {
+                $query->whereDate('summary_month', $latestMonth);
+            }
+        }
+
+        return $query->get()
             ->map(function (MonthlySummary $summary) {
                 $row = $summary->toArray();
                 $row['client_name'] = $summary->client?->client_name;

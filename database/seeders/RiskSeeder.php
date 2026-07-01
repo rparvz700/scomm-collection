@@ -87,12 +87,12 @@ class RiskSeeder extends Seeder
     private function rating(float $cr): string
     {
         return match (true) {
-            $cr <= 1.50 => 'Low',
-            $cr <= 2.00 => 'Watch',
-            $cr <= 2.50 => 'Medium',
-            $cr <= 2.99 => 'High',
-            $cr <= 3.49 => 'Critical',
-            default => 'Severe',
+            $cr <= 1.50 => 'Best',
+            $cr <= 2.00 => 'Good',
+            $cr <= 2.50 => 'Moderate',
+            $cr <= 2.99 => 'Risky',
+            $cr <= 3.49 => 'High Risky',
+            default => 'Most Risky',
         };
     }
 }

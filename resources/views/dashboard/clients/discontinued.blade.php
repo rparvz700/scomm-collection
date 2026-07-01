@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Client Drilldown')
+@section('title', 'Discontinued Client Drilldown')
 
 @push('styles')
 <style>
@@ -143,18 +143,6 @@
         color: #0f766e;
     }
 
-    /* Range */
-    .range-tag {
-        background: rgba(59, 130, 246, .12);
-        color: #2563eb;
-    }
-
-    /* Risk */
-    .risk-tag {
-        background: rgba(239, 68, 68, .12);
-        color: #dc2626;
-    }
-
     /* Month */
     .month-tag {
         background: rgba(168, 85, 247, .12);
@@ -165,123 +153,6 @@
     .client-tag {
         background: rgba(245, 158, 11, .12);
         color: #d97706;
-    }
-
-    .trend-modal-content {
-        width: 90%;
-        max-width: 1200px;
-        padding: 22px;
-    }
-
-    .trend-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 18px;
-        flex-wrap: wrap;
-    }
-
-    #clientName {
-        margin: 0;
-        padding: 8px 16px;
-        border-radius: 999px;
-
-        background: linear-gradient(
-            135deg,
-            #8e76c1,
-            #5e779e
-        );
-
-        color: #ffffff;
-
-        font-size: 24px;
-        font-weight: 800;
-        letter-spacing: -.4px;
-
-        box-shadow:
-            0 8px 20px rgba(15, 23, 42, .18);
-
-        position: relative;
-    }
-
-    #clientName::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-
-        background:
-            linear-gradient(
-                135deg,
-                rgba(21, 90, 137, 0.12),
-                transparent
-            );
-
-        pointer-events: none;
-    }
-
-    .trend-title {
-        margin: 0;
-
-        font-size: 24px;
-        font-weight: 700;
-
-        color: #3a4c78;
-
-        letter-spacing: -.4px;
-    }
-
-    .metric-selector {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 18px;
-    }
-
-    .metric-selector input {
-        display: none;
-    }
-
-    .metric-selector label {
-        padding: 6px 12px;
-        border-radius: 999px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 700;
-        cursor: pointer;
-        transition: all .16s ease;
-        line-height: 1;
-        letter-spacing: .2px;
-        user-select: none;
-    }
-
-    /* Hover */
-    .metric-selector label:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-        color: #0f172a;
-    }
-
-    /* Active */
-    .metric-selector input:checked + label {
-        background: #0f172a;
-        border-color: #0f172a;
-        color: #ffffff;
-        box-shadow:
-            0 1px 2px rgba(15, 23, 42, .08),
-            0 0 0 3px rgba(15, 23, 42, .05);
-    }
-
-    /* Click feel */
-    .metric-selector label:active {
-        transform: scale(.97);
-    }
-
-    .chart-wrap {
-        position: relative;
-        height: 250px;
     }
 
     /* Client details grid styling */
@@ -393,37 +264,115 @@
     @keyframes row-pulse-highlight {
         0% { background-color: #fef08a; }
         100% { background-color: #fef08a; }
-    }
-    .row-highlighted td {
+    }    .row-highlighted td {
         animation: row-pulse-highlight 3s ease-in-out forwards;
     }
 
-</style>@endpush
+    .trend-modal-content {
+        width: 90%;
+        max-width: 1200px;
+        padding: 22px;
+    }
+
+    .trend-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+    }
+
+    #clientName {
+        margin: 0;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #8e76c1, #5e779e);
+        color: #ffffff;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -.4px;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, .18);
+        position: relative;
+    }
+
+    #clientName::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(135deg, rgba(21, 90, 137, 0.12), transparent);
+        pointer-events: none;
+    }
+
+    .trend-title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        color: #3a4c78;
+        letter-spacing: -.4px;
+    }
+
+    .metric-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 18px;
+    }
+
+    .metric-selector input {
+        display: none;
+    }
+
+    .metric-selector label {
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all .16s ease;
+        line-height: 1;
+        letter-spacing: .2px;
+        user-select: none;
+    }
+
+    .metric-selector label:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .metric-selector input:checked + label {
+        background: #0f172a;
+        border-color: #0f172a;
+        color: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .08), 0 0 0 3px rgba(15, 23, 42, .05);
+    }
+
+    .metric-selector label:active {
+        transform: scale(.97);
+    }
+
+    .chart-wrap {
+        position: relative;
+        height: 250px;
+    }
+
+</style>
+@endpush
 
 @section('content')
 
 <div class="page-header">
-    <h1>Client Drilldown</h1>
+    <h1>Discontinued Client Drilldown</h1>
     <p class="meta-line">
 
         <span class="meta-item">
-            Segment:
+            Category:
             <strong class="meta-tag segment-tag">
-                {{ $segment }}
-            </strong>
-        </span>
-
-        <span class="meta-item">
-            CR Range:
-            <strong class="meta-tag range-tag">
-                {{ $range }}
-            </strong>
-        </span>
-
-        <span class="meta-item">
-            Tag:
-            <strong class="meta-tag risk-tag">
-                {{ $riskCategory }}
+                {{ $category }}
             </strong>
         </span>
 
@@ -435,7 +384,7 @@
         </span>
 
         <span class="meta-item">
-            Total Clients:
+            Total Discontinued Clients:
             <strong class="meta-tag client-tag">
                 {{ count($clients) }}
             </strong>
@@ -444,22 +393,38 @@
     </p>
 </div>
 
+<form method="GET" action="{{ route('dashboard.discontinued-clients.index') }}" class="filter-bar">
+    <label for="category" style="font-weight: 700;">Filter Category:</label>
+    <select name="category" id="category" onchange="this.form.submit()">
+        <option value="ALL" {{ $category === 'ALL' ? 'selected' : '' }}>ALL</option>
+        <option value="NTTN" {{ $category === 'NTTN' ? 'selected' : '' }}>NTTN</option>
+        <option value="IIG" {{ $category === 'IIG' ? 'selected' : '' }}>IIG</option>
+        <option value="ITC" {{ $category === 'ITC' ? 'selected' : '' }}>ITC</option>
+        <option value="NIX" {{ $category === 'NIX' ? 'selected' : '' }}>NIX</option>
+    </select>
+    
+    @if(request('month'))
+        <input type="hidden" name="month" value="{{ request('month') }}">
+    @endif
+</form>
+
 <div class="panel">
 
     <table>
-
         <thead>
             <tr>
                 <th>Client</th>
-                <th>Opening CR</th>
-                <th>Opening OS</th>
-                <th>Closing CR</th>
-                <th>Closing OS</th>
-                <th>MRC</th>
-                <th>Total Backlog</th>
-                <th>Collection</th>
-                <th>Payment Plan</th>
-                <th>Shortfall</th>
+                <th>NTTN Discont. Date</th>
+                <th>IIG/ITC Discont. Date</th>
+                <th class="amount">Opening OS</th>
+                <th class="amount">Target</th>
+                <th class="amount">Collection</th>
+                <th class="amount">Shortfall</th>
+                <th class="amount">Latest OS</th>
+                <th class="amount">Unbilled OS</th>
+                <th class="amount">Security</th>
+                <th class="amount">PDC</th>
+                <th class="amount">UDC</th>
                 <th>Trend</th>
             </tr>
         </thead>
@@ -501,16 +466,17 @@
                                     'nttn_billing_commencement_date' => $c->client->nttn_billing_commencement_date?->format('Y-m-d'),
                                     'iig_itc_billing_commencement_date' => $c->client->iig_itc_billing_commencement_date?->format('Y-m-d'),
                                     
-                                    'opening_cr' => number_format($c->opening_cr, 2),
-                                    'opening_os' => number_format($c->total_opening_os, 2),
-                                    'closing_cr' => number_format($c->latest_cr, 2),
-                                    'closing_os' => number_format($c->total_latest_os, 2),
-                                    'mrc' => number_format($c->total_mrc, 2),
-                                    'backlog' => number_format($c->net_backlog_total, 2),
-                                    'collection' => number_format($c->total_collection, 2),
-                                    'payment_plan_amount' => number_format($c->total_payment_plan, 2),
-                                    'shortfall' => number_format($c->shortfall_from_payment_plan ?? 0, 2),
-                                    'remarks' => $c->current_month_remarks,
+                                    'opening_cr' => 'N/A',
+                                    'opening_os' => number_format($c->opening_os, 2),
+                                    'closing_cr' => 'N/A',
+                                    'closing_os' => number_format($c->latest_os, 2),
+                                    'mrc' => 'N/A',
+                                    'backlog' => 'N/A',
+                                    'collection' => number_format($c->collection_amount, 2),
+                                    'payment_plan_amount' => number_format($c->target, 2),
+                                    'shortfall' => number_format($c->shortfall_target, 2),
+                                    'remarks' => $c->payment_plan_description,
+                                    'visit_remarks' => $c->visit_remarks,
                                     'actual_month' => $c->summary_month ? $c->summary_month->format('F Y') : (optional($month)->format('F Y') ?? 'This Month'),
                                 ],
                                 'previous' => $prevSummary ? [
@@ -536,92 +502,80 @@
                                     'iig_itc_billing_kam' => $previousClientStates[$c->client_id]['iig_itc_billing_kam'] ?? 'N/A',
                                     'nttn_billing_commencement_date' => $previousClientStates[$c->client_id]['nttn_billing_commencement_date'] ?? 'N/A',
                                     'iig_itc_billing_commencement_date' => $previousClientStates[$c->client_id]['iig_itc_billing_commencement_date'] ?? 'N/A',
- 
-                                    'opening_cr' => number_format($prevSummary->opening_cr, 2),
-                                    'opening_os' => number_format($prevSummary->total_opening_os, 2),
-                                    'closing_cr' => number_format($prevSummary->latest_cr, 2),
-                                    'closing_os' => number_format($prevSummary->total_latest_os, 2),
-                                    'mrc' => number_format($prevSummary->total_mrc, 2),
-                                    'backlog' => number_format($prevSummary->net_backlog_total, 2),
-                                    'collection' => number_format($prevSummary->total_collection, 2),
-                                    'payment_plan_amount' => number_format($prevSummary->total_payment_plan, 2),
-                                    'shortfall' => number_format($prevSummary->shortfall_from_payment_plan ?? 0, 2),
-                                    'remarks' => $prevSummary->current_month_remarks,
+
+                                    'opening_cr' => 'N/A',
+                                    'opening_os' => number_format($prevSummary->opening_os, 2),
+                                    'closing_cr' => 'N/A',
+                                    'closing_os' => number_format($prevSummary->latest_os, 2),
+                                    'mrc' => 'N/A',
+                                    'backlog' => 'N/A',
+                                    'collection' => number_format($prevSummary->collection_amount, 2),
+                                    'payment_plan_amount' => number_format($prevSummary->target, 2),
+                                    'shortfall' => number_format($prevSummary->shortfall_target, 2),
+                                    'remarks' => $prevSummary->payment_plan_description,
+                                    'visit_remarks' => $prevSummary->visit_remarks,
                                     'actual_month' => $prevSummary->summary_month ? $prevSummary->summary_month->format('F Y') : ($month ? $month->copy()->subMonth()->format('F Y') : 'Last Month'),
                                 ] : null,
                             ]) }}">
                                 {{ $c->client->client_name }}
                             </a>
-                            @if ($prevSummary)
-                                @php
-                                    $currentCr = (float) $c->latest_cr;
-                                    $prevCr = (float) $prevSummary->latest_cr;
-                                    $currentMonthName = $c->summary_month ? $c->summary_month->format('F Y') : 'Current Month';
-                                    $prevMonthName = $prevSummary->summary_month ? $prevSummary->summary_month->format('F Y') : 'Previous Month';
-                                    $latestRating = $c->latest_rating_category ?? 'N/A';
-                                @endphp
-
-                                @if ($currentCr < $prevCr)
-                                    <span style="color: #16a34a; margin-left: 6px; cursor: help; font-weight: bold; font-size: 14px;" 
-                                          title="Current Month ({{ $currentMonthName }}): {{ number_format($currentCr, 2) }} vs Last Month ({{ $prevMonthName }}): {{ number_format($prevCr, 2) }} Closing CR | Latest Rating Category: {{ $latestRating }}">▲</span>
-                                @elseif ($currentCr > $prevCr)
-                                    <span style="color: #dc2626; margin-left: 6px; cursor: help; font-weight: bold; font-size: 14px;" 
-                                          title="Current Month ({{ $currentMonthName }}): {{ number_format($currentCr, 2) }} vs Last Month ({{ $prevMonthName }}): {{ number_format($prevCr, 2) }} Closing CR | Latest Rating Category: {{ $latestRating }}">▼</span>
-                                @endif
-                            @endif
                         @else
                             N/A
                         @endif
                     </td>
 
-                    <td class="amount">
-                        {{ number_format($c->opening_cr, 2) }}
+                    <td>
+                        {{ $c->nttn_discontinuation_date?->format('Y-m-d') ?: '-' }}
+                    </td>
+
+                    <td>
+                        {{ $c->iig_itc_discontinuation_date?->format('Y-m-d') ?: '-' }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_opening_os, 2) }}
+                        {{ number_format($c->opening_os, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->latest_cr, 2) }}
+                        {{ number_format($c->target, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_latest_os, 2) }}
+                        {{ number_format($c->collection_amount, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_mrc, 2) }}
+                        {{ number_format($c->shortfall_target, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->net_backlog_total, 2) }}
+                        {{ number_format($c->latest_os, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_collection, 2) }}
+                        {{ number_format($c->unbilled_total, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_payment_plan, 2) }}
+                        {{ number_format($c->total_security, 2) }}
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->shortfall_from_payment_plan ?? 0, 2) }}
+                        {{ number_format($c->pdc, 2) }}
                     </td>
-
+                    <td class="amount">
+                        {{ number_format($c->udc, 2) }}
+                    </td>
                     <td>
                         <a href="javascript:void(0)"
                            class="trend-btn"
                            data-client="{{ $c->client_id }}"
-                            data-client-name="{{ $c->client->client_name ?? 'N/A' }}"
-                           data-url="{{ route('dashboard.client.trend', $c->client_id) }}">
+                           data-client-name="{{ $c->client->client_name ?? 'N/A' }}"
+                           data-url="{{ route('dashboard.client.trend.discontinued', $c->client_id) }}">
                             View Trend
                         </a>
                     </td>
-
                 </tr>
-
             @endforeach
 
         </tbody>
@@ -630,11 +584,28 @@
 
 </div>
 
+{{-- CLIENT DETAILS MODAL --}}
+<div id="clientDetailsModal" class="modal">
+    <div class="modal-content large">
+        <span class="close" onclick="closeClientDetails()">&times;</span>
+        
+        <div class="modal-client-header">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <h2 class="modal-client-title" id="m-clientName">Client Details</h2>
+                <button id="modalHistoryBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #0f766e; color: #fff;" type="button">Last 12 Month Trend</button>
+                <button id="modalToggleMonthBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #475569; color: #fff;" type="button">Last Month Data</button>
+            </div>
+            <span class="modal-client-badge" id="m-clientStatus">Status</span>
+        </div>
+
+        <div id="clientDetailsModalBody">
+            <!-- Populated via Javascript -->
+        </div>
+    </div>
+</div>
 {{-- TREND MODAL --}}
 <div id="trendModal" class="modal">
-
     <div class="modal-content trend-modal-content">
-
         <span class="close" onclick="closeTrend()">&times;</span>
         
         <div class="trend-header">
@@ -661,31 +632,18 @@
                 <span id="statLatestRating" class="modal-client-badge" style="font-size: 13px; padding: 4px 12px; font-weight: 800; text-transform: uppercase; display: inline-block;">N/A</span>
             </div>
         </div>
-        
-
-        <div class="metric-selector">
-
-            <input type="checkbox" id="metric-opening-cr" value="opening_cr" checked hidden>
-            <label for="metric-opening-cr">Opening CR</label>
-
-            <input type="checkbox" id="metric-opening-os" value="opening_os" hidden>
+                <div class="metric-selector">
+            <input type="checkbox" id="metric-opening-os" value="opening_os" checked hidden>
             <label for="metric-opening-os">Opening OS</label>
 
-            <input type="checkbox" id="metric-closing-cr" value="closing_cr" checked hidden>
-            <label for="metric-closing-cr">Closing CR</label>
-
-            <input type="checkbox" id="metric-closing-os" value="closing_os" hidden>
-            <label for="metric-closing-os">Closing OS</label>
-
-            <input type="checkbox" id="metric-mrc" value="mrc" hidden>
-            <label for="metric-mrc">MRC</label>
-
-            <input type="checkbox" id="metric-backlog" value="backlog" hidden>
-            <label for="metric-backlog">Backlog</label>
-
-            <input type="checkbox" id="metric-collection" value="collection" hidden>
+            <input type="checkbox" id="metric-collection" value="collection" checked hidden>
             <label for="metric-collection">Collection</label>
 
+            <input type="checkbox" id="metric-closing-os" value="closing_os" checked hidden>
+            <label for="metric-closing-os">Closing OS</label>
+
+            <input type="checkbox" id="metric-unbilled-total" value="unbilled_total" checked hidden>
+            <label for="metric-unbilled-total">Unbilled Total</label>
         </div>
 
         <div class="chart-wrap">
@@ -694,16 +652,16 @@
 
         <div id="trendHistorySection" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px;">
             <div>
-                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--primary-dark);">Monthly Rating History</h3>
+                <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--primary-dark);">Monthly Snapshot History</h3>
                 <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px; background: #fff;">
                     <table style="min-width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr style="background: #f8fafc; border-bottom: 1px solid var(--line);">
                                 <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: left;">Month</th>
-                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Opening CR</th>
-                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: left;">Opening Rating</th>
-                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Closing CR</th>
-                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: left;">Latest Rating</th>
+                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Opening OS</th>
+                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Collection</th>
+                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Latest OS</th>
+                                <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Unbilled Total</th>
                             </tr>
                         </thead>
                         <tbody id="trendSnapshotsBody">
@@ -730,333 +688,15 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-
-    </div>
-
-</div>
-
-{{-- CLIENT DETAILS MODAL --}}
-<div id="clientDetailsModal" class="modal">
-    <div class="modal-content large">
-        <span class="close" onclick="closeClientDetails()">&times;</span>
-        
-        <div class="modal-client-header">
-            <div style="display: flex; align-items: center; gap: 14px;">
-                <h2 class="modal-client-title" id="m-clientName">Client Details</h2>
-                <button id="modalHistoryBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #0f766e; color: #fff;" type="button">Last 12 Month Trend</button>
-                <button id="modalToggleMonthBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #475569; color: #fff;" type="button">Last Month Data</button>
-            </div>
-            <span class="modal-client-badge" id="m-clientStatus">Status</span>
-        </div>
-
-        <div id="clientDetailsModalBody">
-            <!-- Populated via Javascript -->
-        </div>
+            </div>        </div>
     </div>
 </div>
 
 @endsection
 
 @push('scripts')
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-
-    let trendChartInstance = null;
-    let activeClientId = null;
-
-    document.querySelectorAll('.trend-btn').forEach(btn => {
-
-        btn.addEventListener('click', function () {
-
-            const clientName = this.dataset.clientName;
-
-            document.getElementById('clientName').innerText = clientName;
-
-            activeClientId = this.dataset.client;
-
-            document.getElementById('trendModal').style.display = 'block';
-
-            loadTrend();
-
-        });
-
-    });
-
-    document.querySelectorAll('.metric-selector input')
-        .forEach(el => {
-            el.addEventListener('change', loadTrend);
-        });
-
-    async function loadTrend() {
-
-    if (!activeClientId) {
-        return;
-    }
-
-    const activeButton = document.querySelector(
-        `.trend-btn[data-client="${activeClientId}"]`
-    );
-
-    const url = activeButton.dataset.url;
-
-    const response = await fetch(url);
-
-    const trendData = await response.json();
-
-    const allDatasets = {
-
-        opening_cr: {
-            label: 'Opening CR',
-            data: trendData.opening_cr,
-            borderColor: '#2563eb',
-            backgroundColor: '#2563eb',
-            yAxisID: 'y1',
-        },
-
-        opening_os: {
-            label: 'Opening OS',
-            data: trendData.opening_os,
-            borderColor: '#fddc04',
-            backgroundColor: '#fddc04',
-            yAxisID: 'y',
-        },
-
-        closing_cr: {
-            label: 'Closing CR',
-            data: trendData.closing_cr,
-            borderColor: '#dc2626',
-            backgroundColor: '#dc2626',
-            yAxisID: 'y1',
-        },
-
-        closing_os: {
-            label: 'Closing OS',
-            data: trendData.closing_os,
-            borderColor: '#ea0ca4',
-            backgroundColor: '#ea0ca4',
-            yAxisID: 'y',
-        },
-
-        mrc: {
-            label: 'MRC',
-            data: trendData.mrc,
-            borderColor: '#014e5a',
-            backgroundColor: '#014e5a',
-            yAxisID: 'y',
-        },
-
-        backlog: {
-            label: 'Backlog',
-            data: trendData.backlog,
-            borderColor: '#7d0909',
-            backgroundColor: '#7d0909',
-            yAxisID: 'y',
-        },
-
-        collection: {
-            label: 'Collection',
-            data: trendData.collection,
-            borderColor: '#16a34a',
-            backgroundColor: '#16a34a',
-            yAxisID: 'y',
-        }
-
-    };
-
-    const selectedMetrics = [];
-
-    document.querySelectorAll('.metric-selector input:checked')
-        .forEach(el => {
-
-            const key = el.value;
-
-            selectedMetrics.push({
-                ...allDatasets[key],
-                tension: 0.35,
-                fill: false,
-                pointRadius: 3
-            });
-
-        });
-
-    if (trendChartInstance) {
-        trendChartInstance.destroy();
-    }
-
-    const ctx = document.getElementById('trendChart');
-
-    trendChartInstance = new Chart(ctx, {
-
-        type: 'line',
-
-        data: {
-            labels: trendData.labels,
-            datasets: selectedMetrics
-        },
-
-        options: {
-
-            responsive: true,
-            maintainAspectRatio: false,
-
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-
-            plugins: {
-
-                legend: {
-                    position: 'bottom',
-
-                    labels: {
-                        usePointStyle: true,
-                        pointStyle: 'circle',
-                        boxWidth: 10,
-                        boxHeight: 10,
-                        padding: 18,
-
-                        generateLabels(chart) {
-
-                            const datasets = chart.data.datasets;
-
-                            return datasets.map((dataset, i) => ({
-
-                                text: dataset.label,
-                                fillStyle: dataset.borderColor,
-                                strokeStyle: dataset.borderColor,
-                                lineWidth: 0,
-                                hidden: !chart.isDatasetVisible(i),
-                                datasetIndex: i,
-                                pointStyle: 'circle'
-
-                            }));
-                        }
-                    }
-                }
-
-            },
-
-            scales: {
-
-                y: {
-                    type: 'linear',
-                    position: 'left',
-                    ticks: {
-                        callback(value) {
-                            return Number(value).toLocaleString();
-                        }
-                    }
-                },
-
-                y1: {
-                    type: 'linear',
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false
-                    },
-                    min: 0
-                }
-
-            }
-
-        }
-
-    });
-
-    // Render snapshots table
-    const snapshotsBody = document.getElementById('trendSnapshotsBody');
-    snapshotsBody.innerHTML = '';
-    if (trendData.snapshots && trendData.snapshots.length > 0) {
-        trendData.snapshots.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">${row.month}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.opening_cr}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">
-                    <span class="modal-client-badge ${getRatingBadgeClass(row.opening_rating)}" style="font-size: 10px; padding: 2px 6px;">${row.opening_rating}</span>
-                </td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.closing_cr}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">
-                    <span class="modal-client-badge ${getRatingBadgeClass(row.latest_rating)}" style="font-size: 10px; padding: 2px 6px;">${row.latest_rating}</span>
-                </td>
-            `;
-            snapshotsBody.appendChild(tr);
-        });
-    } else {
-        snapshotsBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No snapshot history found.</td></tr>`;
-    }
-
-    // Render client change logs table
-    const logsBody = document.getElementById('trendLogsBody');
-    logsBody.innerHTML = '';
-    if (trendData.logs && trendData.logs.length > 0) {
-        trendData.logs.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; white-space: nowrap;">${row.date}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; font-weight: 700;">${row.field}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; color: var(--muted);">${row.old}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; font-weight: 700; color: var(--ink);">${row.new}</td>
-                <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; white-space: nowrap;">${row.user}</td>
-            `;
-            logsBody.appendChild(tr);
-        });
-    } else {
-        logsBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No change logs found for this client.</td></tr>`;
-    }
-
-    // Populate history statistics cards
-    const statStatus = document.getElementById('statClientStatus');
-    if (statStatus) {
-        const statusVal = trendData.client_status || 'N/A';
-        statStatus.innerText = statusVal;
-        statStatus.className = 'modal-client-badge ' + getRatingBadgeClass(statusVal);
-    }
-
-    const statDiscont = document.getElementById('statDiscontinuationDate');
-    if (statDiscont) {
-        statDiscont.innerText = trendData.service_discontinuation_date || 'N/A';
-    }
-
-    const statOpening = document.getElementById('statOpeningRating');
-    if (statOpening) {
-        const openingVal = trendData.opening_rating_category || 'N/A';
-        statOpening.innerText = openingVal;
-        statOpening.className = 'modal-client-badge ' + getRatingBadgeClass(openingVal);
-    }
-
-    const statLatest = document.getElementById('statLatestRating');
-    if (statLatest) {
-        const latestVal = trendData.latest_rating_category || 'N/A';
-        statLatest.innerText = latestVal;
-        statLatest.className = 'modal-client-badge ' + getRatingBadgeClass(latestVal);
-    }
-}
-function getRatingBadgeClass(rating) {
-    if (!rating) return 'status-badge-other';
-    const rLower = rating.toLowerCase();
-    if (rLower.includes('most risky') || rLower.includes('critical') || rLower.includes('severe') || rLower.includes('barred') || rLower.includes('discontinued')) {
-        return 'status-badge-discontinued'; // red
-    } else if (rLower.includes('high') || rLower.includes('risky') || rLower.includes('watchlist') || rLower.includes('suspended') || rLower.includes('proposed')) {
-        return 'status-badge-watchlist'; // orange
-    } else if (rLower.includes('good') || rLower.includes('best') || rLower.includes('active') || rLower.includes('low')) {
-        return 'status-badge-active'; // green
-    } else if (rLower.includes('moderate')) {
-        return 'status-badge-other'; // grey
-    }
-    return 'status-badge-other';
-}
-    function closeTrend() {
-
-        document.getElementById('trendModal').style.display = 'none';
-
-    }
-
     function closeClientDetails() {
         document.getElementById('clientDetailsModal').style.display = 'none';
     }
@@ -1071,9 +711,15 @@ function getRatingBadgeClass(rating) {
             .replace(/'/g, '&#039;');
     }
 
-    function formatRemarks(str) {
-        if (!str) return 'No remarks provided.';
-        return escapeHtml(str).replace(/\n/g, '<br>');
+    function formatRemarks(paymentPlan, visitRemarks) {
+        let html = '';
+        if (paymentPlan) {
+            html += `<div style="margin-bottom: 8px;"><strong>Payment Plan Description:</strong><br>${escapeHtml(paymentPlan).replace(/\n/g, '<br>')}</div>`;
+        }
+        if (visitRemarks) {
+            html += `<div><strong>Visit Remarks:</strong><br>${escapeHtml(visitRemarks).replace(/\n/g, '<br>')}</div>`;
+        }
+        return html || '<span style="color: var(--muted);">No remarks provided.</span>';
     }
 
     let activeClientDetail = null;
@@ -1114,7 +760,7 @@ function getRatingBadgeClass(rating) {
                         <span class="details-value" id="m-closingOs">${monthData.closing_os}</span>
                     </div>
                     <div class="details-row">
-                        <span class="details-label">Payment Plan:</span>
+                        <span class="details-label">Payment Plan / Target:</span>
                         <span class="details-value" id="m-paymentPlan">${monthData.payment_plan_amount}</span>
                     </div>
                     <div class="details-row">
@@ -1122,8 +768,8 @@ function getRatingBadgeClass(rating) {
                         <span class="details-value" id="m-shortfall">${monthData.shortfall}</span>
                     </div>
                     <div class="details-row" style="flex-direction: column; align-items: flex-start; border-bottom: none; margin-top: 10px; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--line);">
-                        <span class="details-label" id="remarksLabel" style="margin-bottom: 4px; color: var(--primary-dark);">${monthData.actual_month} Remarks:</span>
-                        <span class="details-value" id="m-remarksValue" style="text-align: left; font-weight: normal; color: var(--ink); line-height: 1.4; word-break: break-word; width: 100%;">${formatRemarks(monthData.remarks)}</span>
+                        <span class="details-label" id="remarksLabel" style="margin-bottom: 4px; color: var(--primary-dark);">${monthData.actual_month} Remarks / Payment Plan / Visit Remarks:</span>
+                        <span class="details-value" id="m-remarksValue" style="text-align: left; font-weight: normal; color: var(--ink); line-height: 1.4; word-break: break-word; width: 100%;">${formatRemarks(monthData.remarks, monthData.visit_remarks)}</span>
                     </div>
                 </div>
 
@@ -1247,7 +893,7 @@ function getRatingBadgeClass(rating) {
                 historyBtn.dataset.clientId = data.client_id || '';
                 historyBtn.dataset.clientName = data.client_name || 'N/A';
             }
-            
+
             // Set toggle button visibility & state
             const toggleBtn = document.getElementById('modalToggleMonthBtn');
             if (toggleBtn) {
@@ -1265,24 +911,6 @@ function getRatingBadgeClass(rating) {
             document.getElementById('clientDetailsModal').style.display = 'block';
         });
     });
-
-    // History button event listener to launch Trend view
-    const modalHistoryBtn = document.getElementById('modalHistoryBtn');
-    if (modalHistoryBtn) {
-        modalHistoryBtn.addEventListener('click', function() {
-            const clientId = this.dataset.clientId;
-            const clientName = this.dataset.clientName;
-            if (!clientId) return;
-
-            closeClientDetails();
-
-            activeClientId = clientId;
-            document.getElementById('clientName').innerText = clientName;
-            document.getElementById('trendModal').style.display = 'block';
-            loadTrend();
-        });
-    }
-
     // Toggle button event listener to switch between current and last month data
     const modalToggleMonthBtn = document.getElementById('modalToggleMonthBtn');
     if (modalToggleMonthBtn) {
@@ -1303,7 +931,6 @@ function getRatingBadgeClass(rating) {
             }
         });
     }
-
     window.addEventListener('click', (e) => {
         const detailsModal = document.getElementById('clientDetailsModal');
         const trendModal = document.getElementById('trendModal');
@@ -1328,5 +955,238 @@ function getRatingBadgeClass(rating) {
         }, 300);
     }
 
+    let trendChartInstance = null;
+    let activeClientId = null;
+
+    document.querySelectorAll('.trend-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const clientName = this.dataset.clientName;
+            document.getElementById('clientName').innerText = clientName;
+            activeClientId = this.dataset.client;
+            document.getElementById('trendModal').style.display = 'block';
+            loadTrend();
+        });
+    });
+
+    document.querySelectorAll('.metric-selector input').forEach(el => {
+        el.addEventListener('change', loadTrend);
+    });
+
+    async function loadTrend() {
+        if (!activeClientId) return;
+        
+        const activeButton = document.querySelector(`.trend-btn[data-client="${activeClientId}"]`);
+        const url = activeButton ? activeButton.dataset.url : `/dashboard/client-trend-discontinued/${activeClientId}`;
+        
+        const response = await fetch(url);
+        const trendData = await response.json();
+                const allDatasets = {
+            opening_os: {
+                label: 'Opening OS',
+                data: trendData.opening_os,
+                borderColor: '#fddc04',
+                backgroundColor: '#fddc04',
+                yAxisID: 'y',
+            },
+            collection: {
+                label: 'Collection',
+                data: trendData.collection,
+                borderColor: '#16a34a',
+                backgroundColor: '#16a34a',
+                yAxisID: 'y',
+            },
+            closing_os: {
+                label: 'Latest OS',
+                data: trendData.closing_os,
+                borderColor: '#ea0ca4',
+                backgroundColor: '#ea0ca4',
+                yAxisID: 'y',
+            },
+            unbilled_total: {
+                label: 'Unbilled Total',
+                data: trendData.unbilled_total,
+                borderColor: '#2563eb',
+                backgroundColor: '#2563eb',
+                yAxisID: 'y',
+            }
+        };
+
+        const selectedMetrics = [];
+        document.querySelectorAll('.metric-selector input:checked').forEach(el => {
+            const key = el.value;
+            selectedMetrics.push({
+                ...allDatasets[key],
+                tension: 0.35,
+                fill: false,
+                pointRadius: 3
+            });
+        });
+
+        if (trendChartInstance) {
+            trendChartInstance.destroy();
+        }
+
+        const ctx = document.getElementById('trendChart');
+        trendChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trendData.labels,
+                datasets: selectedMetrics
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 18,
+                            generateLabels(chart) {
+                                const datasets = chart.data.datasets;
+                                return datasets.map((dataset, i) => ({
+                                    text: dataset.label,
+                                    fillStyle: dataset.borderColor,
+                                    strokeStyle: dataset.borderColor,
+                                    lineWidth: 0,
+                                    hidden: !chart.isDatasetVisible(i),
+                                    datasetIndex: i,
+                                    pointStyle: 'circle'
+                                }));
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        ticks: {
+                            callback(value) {
+                                return Number(value).toLocaleString();
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        min: 0
+                    }
+                }
+            }
+        });
+        // Render snapshots table
+        const snapshotsBody = document.getElementById('trendSnapshotsBody');
+        snapshotsBody.innerHTML = '';
+        if (trendData.snapshots && trendData.snapshots.length > 0) {
+            trendData.snapshots.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">${row.month}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.opening_os}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.collection}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.latest_os}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.unbilled_total}</td>
+                `;
+                snapshotsBody.appendChild(tr);
+            });
+        } else {
+            snapshotsBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No snapshot history found.</td></tr>`;
+        }
+
+        // Render client change logs table
+        const logsBody = document.getElementById('trendLogsBody');
+        logsBody.innerHTML = '';
+        if (trendData.logs && trendData.logs.length > 0) {
+            trendData.logs.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; white-space: nowrap;">${row.date}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; font-weight: 700;">${row.field}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; color: var(--muted);">${row.old}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; font-weight: 700; color: var(--ink);">${row.new}</td>
+                    <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left; white-space: nowrap;">${row.user}</td>
+                `;
+                logsBody.appendChild(tr);
+            });
+        } else {
+            logsBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No change logs found for this client.</td></tr>`;
+        }
+
+        // Populate history statistics cards
+        const statStatus = document.getElementById('statClientStatus');
+        if (statStatus) {
+            const statusVal = trendData.client_status || 'N/A';
+            statStatus.innerText = statusVal;
+            statStatus.className = 'modal-client-badge ' + getRatingBadgeClass(statusVal);
+        }
+
+        const statDiscont = document.getElementById('statDiscontinuationDate');
+        if (statDiscont) {
+            statDiscont.innerText = trendData.service_discontinuation_date || 'N/A';
+        }
+
+        const statOpening = document.getElementById('statOpeningRating');
+        if (statOpening) {
+            const openingVal = trendData.opening_rating_category || 'N/A';
+            statOpening.innerText = openingVal;
+            statOpening.className = 'modal-client-badge ' + getRatingBadgeClass(openingVal);
+        }
+
+        const statLatest = document.getElementById('statLatestRating');
+        if (statLatest) {
+            const latestVal = trendData.latest_rating_category || 'N/A';
+            statLatest.innerText = latestVal;
+            statLatest.className = 'modal-client-badge ' + getRatingBadgeClass(latestVal);
+        }
+    }
+
+    function getRatingBadgeClass(rating) {
+        if (!rating) return 'status-badge-other';
+        const rLower = rating.toLowerCase();
+        if (rLower.includes('most risky') || rLower.includes('critical') || rLower.includes('severe') || rLower.includes('barred') || rLower.includes('discontinued')) {
+            return 'status-badge-discontinued'; // red
+        } else if (rLower.includes('high') || rLower.includes('risky') || rLower.includes('watchlist') || rLower.includes('suspended') || rLower.includes('proposed')) {
+            return 'status-badge-watchlist'; // orange
+        } else if (rLower.includes('good') || rLower.includes('best') || rLower.includes('active') || rLower.includes('low')) {
+            return 'status-badge-active'; // green
+        } else if (rLower.includes('moderate')) {
+            return 'status-badge-other'; // grey
+        }
+        return 'status-badge-other';
+    }
+
+    function closeTrend() {
+        document.getElementById('trendModal').style.display = 'none';
+    }
+
+    // History button event listener to launch Trend view
+    const modalHistoryBtn = document.getElementById('modalHistoryBtn');
+    if (modalHistoryBtn) {
+        modalHistoryBtn.addEventListener('click', function() {
+            const clientId = this.dataset.clientId;
+            const clientName = this.dataset.clientName;
+            if (!clientId) return;
+
+            closeClientDetails();
+
+            activeClientId = clientId;
+            document.getElementById('clientName').innerText = clientName;
+            document.getElementById('trendModal').style.display = 'block';
+            loadTrend();
+        });
+    }
+
 </script>
 @endpush
+

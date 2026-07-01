@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             CollectionSeeder::class,
             RiskSeeder::class,
             DataDictionarySeeder::class,
+            ClientLogSeeder::class,
         ]);
     }
 }

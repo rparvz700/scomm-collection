@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Monthly Summary | SCOMM Collection')
+@section('title', 'Discontinued Summary | SCOMM Collection')
 
 @push('styles')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.6.0/dist/handsontable.full.min.css">
@@ -60,7 +60,7 @@
             box-shadow: var(--shadow);
         }
 
-        #monthlySummaryGrid {
+        #discontinuedSummaryGrid {
             width: 100%;
             height: calc(100vh - 270px);
             min-height: 520px;
@@ -83,8 +83,8 @@
 @section('content')
     <section class="page-heading">
         <div>
-            <h1>Monthly summary</h1>
-            <p>Edit monthly snapshots in an Excel-style grid with typed cells, validation, filters, sorting, copy/paste, fill handle, and CSV export.</p>
+            <h1>Discontinued Monthly Summary</h1>
+            <p>Edit discontinued monthly snapshots in an Excel-style grid with typed cells, validation, filters, sorting, copy/paste, fill handle, and CSV export.</p>
         </div>
     </section>
 
@@ -121,7 +121,7 @@
     </section>
 
     <section class="sheet-wrap">
-        <div id="monthlySummaryGrid"></div>
+        <div id="discontinuedSummaryGrid"></div>
     </section>
 
     <p class="manual-save-note">
@@ -140,7 +140,8 @@
             $row = $summary->toArray();
             $row['client_name'] = $summary->client?->client_name;
             $row['summary_month'] = optional($summary->summary_month)->format('Y-m-d');
-            $row['client_payment_commitment_date'] = optional($summary->client_payment_commitment_date)->format('Y-m-d');
+            $row['nttn_discontinuation_date'] = optional($summary->nttn_discontinuation_date)->format('Y-m-d');
+            $row['iig_itc_discontinuation_date'] = optional($summary->iig_itc_discontinuation_date)->format('Y-m-d');
 
             return $row;
         })->values());
@@ -168,11 +169,11 @@
         const isBlankSheetRow = (instance, rowIndex) => {
             const row = visualRowValues(instance, rowIndex);
             const editableEntries = Object.entries(row)
-                .filter(([key]) => !['monthly_summary_id', 'client_id', 'client_name', 'summary_month'].includes(key));
+                .filter(([key]) => !['monthly_summary_discontinued_id', 'client_id', 'client_name', 'summary_month'].includes(key));
             const result = editableEntries.every(([, value]) => isEmptyCellValue(value));
 
             if (sheetDebug && rowIndex >= initialRows.length) {
-                console.log('[MonthlySummary blank check]', {
+                console.log('[DiscontinuedSummary blank check]', {
                     rowIndex,
                     visualRow: rowIndex + 1,
                     row,
@@ -188,12 +189,12 @@
             const row = visualRowValues(instance, rowIndex);
             const requiredHasValue = requiredColumns.some((key) => !isEmptyCellValue(row[key]));
             const otherHasValue = Object.entries(row)
-                .filter(([key]) => !['monthly_summary_id', 'client_id', 'client_name', 'summary_month'].includes(key))
+                .filter(([key]) => !['monthly_summary_discontinued_id', 'client_id', 'client_name', 'summary_month'].includes(key))
                 .some(([, value]) => !isEmptyCellValue(value));
             const result = requiredHasValue || otherHasValue;
 
             if (sheetDebug && rowIndex >= initialRows.length) {
-                console.log('[MonthlySummary real row check]', {
+                console.log('[DiscontinuedSummary real row check]', {
                     rowIndex,
                     visualRow: rowIndex + 1,
                     requiredValues: Object.fromEntries(requiredColumns.map((key) => [key, row[key]])),
@@ -214,7 +215,7 @@
         function requiredDateValidator(value, callback) {
             if (!isRealSheetRow(this.instance, this.row)) {
                 if (sheetDebug) {
-                    console.log('[MonthlySummary required date skipped]', {
+                    console.log('[DiscontinuedSummary required date skipped]', {
                         row: this.row + 1,
                         prop: this.prop,
                         value,
@@ -228,7 +229,7 @@
             const valid = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
             if (sheetDebug && !valid) {
-                console.log('[MonthlySummary required date failed]', {
+                console.log('[DiscontinuedSummary required date failed]', {
                     row: this.row + 1,
                     prop: this.prop,
                     value,
@@ -246,7 +247,7 @@
         function requiredClientValidator(value, callback) {
             if (!isRealSheetRow(this.instance, this.row)) {
                 if (sheetDebug) {
-                    console.log('[MonthlySummary required client skipped]', {
+                    console.log('[DiscontinuedSummary required client skipped]', {
                         row: this.row + 1,
                         prop: this.prop,
                         value,
@@ -260,7 +261,7 @@
             const valid = Boolean(clientMap[String(value)]);
 
             if (sheetDebug && !valid) {
-                console.log('[MonthlySummary required client failed]', {
+                console.log('[DiscontinuedSummary required client failed]', {
                     row: this.row + 1,
                     prop: this.prop,
                     value,
@@ -294,7 +295,7 @@
                 };
             }
 
-            if (column.type === 'money' || column.type === 'rating') {
+            if (column.type === 'money') {
                 return {
                     ...base,
                     type: 'numeric',
@@ -316,7 +317,7 @@
             return base;
         });
 
-        const container = document.getElementById('monthlySummaryGrid');
+        const container = document.getElementById('discontinuedSummaryGrid');
         const status = document.getElementById('sheetStatus');
         let dirty = false;
 
@@ -355,7 +356,7 @@
             persistentState: true,
             search: true,
             exportFile: true,
-            id: 'monthly-summary-sheet',
+            id: 'discontinued-summary-sheet',
             outsideClickDeselects: false,
             invalidCellClassName: 'htInvalid',
             afterChange(changes, source) {
@@ -514,7 +515,7 @@
         document.getElementById('monthSelect').addEventListener('change', function() {
             const selectedMonth = this.value;
             if (selectedMonth) {
-                window.location.href = "{{ route('monthly-summary.index') }}?month=" + selectedMonth;
+                window.location.href = "{{ route('monthly-summary-discontinued.index') }}?month=" + selectedMonth;
             }
         });
 
@@ -539,7 +540,7 @@
                 bom: true,
                 columnHeaders: true,
                 rowHeaders: false,
-                filename: 'monthly-summary-[YYYY]-[MM]-[DD]',
+                filename: 'monthly-summary-discontinued-[YYYY]-[MM]-[DD]',
             });
         });
 
@@ -555,7 +556,7 @@
             setStatus('Saving...');
             const payloadRows = rowsForSave();
 
-            fetch('{{ route('monthly-summary.bulk-update') }}', {
+            fetch('{{ route('monthly-summary-discontinued.bulk-update') }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -576,7 +577,7 @@
 
                     hot.loadData(payload.data ?? rowsForSave());
                     dirty = false;
-                    setStatus(payload.message ?? 'Monthly summary saved.', 'success');
+                    setStatus(payload.message ?? 'Discontinued summary saved.', 'success');
                 })
                 .catch((error) => {
                     showServerErrors(error.errors, payloadRows);

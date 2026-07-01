@@ -12,6 +12,7 @@ class ClientSeeder extends Seeder
         $now = now();
         $serviceTypes = ['IIG', 'ISP', 'NTTN', 'ITC', 'NIX', 'Cable Operator', 'Broadband Operator', 'Corporate Operator'];
         $statuses = ['Active', 'Active', 'Active', 'Watchlist', 'Barring Proposed', 'Already Barred', 'Suspended'];
+        $agreementStatuses = ['Active', 'Expired', 'Pending Renewal', 'Under Negotiation'];
         $teams = ['Enterprise North', 'Enterprise South', 'Enterprise East', 'Strategic Accounts', 'Recovery Desk'];
         $collectionKams = ['Nusrat Jahan', 'Farhana Rahman', 'Sabbir Khan', 'Mou Akter', 'Tanvir Hasan'];
         $supervisors = ['Tariq Hasan', 'Maliha Akter', 'Samia Chowdhury'];
@@ -27,6 +28,7 @@ class ClientSeeder extends Seeder
                 'opus_id' => sprintf('OPUS-%05d', $i),
                 'client_name' => sprintf('%s %03d', $this->companyPrefix($i), $i),
                 'client_status' => $statuses[$i % count($statuses)],
+                'agreement_status' => $agreementStatuses[$i % count($agreementStatuses)],
                 'barring_priority' => $i % 3 === 0 ? 'P1' : 'P2',
                 'btrc_license_discontinuation_date' => $i % 37 === 0 ? '2026-04-30' : null,
                 'legal' => $i % 11 === 0,
@@ -55,6 +57,7 @@ class ClientSeeder extends Seeder
             DB::table('client')->upsert($chunk, ['opus_id'], [
                 'client_name',
                 'client_status',
+                'agreement_status',
                 'barring_priority',
                 'btrc_license_discontinuation_date',
                 'legal',

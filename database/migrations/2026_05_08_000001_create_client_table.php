@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('client_status', 50)->nullable()
                 ->comment('Operational customer status');
 
+            $table->string('agreement_status', 100)->nullable()
+                ->comment('Agreement status of the client');
+
             $table->enum('barring_priority', ['P1', 'P2'])->nullable()
                 ->comment('Default operational barring priority');
 

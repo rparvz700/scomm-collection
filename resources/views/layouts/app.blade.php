@@ -358,6 +358,7 @@
 
             @can('view monthly summaries')
                 <a class="{{ request()->routeIs('monthly-summary.*') ? 'active' : '' }}" href="{{ route('monthly-summary.index') }}">Monthly Summary</a>
+                <a class="{{ request()->routeIs('monthly-summary-discontinued.*') ? 'active' : '' }}" href="{{ route('monthly-summary-discontinued.index') }}">Discontinued Summary</a>
             @endcan
 
             @can('view clients')
