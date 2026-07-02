@@ -8,6 +8,9 @@ use App\Http\Controllers\MonthlySummaryController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\DashboardOptimizedController;
+use App\Http\Controllers\ReportController;
+
 Route::redirect('/', '/dashboard');
 
 Route::middleware('guest')->group(function () {
@@ -19,6 +22,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)
         ->middleware('permission:view dashboard')
         ->name('dashboard');
+
+    Route::get('/dashboard-optimized', DashboardOptimizedController::class)
+        ->middleware('permission:view dashboard')
+        ->name('dashboard.optimized');
+
+    Route::prefix('reports')->group(function () {
+        Route::get('/builder', [ReportController::class, 'index'])->name('reports.builder');
+        Route::post('/preview', [ReportController::class, 'preview'])->name('reports.preview');
+        Route::post('/export', [ReportController::class, 'export'])->name('reports.export');
+        Route::post('/save-template', [ReportController::class, 'saveTemplate'])->name('reports.save-template');
+        Route::delete('/delete-template/{template}', [ReportController::class, 'deleteTemplate'])->name('reports.delete-template');
+    });
     
     Route::get('/dashboard/clients/drilldown', [DashboardController::class, 'clientDrilldown']);
     Route::get('/dashboard/clients', [DashboardController::class, 'clientsIndex'])

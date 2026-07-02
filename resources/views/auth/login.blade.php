@@ -49,8 +49,7 @@
 
         .brand-mark {
             width: max-content;
-            border: 1px solid rgba(255, 255, 255, .26);
-            border-radius: 8px;
+            
             padding: 10px 14px;
             font-size: 13px;
             font-weight: 700;
@@ -201,7 +200,7 @@
 <body>
     <main class="login-shell">
         <section class="brand-panel" aria-label="SCOMM Collection" style="background: linear-gradient(135deg, rgba(80, 103, 116, 0.7), rgba(15, 118, 109, 0.7)), url('{{ asset('/image/login_bg.png') }}');background-size: cover;background-position: center;background-repeat: no-repeat;">
-            <div class="brand-mark">SCOMM Collection</div>
+            <div class="brand-mark"></div>
             <div class="brand-copy">
                 <h1>Collection control room</h1>
                 <p>Track customer exposure, monthly recovery movement, payment commitments, and risk signals from one focused workspace.</p>
@@ -242,5 +241,66 @@
             </form>
         </section>
     </main>
+
+    <!-- Hidden Video Loader (triggers on submit) -->
+    <div id="login-video-loader">
+        <video id="login-loader-video" muted playsinline loop style="width: 100%; height: 100%; object-fit: cover;">
+            <source src="{{ asset('image/login_bg.mp4') }}" type="video/mp4">
+        </video>
+        <!-- Animated Loading Text Overlay -->
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 100000; pointer-events: none;">
+            <div style="width: 52px; height: 52px; border: 5px solid rgba(255, 255, 255, 0.15); border-top-color: #10b981; border-radius: 50%; animation: loader-spin 0.8s linear infinite;"></div>
+            <div style="color: #ffffff; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-weight: 900; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 4px 8px rgba(0,0,0,0.6); animation: loader-pulse 1.5s ease-in-out infinite;">Loading...</div>
+        </div>
+    </div>
+
+    <style>
+        #login-video-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0f172a;
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0.5);
+            visibility: hidden;
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #login-video-loader.active {
+            pointer-events: auto;
+            opacity: 1;
+            transform: scale(1);
+            visibility: visible;
+        }
+
+        @keyframes loader-spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes loader-pulse {
+            0%, 100% { opacity: 0.6; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1.02); }
+        }
+    </style>
+
+    <script>
+        document.querySelector('form').addEventListener('submit', function() {
+            const loader = document.getElementById('login-video-loader');
+            const video = document.getElementById('login-loader-video');
+            
+            // Trigger active class for zoom-in and fade-in transition
+            loader.classList.add('active');
+            
+            // Play the video
+            video.play().catch(err => {
+                // Ignore autoplay block errors
+            });
+        });
+    </script>
 </body>
 </html>

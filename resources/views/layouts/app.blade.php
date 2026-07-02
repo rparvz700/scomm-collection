@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'SCOMM Collection')</title>
+    <link rel="icon" type="image/png" href="{{ asset('image/brand_badge.png') }}">
     <style>
         :root {
             color-scheme: light;
@@ -338,9 +339,55 @@
     @stack('styles')
 </head>
 <body>
+    @if (session('just_logged_in'))
+        <!-- Video Loader -->
+        <style>
+            @keyframes loader-spin {
+                to { transform: rotate(360deg); }
+            }
+            @keyframes loader-pulse {
+                0%, 100% { opacity: 0.6; transform: scale(0.98); }
+                50% { opacity: 1; transform: scale(1.02); }
+            }
+        </style>
+        <div id="video-loader" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0f172a; z-index: 99999; display: flex; align-items: center; justify-content: center; transition: opacity 0.8s ease-in-out;">
+            <video id="loader-video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
+                <source src="{{ asset('image/login_bg2.mp4') }}" type="video/mp4">
+            </video>
+            
+            <!-- Animated Loading Text Overlay -->
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 100000; pointer-events: none;">
+                <div style="width: 52px; height: 52px; border: 5px solid rgba(255, 255, 255, 0.15); border-top-color: #10b981; border-radius: 50%; animation: loader-spin 0.8s linear infinite;"></div>
+                <div style="color: #ffffff; font-family: Inter, system-ui, sans-serif; font-size: 22px; font-weight: 900; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 4px 8px rgba(0,0,0,0.6); animation: loader-pulse 1.5s ease-in-out infinite;">Loading...</div>
+            </div>
+        </div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const loader = document.getElementById('video-loader');
+                const video = document.getElementById('loader-video');
+                
+                // Once the video finishes playing, fade out and remove
+                video.addEventListener('ended', fadeOutLoader);
+                
+                // Fallback timeout in case autoplay is blocked or video fails
+                setTimeout(fadeOutLoader, 5000);
+                
+                function fadeOutLoader() {
+                    if (loader && loader.style.opacity !== '0') {
+                        loader.style.opacity = '0';
+                        setTimeout(() => {
+                            loader.remove();
+                        }, 800); // match transition duration
+                    }
+                }
+            });
+        </script>
+    @endif
+
     <header class="topbar">
         <a class="brand" href="{{ route('dashboard') }}">
-            <div class="brand-badge">SC</div>
+            <div class="brand-badge" style="background:none;"><img src="{{ asset('image/brand_badge.png') }}" alt="Logo" style="width:100%; height:100%; object-fit:contain; border-radius:8px;"></div>
             <div>
                 <h1 class="brand-title">SCOMM Collection</h1>
                 <p class="brand-subtitle">{{ auth()->user()->name ?? auth()->user()->email }}</p>
@@ -350,6 +397,7 @@
         <nav class="nav" aria-label="Primary navigation">
             @can('view dashboard')
                 <a class="{{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">Dashboard</a>
+                <a class="{{ request()->routeIs('dashboard.optimized') ? 'active' : '' }}" href="{{ route('dashboard.optimized') }}" style="background: rgba(34, 197, 94, 0.1); color: #15803d;">Dashboard (Opt. ⚡)</a>
             @endcan
 
             @can('view collections')
@@ -368,6 +416,8 @@
             @can('manage roles')
                 <a class="{{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">Settings</a>
             @endcan
+
+            <a class="{{ request()->routeIs('reports.builder') ? 'active' : '' }}" href="{{ route('reports.builder') }}" style="background: rgba(30, 41, 59, 0.05);">📊 Report Builder</a>
         </nav>
 
         <form class="logout-form" method="POST" action="{{ route('logout') }}">

@@ -83,7 +83,14 @@ class DataDictionarySeeder extends Seeder
             ['table_name' => 'risk', 'column_name' => 'created_by', 'business_name' => 'Created By', 'business_definition' => 'User or system process generating risk event', 'data_type' => 'VARCHAR(255)', 'source_type' => 'system_generated', 'module_name' => 'System', 'remarks' => null],
         ];
 
-        $rows = array_merge($rows, $this->monthlySummaryDictionaryRows());
+        $rows = array_merge(
+            $rows,
+            $this->monthlySummaryDictionaryRows(),
+            $this->monthlySummaryDiscontinuedDictionaryRows(),
+            $this->clientSnapshotDictionaryRows('monthly_summary'),
+            $this->clientSnapshotDictionaryRows('monthly_summary_discontinued'),
+            $this->clientLogsDictionaryRows()
+        );
 
         DB::table('data_dictionary')->upsert(
             $rows,
@@ -165,6 +172,117 @@ class DataDictionarySeeder extends Seeder
         return collect($columns)
             ->map(fn (array $field, string $column) => [
                 'table_name' => 'monthly_summary',
+                'column_name' => $column,
+                'business_name' => $field[0],
+                'business_definition' => $field[1],
+                'data_type' => $field[2],
+                'source_type' => $field[3],
+                'module_name' => $field[4],
+                'remarks' => isset($field[5]) ? $field[5] : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function clientLogsDictionaryRows(): array
+    {
+        return [
+            ['table_name' => 'client_log', 'column_name' => 'client_log_id', 'business_name' => 'Log ID', 'business_definition' => 'System-generated unique identifier for client modification log', 'data_type' => 'BIGINT', 'source_type' => 'system_generated', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'client_id', 'business_name' => 'Client ID', 'business_definition' => 'Associated client identifier', 'data_type' => 'BIGINT', 'source_type' => 'snapshot', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'field_name', 'business_name' => 'Field Name', 'business_definition' => 'Name of the database field that was changed', 'data_type' => 'VARCHAR(100)', 'source_type' => 'system_generated', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'old_value', 'business_name' => 'Old Value', 'business_definition' => 'Value of the field before modification', 'data_type' => 'TEXT', 'source_type' => 'system_generated', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'new_value', 'business_name' => 'New Value', 'business_definition' => 'Value of the field after modification', 'data_type' => 'TEXT', 'source_type' => 'system_generated', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'updated_by', 'business_name' => 'Updated By User', 'business_definition' => 'User ID who modified client profile data', 'data_type' => 'VARCHAR(255)', 'source_type' => 'manual', 'module_name' => 'Master Data', 'remarks' => null],
+            ['table_name' => 'client_log', 'column_name' => 'created_at', 'business_name' => 'Log Timestamp', 'business_definition' => 'Timestamp when client profile change was recorded', 'data_type' => 'TIMESTAMP', 'source_type' => 'system_generated', 'module_name' => 'Master Data', 'remarks' => null],
+        ];
+    }
+
+    private function monthlySummaryDiscontinuedDictionaryRows(): array
+    {
+        $columns = [
+            'monthly_summary_discontinued_id' => ['Discontinued Summary ID', 'System-generated unique identifier for discontinued monthly snapshot record', 'BIGINT', 'system_generated', 'Reporting', null],
+            'client_id' => ['Client ID', 'Associated client identifier', 'BIGINT', 'snapshot', 'Reporting', null],
+            'summary_month' => ['Summary Month', 'Month-end reporting snapshot period', 'DATE', 'snapshot', 'Reporting', null],
+            'opening_os' => ['Opening OS', 'Total opening outstanding balance for discontinued month', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'opening_os_nttn' => ['Opening OS NTTN', 'Opening NTTN outstanding balance', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'opening_os_iig' => ['Opening OS IIG', 'Opening IIG outstanding balance', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'opening_os_itc' => ['Opening OS ITC', 'Opening ITC outstanding balance', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'opening_os_nix' => ['Opening OS NIX', 'Opening NIX outstanding balance', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'target' => ['Target', 'Collection target amount set for discontinued client', 'DECIMAL(15,2)', 'snapshot', 'Collection', null],
+            'collection_amount' => ['Collection Amount', 'Actual collection amount received from discontinued client', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'shortfall_target' => ['Shortfall Target', 'Collection shortfall against operational target amount', 'DECIMAL(15,2)', 'calculated', 'Collection', null],
+            'latest_os' => ['Latest OS', 'Latest month-end outstanding balance for discontinued client', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'latest_os_nttn' => ['Latest OS NTTN', 'Latest month-end outstanding balance for NTTN service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'latest_os_iig' => ['Latest OS IIG', 'Latest month-end outstanding balance for IIG service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'latest_os_itc' => ['Latest OS ITC', 'Latest month-end outstanding balance for ITC service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'latest_os_nix' => ['Latest OS NIX', 'Latest month-end outstanding balance for NIX service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'payment_plan_description' => ['Payment Plan Description', 'Detailed payment agreement or recovery plan description', 'TEXT', 'manual', 'Collection', null],
+            'pdc' => ['PDC Amount', 'Post-dated cheque amount registered', 'DECIMAL(15,2)', 'manual', 'Collection', null],
+            'udc' => ['UDC Amount', 'Undated cheque amount registered', 'DECIMAL(15,2)', 'manual', 'Collection', null],
+            'total_security' => ['Total Security', 'Total security deposit registered', 'DECIMAL(15,2)', 'manual', 'Finance', null],
+            'security_coverage' => ['Security Coverage Value', 'Security coverage value assessed', 'DECIMAL(15,2)', 'manual', 'Finance', null],
+            'pdc_chq' => ['PDC Cheque Details', 'Post-dated cheque reference numbers/details', 'VARCHAR(255)', 'manual', 'Collection', null],
+            'udc_chq' => ['UDC Cheque Details', 'Undated cheque reference numbers/details', 'VARCHAR(255)', 'manual', 'Collection', null],
+            'expired_chq' => ['Expired Cheque Amount', 'Expired post-dated cheque amount in possession', 'DECIMAL(15,2)', 'manual', 'Collection', null],
+            'collection_postpaid_nttn' => ['Collection Postpaid NTTN', 'Collections received against postpaid NTTN service', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'collection_postpaid_iig' => ['Collection Postpaid IIG', 'Collections received against postpaid IIG service', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'collection_postpaid_itc' => ['Collection Postpaid ITC', 'Collections received against postpaid ITC service', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'collection_postpaid_nix' => ['Collection Postpaid NIX', 'Collections received against postpaid NIX service', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'total_collection' => ['Total Collection', 'Combined collection amount from all services', 'DECIMAL(15,2)', 'system_generated', 'Collection', null],
+            'nttn_discontinuation_date' => ['NTTN Discontinuation Date', 'Date when NTTN service was officially discontinued', 'DATE', 'manual', 'Operations', null],
+            'iig_itc_discontinuation_date' => ['IIG/ITC Discontinuation Date', 'Date when IIG/ITC services were officially discontinued', 'DATE', 'manual', 'Operations', null],
+            'unbilled_total' => ['Unbilled Total OS', 'Total unbilled outstanding amount', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'unbilled_nttn_os' => ['Unbilled NTTN OS', 'Unbilled outstanding amount for NTTN service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'unbilled_iig_os' => ['Unbilled IIG OS', 'Unbilled outstanding amount for IIG service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'unbilled_itc_os' => ['Unbilled ITC OS', 'Unbilled outstanding amount for ITC service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+        ];
+
+        return collect($columns)
+            ->map(fn (array $field, string $column) => [
+                'table_name' => 'monthly_summary_discontinued',
+                'column_name' => $column,
+                'business_name' => $field[0],
+                'business_definition' => $field[1],
+                'data_type' => $field[2],
+                'source_type' => $field[3],
+                'module_name' => $field[4],
+                'remarks' => $field[5],
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function clientSnapshotDictionaryRows(string $tableName): array
+    {
+        $columns = [
+            'client_opus_id' => ['Snapshot Opus ID', 'Snapshot of client unique OPUS billing identifier', 'VARCHAR(50)', 'snapshot', 'Master Data', null],
+            'client_name' => ['Snapshot Client Name', 'Snapshot of official customer company name', 'VARCHAR(255)', 'snapshot', 'Master Data', null],
+            'client_status' => ['Snapshot Client Status', 'Snapshot of customer lifecycle operational status', 'VARCHAR(50)', 'snapshot', 'Master Data', null],
+            'client_agreement_status' => ['Snapshot Agreement Status', 'Snapshot of contract agreement status', 'VARCHAR(100)', 'snapshot', 'Legal', null],
+            'client_barring_priority' => ['Snapshot Barring Priority', 'Snapshot of assigned barring priority', 'VARCHAR(50)', 'snapshot', 'Risk Management', null],
+            'client_btrc_license_discontinuation_date' => ['Snapshot BTRC License Discontinuation Date', 'Snapshot of BTRC license discontinuation date', 'DATE', 'snapshot', 'Legal', null],
+            'client_legal' => ['Snapshot Legal Flag', 'Snapshot of legal dispute status indicator', 'BOOLEAN', 'snapshot', 'Risk Management', null],
+            'client_service_discontinuation_date' => ['Snapshot Service Discontinuation Date', 'Snapshot of date service was discontinued', 'DATE', 'snapshot', 'Operations', null],
+            'client_billing_modality_kpi' => ['Snapshot Billing Modality KPI', 'Snapshot of billing modality used for KPI', 'VARCHAR(100)', 'snapshot', 'Billing', null],
+            'client_service_type_billing' => ['Snapshot Service Type Billing', 'Snapshot of billing service type', 'VARCHAR(100)', 'snapshot', 'Billing', null],
+            'client_license_billing' => ['Snapshot License Billing', 'Snapshot of billing license category', 'VARCHAR(100)', 'snapshot', 'Billing', null],
+            'client_btrc_letter' => ['Snapshot BTRC Letter', 'Snapshot of BTRC letter or notice reference', 'VARCHAR(255)', 'snapshot', 'Legal', null],
+            'client_security_coverage' => ['Snapshot Security Coverage', 'Snapshot of security coverage classification', 'VARCHAR(100)', 'snapshot', 'Finance', null],
+            'client_payment_plan' => ['Snapshot Payment Plan', 'Snapshot of customer payment plan arrangement', 'VARCHAR(255)', 'snapshot', 'Collection', null],
+            'client_other_upstream' => ['Snapshot Other Upstream', 'Snapshot of upstream provider status', 'BOOLEAN', 'snapshot', 'Business', null],
+            'client_sm_kam' => ['Snapshot S&M KAM', 'Snapshot of Sales & Marketing Account Manager name', 'VARCHAR(255)', 'snapshot', 'Operations', null],
+            'client_team_name' => ['Snapshot Team Name', 'Snapshot of assigned operational team', 'VARCHAR(255)', 'snapshot', 'Master Data', null],
+            'client_collection_kam' => ['Snapshot Collection KAM', 'Snapshot of Collection Account Manager name', 'VARCHAR(255)', 'snapshot', 'Collection', null],
+            'client_collection_supervisor' => ['Snapshot Collection Supervisor', 'Snapshot of Collection Supervisor name', 'VARCHAR(255)', 'snapshot', 'Collection', null],
+            'client_nttn_billing_kam' => ['Snapshot NTTN Billing KAM', 'Snapshot of NTTN Billing KAM name', 'VARCHAR(255)', 'snapshot', 'Billing', null],
+            'client_iig_itc_billing_kam' => ['Snapshot IIG/ITC Billing KAM', 'Snapshot of IIG/ITC Billing KAM name', 'VARCHAR(255)', 'snapshot', 'Billing', null],
+            'client_nttn_billing_commencement_date' => ['Snapshot NTTN Billing Commencement Date', 'Snapshot of NTTN billing commencement date', 'DATE', 'snapshot', 'Billing', null],
+            'client_iig_itc_billing_commencement_date' => ['Snapshot IIG/ITC Billing Commencement Date', 'Snapshot of IIG/ITC billing commencement date', 'DATE', 'snapshot', 'Billing', null],
+        ];
+
+        return collect($columns)
+            ->map(fn (array $field, string $column) => [
+                'table_name' => $tableName,
                 'column_name' => $column,
                 'business_name' => $field[0],
                 'business_definition' => $field[1],
