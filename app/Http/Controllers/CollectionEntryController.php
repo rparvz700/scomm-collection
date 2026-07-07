@@ -46,6 +46,31 @@ class CollectionEntryController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if ($request->has('batch_data')) {
+            $batch = json_decode($request->input('batch_data'), true);
+            if (is_array($batch) && !empty($batch)) {
+                \DB::transaction(function() use ($batch, $request) {
+                    foreach ($batch as $entry) {
+                        $validated = validator($entry, [
+                            'client_id' => ['required', 'exists:client,client_id'],
+                            'collection_datetime' => ['required', 'date'],
+                            'collection_month' => ['required', 'date'],
+                            'collection_type' => ['required', 'string'],
+                            'collection_amount' => ['required', 'numeric', 'min:0'],
+                            'remarks' => ['nullable', 'string'],
+                        ])->validate();
+
+                        $validated['created_by'] = $request->user()?->email;
+                        Collection::query()->create($validated);
+                    }
+                });
+
+                return redirect()
+                    ->route('collection-entry.index')
+                    ->with('status', count($batch) . ' collection entries saved successfully.');
+            }
+        }
+
         $data = $request->validate([
             'client_id' => ['required', 'exists:client,client_id'],
             'collection_datetime' => ['required', 'date'],

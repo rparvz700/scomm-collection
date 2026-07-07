@@ -451,15 +451,12 @@
             <section class="dashboard-hero">
 
                 <div class="dashboard-hero-main">
-                    <h1>Collection and Risk Dashboard (Optimized)</h1>
+                    <h1>Collection and Risk Dashboard</h1>
 
                     <p>
                         Monitor monthly CR exposure, live collection movement,
                         and customer risk signals across your recovery portfolio.
                     </p>
-                    <div style="margin-top: 20px; background: rgba(255, 255, 255, 0.15); padding: 12px 20px; border-radius: 8px; display: inline-block; font-size: 14px; font-weight: 800;">
-                         ⚡ Page Loaded in: <span style="color: #22c55e;">{{ $elapsedTimeMs }} ms</span> (Optimized DB Queries & SQL Aggregation)
-                    </div>
                 </div>
 
                 <aside class="dashboard-snapshot">
@@ -1535,7 +1532,7 @@
                             {{ $kamPerformance['best']['kam'] }}
 
                             <span class="insight-change up">
-                                {{ number_format($kamPerformance['best']['efficiency'], 2) }}%
+                                {{ number_format($kamPerformance['best']['efficiency'], 2) }}% (Late: {{ $kamPerformance['best']['late_entry'] }}/{{ $kamPerformance['best']['total_entry'] }})
                             </span>
                         </div>
                     @endif
@@ -1546,7 +1543,7 @@
                             {{ $kamPerformance['worst']['kam'] }}
 
                             <span class="insight-change down">
-                                {{ number_format($kamPerformance['worst']['efficiency'], 2) }}%
+                                {{ number_format($kamPerformance['worst']['efficiency'], 2) }}% (Late: {{ $kamPerformance['worst']['late_entry'] }}/{{ $kamPerformance['worst']['total_entry'] }})
                             </span>
                         </div>
                     @endif
@@ -1576,31 +1573,33 @@
                             @if (! empty($rows))
 
                                 <table class="team-performance-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Clients</th>
-                                            <th>Collection</th>
-                                            <th>Maturity</th>
-                                            <th>Efficiency</th>
-                                            <th>Latest OS</th>
-                                            <th>High risk</th>
-                                        </tr>
-                                    </thead>
+                                     <thead>
+                                         <tr>
+                                             <th>Name</th>
+                                             <th>Clients</th>
+                                             <th>Collection</th>
+                                             <th>Maturity</th>
+                                             <th>Efficiency</th>
+                                             <th>Latest OS</th>
+                                             <th>High risk</th>
+                                             <th>Late entry</th>
+                                         </tr>
+                                     </thead>
 
-                                    <tbody>
+                                     <tbody>
 
-                                        @foreach ($rows as $row)
+                                         @foreach ($rows as $row)
 
-                                            <tr>
-                                                <td>{{ $row['name'] }}</td>
-                                                <td class="amount">{{ number_format($row['clients']) }}</td>
-                                                <td class="amount">{{ $formatMil($row['collection']) }}</td>
-                                                <td class="amount">{{ $formatMil($row['maturity']) }}</td>
-                                                <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
-                                                <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
-                                                <td class="amount">{{ number_format($row['high_risk']) }}</td>
-                                            </tr>
+                                             <tr>
+                                                 <td>{{ $row['name'] }}</td>
+                                                 <td class="amount">{{ number_format($row['clients']) }}</td>
+                                                 <td class="amount">{{ $formatMil($row['collection']) }}</td>
+                                                 <td class="amount">{{ $formatMil($row['maturity']) }}</td>
+                                                 <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
+                                                 <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
+                                                 <td class="amount">{{ number_format($row['high_risk']) }}</td>
+                                                 <td class="amount">{{ $row['late_entry'] }} / {{ $row['total_entry'] }}</td>
+                                             </tr>
 
                                         @endforeach
 

@@ -1552,7 +1552,7 @@
                             {{ $kamPerformance['best']['kam'] }}
 
                             <span class="insight-change up">
-                                {{ number_format($kamPerformance['best']['efficiency'], 2) }}%
+                                {{ number_format($kamPerformance['best']['efficiency'], 2) }}% (Late: {{ $kamPerformance['best']['late_entry'] }}/{{ $kamPerformance['best']['total_entry'] }})
                             </span>
                         </div>
                     @endif
@@ -1563,7 +1563,7 @@
                             {{ $kamPerformance['worst']['kam'] }}
 
                             <span class="insight-change down">
-                                {{ number_format($kamPerformance['worst']['efficiency'], 2) }}%
+                                {{ number_format($kamPerformance['worst']['efficiency'], 2) }}% (Late: {{ $kamPerformance['worst']['late_entry'] }}/{{ $kamPerformance['worst']['total_entry'] }})
                             </span>
                         </div>
                     @endif
@@ -1602,6 +1602,7 @@
                                             <th>Efficiency</th>
                                             <th>Latest OS</th>
                                             <th>High risk</th>
+                                            <th>Late entry</th>
                                         </tr>
                                     </thead>
 
@@ -1617,6 +1618,7 @@
                                                 <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
                                                 <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
                                                 <td class="amount">{{ number_format($row['high_risk']) }}</td>
+                                                <td class="amount">{{ $row['late_entry'] }} / {{ $row['total_entry'] }}</td>
                                             </tr>
 
                                         @endforeach

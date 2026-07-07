@@ -406,6 +406,29 @@ class DashboardOptimizedController extends Controller
             return ['best' => null, 'worst' => null];
         }
 
+        $date = \Carbon\Carbon::parse($latestMonth);
+
+        // Fetch late entries for KAMs
+        $lateEntries = \Illuminate\Support\Facades\DB::table('collection')
+            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->whereMonth('collection.collection_datetime', $date->month)
+            ->whereYear('collection.collection_datetime', $date->year)
+            ->whereRaw("DATEDIFF(collection.created_at, collection.collection_datetime) > 2")
+            ->selectRaw("COALESCE(client.collection_kam, 'Unassigned') as name, COUNT(*) as late_count")
+            ->groupBy('name')
+            ->pluck('late_count', 'name')
+            ->toArray();
+
+        // Fetch total entries for KAMs
+        $totalEntries = \Illuminate\Support\Facades\DB::table('collection')
+            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->whereMonth('collection.collection_datetime', $date->month)
+            ->whereYear('collection.collection_datetime', $date->year)
+            ->selectRaw("COALESCE(client.collection_kam, 'Unassigned') as name, COUNT(*) as total_count")
+            ->groupBy('name')
+            ->pluck('total_count', 'name')
+            ->toArray();
+
         $performance = MonthlySummary::query()
             ->whereDate('summary_month', $latestMonth)
             ->selectRaw('
@@ -415,15 +438,27 @@ class DashboardOptimizedController extends Controller
             ')
             ->groupBy('client_collection_kam')
             ->get()
-            ->map(function ($row) {
+            ->map(function ($row) use ($lateEntries, $totalEntries) {
                 $collection = (float) $row->collection;
                 $maturity = (float) $row->maturity;
+                $efficiency = $maturity > 0 ? ($collection / $maturity) * 100 : 0.0;
+
+                $lateCount = $lateEntries[$row->kam] ?? 0;
+                $totalCount = $totalEntries[$row->kam] ?? 0;
+                $lateRate = $totalCount > 0 ? ($lateCount / $totalCount) : 0.0;
+
+                // Combined score: 50% efficiency + 50% lowest late entry rate (100 - late_rate_pct)
+                $score = ($efficiency * 0.5) + ((1.0 - $lateRate) * 50);
+
                 return [
                     'kam' => $row->kam,
-                    'efficiency' => $maturity > 0 ? ($collection / $maturity) * 100 : 0.0,
+                    'efficiency' => $efficiency,
+                    'late_entry' => $lateCount,
+                    'total_entry' => $totalCount,
+                    'score' => $score,
                 ];
             })
-            ->sortByDesc('efficiency')
+            ->sortByDesc('score')
             ->values();
 
         return [
@@ -441,6 +476,36 @@ class DashboardOptimizedController extends Controller
             return [];
         }
 
+        // Map monthly_summary field to client table field
+        $clientField = match($dbField) {
+            'client_team_name' => 'team_name',
+            'client_collection_kam' => 'collection_kam',
+            'client_collection_supervisor' => 'collection_supervisor',
+            'client_sm_kam' => 'sm_kam',
+            default => $dbField
+        };
+
+        $date = \Carbon\Carbon::parse($latestMonth);
+        $lateEntries = \Illuminate\Support\Facades\DB::table('collection')
+            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->whereMonth('collection.collection_datetime', $date->month)
+            ->whereYear('collection.collection_datetime', $date->year)
+            ->whereRaw("DATEDIFF(collection.created_at, collection.collection_datetime) > 2")
+            ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as late_count")
+            ->groupBy('name')
+            ->pluck('late_count', 'name')
+            ->toArray();
+
+        // Query total entries count
+        $totalEntries = \Illuminate\Support\Facades\DB::table('collection')
+            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->whereMonth('collection.collection_datetime', $date->month)
+            ->whereYear('collection.collection_datetime', $date->year)
+            ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as total_count")
+            ->groupBy('name')
+            ->pluck('total_count', 'name')
+            ->toArray();
+
         return MonthlySummary::query()
             ->whereDate('summary_month', $latestMonth)
             ->selectRaw("
@@ -453,7 +518,7 @@ class DashboardOptimizedController extends Controller
             ")
             ->groupBy($dbField)
             ->get()
-            ->map(function ($row) {
+            ->map(function ($row) use ($lateEntries, $totalEntries) {
                 $collection = (float) $row->collection;
                 $maturity = (float) $row->maturity;
                 return [
@@ -464,6 +529,8 @@ class DashboardOptimizedController extends Controller
                     'efficiency' => $maturity > 0 ? ($collection / $maturity) * 100 : 0.0,
                     'latest_os' => (float) $row->latest_os,
                     'high_risk' => (int) $row->high_risk,
+                    'late_entry' => $lateEntries[$row->name] ?? 0,
+                    'total_entry' => $totalEntries[$row->name] ?? 0,
                 ];
             })
             ->sortByDesc('efficiency')

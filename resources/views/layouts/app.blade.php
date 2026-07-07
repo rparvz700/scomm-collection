@@ -370,8 +370,8 @@
                 // Once the video finishes playing, fade out and remove
                 video.addEventListener('ended', fadeOutLoader);
                 
-                // Fallback timeout in case autoplay is blocked or video fails
-                setTimeout(fadeOutLoader, 5000);
+                // Keep the loader on screen for at most 2.2 seconds to prevent long delay
+                setTimeout(fadeOutLoader, 2200);
                 
                 function fadeOutLoader() {
                     if (loader && loader.style.opacity !== '0') {
@@ -386,7 +386,7 @@
     @endif
 
     <header class="topbar">
-        <a class="brand" href="{{ route('dashboard') }}">
+        <a class="brand" href="{{ route('dashboard.optimized') }}">
             <div class="brand-badge" style="background:none;"><img src="{{ asset('image/brand_badge.png') }}" alt="Logo" style="width:100%; height:100%; object-fit:contain; border-radius:8px;"></div>
             <div>
                 <h1 class="brand-title">SCOMM Collection</h1>
@@ -396,8 +396,7 @@
 
         <nav class="nav" aria-label="Primary navigation">
             @can('view dashboard')
-                <a class="{{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">Dashboard</a>
-                <a class="{{ request()->routeIs('dashboard.optimized') ? 'active' : '' }}" href="{{ route('dashboard.optimized') }}" style="background: rgba(34, 197, 94, 0.1); color: #15803d;">Dashboard (Opt. ⚡)</a>
+                <a class="{{ request()->routeIs('dashboard.optimized') ? 'active' : '' }}" href="{{ route('dashboard.optimized') }}">Dashboard</a>
             @endcan
 
             @can('view collections')

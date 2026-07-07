@@ -165,6 +165,40 @@
         </div>
     </section>
 
+        <!-- Pending Batch Panel (Visible only when batch has items) -->
+        <article class="panel" id="batch_panel" style="display: none; margin-bottom: 22px; width: 100%;">
+            <div class="panel-header" style="background: rgba(15, 118, 110, 0.05); border-bottom-color: rgba(15, 118, 110, 0.2); display: flex; justify-content: space-between; align-items: center; padding: 12px 18px;">
+                <h2 style="color: var(--primary-dark); display: flex; align-items: center; gap: 8px; margin: 0;">📦 Pending Batch <span id="batch_count_badge" class="pill" style="background: var(--primary); color: #fff; font-size: 11px; padding: 4px 8px;">0 entries</span></h2>
+                <form id="batch_submit_form" method="POST" action="{{ route('collection-entry.store') }}" style="margin: 0; display: flex; align-items: center;">
+                    @csrf
+                    <input type="hidden" id="batch_data_input" name="batch_data" value="">
+                    <button class="button success" type="submit" style="min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #166534; color: #fff; font-weight: 800; border: 0; border-radius: 8px; cursor: pointer; padding: 0 16px;">
+                        💾 Save Batch (<span id="batch_submit_count">0</span> items)
+                    </button>
+                </form>
+            </div>
+            <div class="panel-body" style="padding: 0;">
+                <div style="max-height: 300px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--line); background: #f8fafc;">
+                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Client</th>
+                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Actual Datetime</th>
+                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">For Month</th>
+                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Type</th>
+                                <th style="text-align: right; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Amount</th>
+                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Remarks</th>
+                                <th style="text-align: center; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc; width: 100px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch_tbody">
+                            <!-- Dynamic batch rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </article>
+
     <section class="grid two">
         <article class="panel">
             <div class="panel-header">
@@ -260,9 +294,17 @@
                     @error('remarks')<div class="error">{{ $message }}</div>@enderror
                 </div>
 
-                <button class="button primary" type="submit">Save collection</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
+                    <button class="button secondary" type="button" id="add_to_batch_btn" style="min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        ➕ Add to Batch
+                    </button>
+                    <button class="button primary" type="submit" id="save_single_btn" style="min-height: 44px;">
+                        Save Single Entry
+                    </button>
+                </div>
             </form>
         </article>
+
 
         <article class="panel">
             <div class="panel-header">
@@ -499,6 +541,127 @@
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#039;');
             }
+
+            // Batch entries state
+            let batchEntries = [];
+
+            // Add to Batch click handler
+            $('#add_to_batch_btn').on('click', function() {
+                const clientId = $('#client_id').val();
+                const clientText = $('#client_id option:selected').text().trim();
+                const dateTime = $('#collection_datetime').val();
+                const monthHidden = $('#collection_month').val();
+                const colType = $('#collection_type').val();
+                const amount = $('#collection_amount').val();
+                const remarks = $('#remarks').val();
+
+                // Validate fields manually
+                if (!clientId) {
+                    alert('Please select a client.');
+                    return;
+                }
+                if (!dateTime) {
+                    alert('Please select a collection datetime.');
+                    return;
+                }
+                if (!monthHidden) {
+                    alert('Please select a collection month.');
+                    return;
+                }
+                if (!colType) {
+                    alert('Please select a collection type.');
+                    return;
+                }
+                if (!amount || parseFloat(amount) <= 0) {
+                    alert('Please enter a valid positive amount.');
+                    return;
+                }
+
+                // Add to array
+                batchEntries.push({
+                    client_id: clientId,
+                    client_name: clientText,
+                    collection_datetime: dateTime,
+                    collection_month: monthHidden,
+                    collection_type: colType,
+                    collection_amount: parseFloat(amount),
+                    remarks: remarks
+                });
+
+                // Clear amount and remarks
+                $('#collection_amount').val('');
+                $('#remarks').val('');
+                renderBars(); // Reset metrics visualizer
+
+                // Update batch UI
+                refreshBatchUI();
+
+                // Smooth scroll back to top of page to see the new batch item
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            function refreshBatchUI() {
+                if (batchEntries.length === 0) {
+                    $('#batch_panel').hide();
+                    $('#save_single_btn').text('Save Single Entry');
+                    return;
+                }
+
+                $('#batch_panel').show();
+                $('#batch_count_badge').text(batchEntries.length + ' entries');
+                $('#batch_submit_count').text(batchEntries.length);
+                $('#batch_data_input').val(JSON.stringify(batchEntries));
+
+                // Render rows
+                let rowsHtml = '';
+                batchEntries.forEach((entry, index) => {
+                    const cleanType = entry.collection_type.replace(/_/g, ' ').toUpperCase();
+                    
+                    // Format datetime nicely
+                    let displayDt = entry.collection_datetime;
+                    try {
+                        const dt = new Date(entry.collection_datetime);
+                        if (!isNaN(dt.getTime())) {
+                            displayDt = dt.toLocaleString(undefined, {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                            });
+                        }
+                    } catch(e) {}
+
+                    // Format month nicely (YYYY-MM to Month YYYY)
+                    let displayMonth = entry.collection_month;
+                    try {
+                        const parts = entry.collection_month.split('-');
+                        if (parts.length >= 2) {
+                            const date = new Date(parts[0], parts[1] - 1);
+                            displayMonth = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                        }
+                    } catch(e) {}
+
+                    rowsHtml += `
+                        <tr style="border-bottom: 1px solid var(--line); font-size: 13px;">
+                            <td style="padding: 12px; font-weight: 600;">${escapeHtml(entry.client_name)}</td>
+                            <td style="padding: 12px; color: var(--ink);">${escapeHtml(displayDt)}</td>
+                            <td style="padding: 12px; color: var(--ink); font-weight: 500;">${escapeHtml(displayMonth)}</td>
+                            <td style="padding: 12px;"><span class="pill">${escapeHtml(cleanType)}</span></td>
+                            <td style="padding: 12px; text-align: right; font-weight: 700; color: var(--primary-dark);">${entry.collection_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td style="padding: 12px; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(entry.remarks || '')}">${escapeHtml(entry.remarks || '—')}</td>
+                            <td style="padding: 12px; text-align: center;">
+                                <button type="button" class="btn-small danger remove-batch-item" data-index="${index}" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                $('#batch_tbody').html(rowsHtml);
+            }
+
+            // Remove item from batch
+            $(document).on('click', '.remove-batch-item', function() {
+                const idx = parseInt($(this).data('index'));
+                batchEntries.splice(idx, 1);
+                refreshBatchUI();
+            });
 
             // Trigger initial metric fetch if client/month already filled (e.g. from old input)
             if ($('#client_id').val()) {

@@ -313,7 +313,7 @@
             @foreach ($dictionary as $tableName => $fields)
                 <div class="dictionary-table-group" data-table="{{ $tableName }}">
                     <div class="dictionary-table-header" onclick="toggleTableColumns('{{ $tableName }}')">
-                        <span>🗂️ {{ strtoupper($tableName) }}</span>
+                        <span>🗂️ {{ strtoupper(str_replace('_', ' ', $tableName)) }}</span>
                         <span id="arrow-{{ $tableName }}">▼</span>
                     </div>
                     
