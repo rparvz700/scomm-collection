@@ -59,6 +59,8 @@ class DashboardController extends Controller
             'snapshotAnalytics' => $this->snapshotAnalytics(),
             'trendChart' => $this->trendChart(),
             'segmentAnalysis' => $this->segmentAnalysis(),
+            'combinedMoMSummary' => $this->combinedMoMSummary($latestMonth),
+            'combinedRiskBreakdown' => $this->combinedRiskBreakdown($latestMonth),
             'recentCollections' => Collection::query()
                 ->with('client')
                 ->latest('collection_datetime')
@@ -215,6 +217,123 @@ class DashboardController extends Controller
                     $this->segmentComparisonData($prevNonIig, $prevMonthLabel),
                 ],
             ],
+        ];
+    }
+
+    private function combinedMoMSummary($latestMonth): array
+    {
+        if (! $latestMonth) {
+            return [];
+        }
+
+        $latestMonthDate = \Carbon\Carbon::parse($latestMonth);
+        $previousMonthDate = $latestMonthDate->copy()->startOfMonth()->subMonth()->endOfMonth();
+
+        $comparisons = [];
+        foreach ([$latestMonthDate, $previousMonthDate] as $date) {
+            $comp = MonthlySummary::query()
+                ->whereDate('summary_month', $date)
+                ->selectRaw('
+                    COUNT(*) as clients_count,
+                    SUM(total_opening_os) as opening_os_sum,
+                    SUM(total_mrc) as mrc_sum,
+                    SUM(net_backlog_total) as backlog_sum,
+                    AVG(opening_cr) as opening_cr_avg,
+                    SUM(total_latest_os) as latest_os_sum,
+                    AVG(latest_cr) as latest_cr_avg
+                ')
+                ->first();
+
+            $comparisons[] = [
+                'month' => $date->format('F Y'),
+                'clients_count' => (int) ($comp?->clients_count ?? 0),
+                'opening_os_sum' => (float) ($comp?->opening_os_sum ?? 0),
+                'mrc_sum' => (float) ($comp?->mrc_sum ?? 0),
+                'backlog_sum' => (float) ($comp?->backlog_sum ?? 0),
+                'opening_cr_avg' => (float) ($comp?->opening_cr_avg ?? 0),
+                'latest_os_sum' => (float) ($comp?->latest_os_sum ?? 0),
+                'latest_cr_avg' => (float) ($comp?->latest_cr_avg ?? 0),
+            ];
+        }
+
+        return $comparisons;
+    }
+
+    private function combinedRiskBreakdown($latestMonth): array
+    {
+        if (! $latestMonth) {
+            return [];
+        }
+
+        $latestMonthDate = \Carbon\Carbon::parse($latestMonth);
+        
+        $ranges = $this->crRanges();
+        $rows = [];
+
+        // Fetch totals first
+        $totals = MonthlySummary::query()
+            ->whereDate('summary_month', $latestMonthDate)
+            ->selectRaw('
+                COUNT(*) as client_count,
+                SUM(total_latest_os) as latest_os_sum,
+                SUM(total_mrc) as mrc_sum,
+                SUM(net_backlog_total) as backlog_sum
+            ')
+            ->first();
+
+        $totalClients = (int) ($totals?->client_count ?? 0);
+        $totalLatestOs = (float) ($totals?->latest_os_sum ?? 0);
+        $totalMrc = (float) ($totals?->mrc_sum ?? 0);
+        $totalBacklog = (float) ($totals?->backlog_sum ?? 0);
+
+        foreach ($ranges as $range) {
+            $min = $range['min'];
+            $max = $range['max'];
+
+            $rangeQuery = MonthlySummary::query()
+                ->whereDate('summary_month', $latestMonthDate);
+
+            if ($min === 0) {
+                $rangeQuery->where('latest_cr', '<=', $max);
+            } else {
+                $rangeQuery->where('latest_cr', '>=', $min);
+                if ($max !== null) {
+                    $rangeQuery->where('latest_cr', '<=', $max);
+                }
+            }
+
+            $stats = $rangeQuery->selectRaw('
+                COUNT(*) as client_count,
+                SUM(total_latest_os) as latest_os_sum,
+                SUM(total_mrc) as mrc_sum,
+                SUM(net_backlog_total) as backlog_sum
+            ')->first();
+
+            $clientCount = (int) ($stats?->client_count ?? 0);
+            $latestOsSum = (float) ($stats?->latest_os_sum ?? 0);
+            $mrcSum = (float) ($stats?->mrc_sum ?? 0);
+            $backlogSum = (float) ($stats?->backlog_sum ?? 0);
+
+            $rows[] = [
+                'category' => $range['category'],
+                'cr_segment' => $range['label'],
+                'client_count' => $clientCount,
+                'latest_os_sum' => $latestOsSum,
+                'mrc_sum' => $mrcSum,
+                'backlog_sum' => $backlogSum,
+                'mrc_percentage' => $totalMrc > 0 ? ($mrcSum / $totalMrc) * 100 : 0,
+                'backlog_percentage' => $totalBacklog > 0 ? ($backlogSum / $totalBacklog) * 100 : 0,
+            ];
+        }
+
+        return [
+            'rows' => $rows,
+            'totals' => [
+                'client_count' => $totalClients,
+                'latest_os_sum' => $totalLatestOs,
+                'mrc_sum' => $totalMrc,
+                'backlog_sum' => $totalBacklog,
+            ]
         ];
     }
 

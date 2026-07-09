@@ -253,6 +253,29 @@
         @endcan
     </section>
 
+    <section class="summary-cards" style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+        <div class="summary-card" style="flex: 1; min-width: 140px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
+            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Clients</div>
+            <div id="sumTotalCount" style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 4px;">0</div>
+        </div>
+        <div class="summary-card" style="flex: 1; min-width: 140px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
+            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Active</div>
+            <div id="sumActiveCount" style="font-size: 22px; font-weight: 800; color: #166534; margin-top: 4px;">0</div>
+        </div>
+        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
+            <div style="font-size: 11px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Discontinued</div>
+            <div id="sumDiscontinuedCount" style="font-size: 22px; font-weight: 800; color: #991b1b; margin-top: 4px;">0</div>
+        </div>
+        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
+            <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">Barred</div>
+            <div id="sumBarredCount" style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">0</div>
+        </div>
+        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
+            <div style="font-size: 11px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px;">High Risk</div>
+            <div id="sumHighRiskCount" style="font-size: 22px; font-weight: 800; color: #9a3412; margin-top: 4px;">0</div>
+        </div>
+    </section>
+
     <section class="filter-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Show</span>
@@ -265,6 +288,33 @@
             </select>
             <span style="font-size: 13px; font-weight: 700; color: var(--muted);">entries</span>
         </div>
+        
+        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Status:</span>
+                <select id="statusFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Discontinued">Discontinued</option>
+                    <option value="Barred">Barred</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Risk:</span>
+                @php
+                    $crRanges = config('risk.ranges') ?? [];
+                    $riskCategories = collect($crRanges)->pluck('category')->unique()->filter()->values();
+                @endphp
+                <select id="riskFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Risk Levels</option>
+                    <option value="High Risk">High Risk (Risky/High/Most)</option>
+                    @foreach($riskCategories as $cat)
+                        <option value="{{ $cat }}">{{ $cat }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+
         <div class="filter-form">
             <input class="filter-input" id="clientSearch" type="text" placeholder="Search across all columns in real-time..." style="width: 300px;">
             <button class="button" id="clearSearch" type="button" style="display: none;">Clear</button>
@@ -456,10 +506,14 @@
             function render() {
                 // 1. Filter
                 const query = searchInput.value.toLowerCase().trim();
-                if (query) {
-                    clearBtn.style.display = 'inline-block';
-                    filteredClients = clients.filter(client => {
-                        return (client.client_name && client.client_name.toLowerCase().includes(query)) ||
+                const selectedStatus = document.getElementById('statusFilter').value;
+                const selectedRisk = document.getElementById('riskFilter').value;
+
+                filteredClients = clients.filter(client => {
+                    // Check search query
+                    if (query) {
+                        const matchesSearch = 
+                               (client.client_name && client.client_name.toLowerCase().includes(query)) ||
                                (client.opus_id && client.opus_id.toLowerCase().includes(query)) ||
                                (client.client_status && client.client_status.toLowerCase().includes(query)) ||
                                (client.service_type_billing && client.service_type_billing.toLowerCase().includes(query)) ||
@@ -467,10 +521,56 @@
                                (client.collection_kam && client.collection_kam.toLowerCase().includes(query)) ||
                                (client.current_month_cr && client.current_month_cr.toLowerCase().includes(query)) ||
                                (client.risk_segment && client.risk_segment.toLowerCase().includes(query));
-                    });
+                        if (!matchesSearch) return false;
+                    }
+
+                    // Check status
+                    if (selectedStatus && selectedStatus !== 'All') {
+                        const statusMatch = client.client_status && client.client_status.toLowerCase() === selectedStatus.toLowerCase();
+                        if (!statusMatch) return false;
+                    }
+
+                    // Check risk
+                    if (selectedRisk && selectedRisk !== 'All') {
+                        if (selectedRisk === 'High Risk') {
+                            const riskMatch = client.risk_segment && ['Risky', 'High Risky', 'Most Risky'].includes(client.risk_segment);
+                            if (!riskMatch) return false;
+                        } else {
+                            const riskMatch = client.risk_segment && client.risk_segment.toLowerCase() === selectedRisk.toLowerCase();
+                            if (!riskMatch) return false;
+                        }
+                    }
+
+                    return true;
+                });
+
+                // Calculate summary counts from current filtered list
+                let activeCount = 0;
+                let discontinuedCount = 0;
+                let barredCount = 0;
+                let highRiskCount = 0;
+
+                filteredClients.forEach(client => {
+                    const status = (client.client_status || '').toLowerCase();
+                    if (status === 'active') activeCount++;
+                    else if (status === 'discontinued') discontinuedCount++;
+                    else if (status === 'barred') barredCount++;
+
+                    if (client.risk_segment && ['Risky', 'High Risky', 'Most Risky'].includes(client.risk_segment)) {
+                        highRiskCount++;
+                    }
+                });
+
+                document.getElementById('sumTotalCount').textContent = filteredClients.length;
+                document.getElementById('sumActiveCount').textContent = activeCount;
+                document.getElementById('sumDiscontinuedCount').textContent = discontinuedCount;
+                document.getElementById('sumBarredCount').textContent = barredCount;
+                document.getElementById('sumHighRiskCount').textContent = highRiskCount;
+
+                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedRisk && selectedRisk !== 'All')) {
+                    clearBtn.style.display = 'inline-block';
                 } else {
                     clearBtn.style.display = 'none';
-                    filteredClients = [...clients];
                 }
 
                 // 2. Sort
@@ -775,6 +875,24 @@
                 });
             });
 
+            // Parse URL search parameters on load
+            const urlParams = new URLSearchParams(window.location.search);
+            const statusParam = urlParams.get('status');
+            const riskParam = urlParams.get('risk');
+
+            if (statusParam) {
+                document.getElementById('statusFilter').value = statusParam;
+            }
+            if (riskParam) {
+                document.getElementById('riskFilter').value = riskParam;
+            }
+
+            // Bind change events
+            $('#statusFilter, #riskFilter').on('change', () => {
+                currentPage = 1;
+                render();
+            });
+
             // Input listener
             searchInput.addEventListener('input', () => {
                 currentPage = 1;
@@ -784,6 +902,8 @@
             // Clear button listener
             clearBtn.addEventListener('click', () => {
                 searchInput.value = '';
+                document.getElementById('statusFilter').value = 'All';
+                document.getElementById('riskFilter').value = 'All';
                 currentPage = 1;
                 render();
             });

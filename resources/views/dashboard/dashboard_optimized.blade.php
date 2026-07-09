@@ -252,6 +252,14 @@
             min-width: 1350px;
         }
 
+        .risk-segment-table {
+            min-width: 100%;
+        }
+
+        .risk-segment-table td {
+            font-weight: 500 !important;
+        }
+
         .table-responsive {
             overflow-x: auto;
             width: 100%;
@@ -505,7 +513,8 @@
                     $cards = [
                         [
                             'title' => 'Active clients',
-                            'value' => number_format($activeClientCount),
+                            'value' => '<a href="' . route('clients.index', ['status' => 'Active']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #166534;">' . number_format($activeClientCount) . '</a>',
+                            'is_html' => true,
                             'comparison' => $metricComparisons['active_clients'],
                             'positive' => 'green',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -516,20 +525,24 @@
                             'title' => 'Discont./Barred Clients',
                             'value' => '<div style="display:flex; justify-content:space-between; width:100%;">
                                             <div>
-                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
-                                                    ' . number_format($barredSubCount) . '
-                                                </span>
-                                                <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
-                                                    Barred
-                                                </span>
+                                                <a href="' . route('clients.index', ['status' => 'Barred']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #991b1b; display:block;">
+                                                    <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                        ' . number_format($barredSubCount) . '
+                                                    </span>
+                                                    <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
+                                                        Barred
+                                                    </span>
+                                                </a>
                                             </div>
                                             <div>
-                                                <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
-                                                    ' . number_format($discontinuedSubCount) . '
-                                                </span>
-                                                <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
-                                                    Discont.
-                                                </span>
+                                                <a href="' . route('clients.index', ['status' => 'Discontinued']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #991b1b; display:block;">
+                                                    <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
+                                                        ' . number_format($discontinuedSubCount) . '
+                                                    </span>
+                                                    <span style="font-size:11px; font-weight:500; color:#b91c1c; text-transform:uppercase;">
+                                                        Discont.
+                                                    </span>
+                                                </a>
                                             </div>
                                         </div>',
                             'is_html' => true,
@@ -577,7 +590,8 @@
                         ],
                         [
                             'title' => 'High risk clients',
-                            'value' => number_format($highRiskCount),
+                            'value' => '<a href="' . route('clients.index', ['risk' => 'High Risk']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #166534;">' . number_format($highRiskCount) . '</a>',
+                            'is_html' => true,
                             'comparison' => $metricComparisons['risk'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -689,6 +703,404 @@
 
         </section>
 
+        <section class="dashboard-slide">
+            @php
+                $renderProgressBar = function($percent, $color = '#0f766e') {
+                    $val = max(0, min(100, (float) $percent));
+                    return '
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 4px; width: 100%;">
+                        <div style="width: 100%; height: 4px; background-color: rgba(0, 0, 0, 0.08); border-radius: 999px; overflow: hidden; position: relative;">
+                            <div style="width: ' . $val . '%; height: 100%; background-color: ' . $color . '; border-radius: 999px; transition: width 0.4s ease;"></div>
+                        </div>
+                    </div>';
+                };
+            @endphp
+            @if(isset($combinedMoMSummary[0]))
+                <article class="panel" style="margin-bottom: 24px;">
+                    <div class="panel-header">
+                        <h2>IIG, ISP & Other Operators - Month-on-Month Summary</h2>
+                        <span>{{ $currentMonthLabel }} · Month on month</span>
+                    </div>
+                    <table class="segment-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="amount">Number of Clients</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">MRC</th>
+                                <th class="amount">Net Backlog</th>
+                                <th class="amount">Opening Avg. CR</th>
+                                <th class="amount">Latest OS</th>
+                                <th class="amount">Latest Avg. CR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $currentCombined = $combinedMoMSummary[0];
+                                $previousCombined = $combinedMoMSummary[1];
+                            @endphp
+                            <tr style="font-weight: 800; background-color: #f1f5f9 !important;">
+                                <td><strong>{{ $currentCombined['month'] }}</strong></td>
+                                <td class="amount">
+                                    {{ number_format($currentCombined['clients_count']) }}
+                                    {!! $renderMoMArrow($currentCombined['clients_count'], $previousCombined['clients_count'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($currentCombined['opening_os_sum']) }}
+                                    {!! $renderMoMArrow($currentCombined['opening_os_sum'], $previousCombined['opening_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($currentCombined['mrc_sum']) }}
+                                    {!! $renderMoMArrow($currentCombined['mrc_sum'], $previousCombined['mrc_sum'], 'good-up') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($currentCombined['backlog_sum']) }}
+                                    {!! $renderMoMArrow($currentCombined['backlog_sum'], $previousCombined['backlog_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($currentCombined['opening_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($currentCombined['opening_cr_avg'], $previousCombined['opening_cr_avg'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ $formatMil($currentCombined['latest_os_sum']) }}
+                                    {!! $renderMoMArrow($currentCombined['latest_os_sum'], $previousCombined['latest_os_sum'], 'good-down') !!}
+                                </td>
+                                <td class="amount">
+                                    {{ number_format($currentCombined['latest_cr_avg'], 2) }}
+                                    {!! $renderMoMArrow($currentCombined['latest_cr_avg'], $previousCombined['latest_cr_avg'], 'good-down') !!}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>{{ $previousCombined['month'] }}</strong></td>
+                                <td class="amount">{{ number_format($previousCombined['clients_count']) }}</td>
+                                <td class="amount">{{ $formatMil($previousCombined['opening_os_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previousCombined['mrc_sum']) }}</td>
+                                <td class="amount">{{ $formatMil($previousCombined['backlog_sum']) }}</td>
+                                <td class="amount">{{ number_format($previousCombined['opening_cr_avg'], 2) }}</td>
+                                <td class="amount">{{ $formatMil($previousCombined['latest_os_sum']) }}</td>
+                                <td class="amount">{{ number_format($previousCombined['latest_cr_avg'], 2) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+            @endif
+
+            @if(isset($combinedRiskBreakdown['rows']))
+                @php
+                    $currentMonthObj = \Carbon\Carbon::parse($latestSummary?->summary_month);
+                    $nextMonthObj = $currentMonthObj->copy()->addMonth();
+
+                    $currentMonthLabel = $currentMonthObj->format("M'y");
+                    $nextMonthLabel = $nextMonthObj->format("F'y");
+                    $nextMonthShortLabel = $nextMonthObj->format("M\"y");
+                @endphp
+
+                <article class="panel">
+                    <div class="panel-header">
+                        <h2>ISP, IIG & Other Operator's {{ $currentMonthLabel }} OS Summary</h2>
+                        <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                    </div>
+
+                    <table class="segment-table risk-segment-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th class="amount">No of Clients</th>
+                                <th class="amount">CR Segment</th>
+                                <th class="amount">Opening OS</th>
+                                <th class="amount">Latest MRC</th>
+                                <th class="amount">Percentage of total MRC</th>
+                                <th class="amount">Net Backlog</th>
+                                <th class="amount">Percentage of total Backlog</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($combinedRiskBreakdown['rows'] as $row)
+                                @php
+                                    $bgStyle = '';
+                                    $textStyle = '';
+                                    $barColor = '#3b82f6';
+                                    if ($row['category'] === 'Best') {
+                                        $bgStyle = 'background-color: #e0fef1 !important;';
+                                        $barColor = '#10b981';
+                                    } elseif ($row['category'] === 'Good') {
+                                        $bgStyle = 'background-color: #acdbfa !important;';
+                                        $barColor = '#f59e0b';
+                                    } elseif ($row['category'] === 'Moderate') {
+                                        $bgStyle = 'background-color: #fce58c !important;';
+                                        $barColor = '#f59e0b';
+                                    } elseif ($row['category'] === 'Risky') {
+                                        $bgStyle = 'background-color: #fad2c0 !important;';
+                                        $barColor = '#f97316';
+                                    } elseif ($row['category'] === 'High Risky') {
+                                        $bgStyle = 'background-color: #fe9a93 !important;';
+                                        $barColor = '#f43f5e';
+                                    } elseif ($row['category'] === 'Most Risky') {
+                                        $bgStyle = 'background-color: #ea580c !important;';
+                                        $textStyle = 'color: #ffffff !important;';
+                                        $barColor = '#ffffff';
+                                    }
+                                @endphp
+                                <tr style="{{ $bgStyle }} {{ $textStyle }}">
+                                    <td style="{{ $textStyle }}"><strong>{{ $row['category'] }}</strong></td>
+                                    <td class="amount" style="{{ $textStyle }}">{{ number_format($row['client_count']) }}</td>
+                                    <td class="amount" style="{{ $textStyle }}">{{ $row['cr_segment'] }}</td>
+                                    <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['latest_os_sum']) }}</td>
+                                    <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['mrc_sum']) }}</td>
+                                    <td class="amount" style="{{ $textStyle }}">
+                                        {{ number_format($row['mrc_percentage'], 0) }}%
+                                        {!! $renderProgressBar($row['mrc_percentage'], $barColor) !!}
+                                    </td>
+                                    <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['backlog_sum']) }}</td>
+                                    <td class="amount" style="{{ $textStyle }}">
+                                        {{ number_format($row['backlog_percentage'], 0) }}%
+                                        {!! $renderProgressBar($row['backlog_percentage'], $barColor) !!}
+                                    </td>
+                                </tr>
+                            @endforeach
+                            @php
+                                $totals = $combinedRiskBreakdown['totals'];
+                            @endphp
+                            <tr style="font-weight: 800; font-size: 14px; background-color: #0f172a !important; color: #ffffff !important;">
+                                <td style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;"><strong>Sub Total:</strong></td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ number_format($totals['client_count']) }}</td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">0.00 &le; 3.50</td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ $formatMil($totals['latest_os_sum']) }}</td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ $formatMil($totals['mrc_sum']) }}</td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">
+                                    100%
+                                    {!! $renderProgressBar(100, '#38bdf8') !!}
+                                </td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ $formatMil($totals['backlog_sum']) }}</td>
+                                <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">
+                                    100%
+                                    {!! $renderProgressBar(100, '#38bdf8') !!}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+            @endif
+
+            @if(isset($combinedRiskBreakdown['rows']))
+                @php
+                    $rows = $combinedRiskBreakdown['rows'];
+                    $totals = $combinedRiskBreakdown['totals'];
+
+                    $getSegmentSubtotal = function($segmentData, $startRow, $endRow) {
+                        $clients = 0;
+                        $openingOs = 0.0;
+                        $mrc = 0.0;
+                        $backlog = 0.0;
+
+                        if (isset($segmentData['rows'])) {
+                            for ($i = $startRow; $i <= $endRow; $i++) {
+                                if (isset($segmentData['rows'][$i])) {
+                                    $row = $segmentData['rows'][$i];
+                                    $clients += $row['client_count'];
+                                    $openingOs += $row['closing_os_sum'];
+                                    $mrc += $row['latest_mrc_sum'];
+                                    $backlog += $row['net_backlog_sum'];
+                                }
+                            }
+                        }
+
+                        return [
+                            'clients' => $clients,
+                            'opening_os' => $openingOs,
+                            'mrc' => $mrc,
+                            'backlog' => $backlog,
+                        ];
+                    };
+
+                    $totalMrc = $totals['mrc_sum'] ?? 0;
+                    $totalBacklog = $totals['backlog_sum'] ?? 0;
+
+                    // Best, Good, Moderate (rows 0, 1, 2)
+                    $bgmIsp = $getSegmentSubtotal($segmentAnalysis[1] ?? [], 0, 2);
+                    $bgmIig = $getSegmentSubtotal($segmentAnalysis[0] ?? [], 0, 2);
+
+                    $bgmTotalClients = $bgmIsp['clients'] + $bgmIig['clients'];
+                    $bgmTotalOpeningOs = $bgmIsp['opening_os'] + $bgmIig['opening_os'];
+                    $bgmTotalMrc = $bgmIsp['mrc'] + $bgmIig['mrc'];
+                    $bgmTotalBacklog = $bgmIsp['backlog'] + $bgmIig['backlog'];
+
+                    $bgmIspMrcPercent = $totalMrc > 0 ? ($bgmIsp['mrc'] / $totalMrc) * 100 : 0;
+                    $bgmIspBacklogPercent = $totalBacklog > 0 ? ($bgmIsp['backlog'] / $totalBacklog) * 100 : 0;
+
+                    $bgmIigMrcPercent = $totalMrc > 0 ? ($bgmIig['mrc'] / $totalMrc) * 100 : 0;
+                    $bgmIigBacklogPercent = $totalBacklog > 0 ? ($bgmIig['backlog'] / $totalBacklog) * 100 : 0;
+
+                    $bgmTotalMrcPercent = $totalMrc > 0 ? ($bgmTotalMrc / $totalMrc) * 100 : 0;
+                    $bgmTotalBacklogPercent = $totalBacklog > 0 ? ($bgmTotalBacklog / $totalBacklog) * 100 : 0;
+
+                    // Risky, High Risky, Most Risky (rows 3, 4, 5)
+                    $rhmIsp = $getSegmentSubtotal($segmentAnalysis[1] ?? [], 3, 5);
+                    $rhmIig = $getSegmentSubtotal($segmentAnalysis[0] ?? [], 3, 5);
+
+                    $rhmTotalClients = $rhmIsp['clients'] + $rhmIig['clients'];
+                    $rhmTotalOpeningOs = $rhmIsp['opening_os'] + $rhmIig['opening_os'];
+                    $rhmTotalMrc = $rhmIsp['mrc'] + $rhmIig['mrc'];
+                    $rhmTotalBacklog = $rhmIsp['backlog'] + $rhmIig['backlog'];
+
+                    $rhmIspMrcPercent = $totalMrc > 0 ? ($rhmIsp['mrc'] / $totalMrc) * 100 : 0;
+                    $rhmIspBacklogPercent = $totalBacklog > 0 ? ($rhmIsp['backlog'] / $totalBacklog) * 100 : 0;
+
+                    $rhmIigMrcPercent = $totalMrc > 0 ? ($rhmIig['mrc'] / $totalMrc) * 100 : 0;
+                    $rhmIigBacklogPercent = $totalBacklog > 0 ? ($rhmIig['backlog'] / $totalBacklog) * 100 : 0;
+
+                    $rhmTotalMrcPercent = $totalMrc > 0 ? ($rhmTotalMrc / $totalMrc) * 100 : 0;
+                    $rhmTotalBacklogPercent = $totalBacklog > 0 ? ($rhmTotalBacklog / $totalBacklog) * 100 : 0;
+                @endphp
+
+                <div style="margin-top: 24px;">
+                    <!-- Best, Good, Moderate Card -->
+                    <article class="panel" style="margin-bottom: 24px;">
+                        <div class="panel-header">
+                            <h2>Best, Good & Moderate Client's MRC & Backlog Breakdown</h2>
+                            <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                        </div>
+                        <table class="segment-table risk-segment-table">
+                            <thead>
+                                <tr>
+                                    <th>Segment</th>
+                                    <th class="amount">No of Clients</th>
+                                    <th class="amount">CR Segment</th>
+                                    <th class="amount">Opening OS</th>
+                                    <th class="amount">Latest MRC</th>
+                                    <th class="amount">% of Total MRC</th>
+                                    <th class="amount">Net Backlog</th>
+                                    <th class="amount">% of Total Backlog</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>ISP & Other Operators</td>
+                                    <td class="amount">{{ number_format($bgmIsp['clients']) }}</td>
+                                    <td class="amount">0.00 &le; 2.50</td>
+                                    <td class="amount">{{ $formatMil($bgmIsp['opening_os']) }}</td>
+                                    <td class="amount">{{ $formatMil($bgmIsp['mrc']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmIspMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmIspMrcPercent, '#10b981') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($bgmIsp['backlog']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmIspBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmIspBacklogPercent, '#10b981') !!}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>IIG Operators</td>
+                                    <td class="amount">{{ number_format($bgmIig['clients']) }}</td>
+                                    <td class="amount">0.00 &le; 2.50</td>
+                                    <td class="amount">{{ $formatMil($bgmIig['opening_os']) }}</td>
+                                    <td class="amount">{{ $formatMil($bgmIig['mrc']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmIigMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmIigMrcPercent, '#10b981') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($bgmIig['backlog']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmIigBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmIigBacklogPercent, '#10b981') !!}
+                                    </td>
+                                </tr>
+                                <tr style="font-weight: 800; background-color: #e6f4ea !important;">
+                                    <td><strong>Sub Total:</strong></td>
+                                    <td class="amount">{{ number_format($bgmTotalClients) }}</td>
+                                    <td class="amount">0.00 &le; 2.50</td>
+                                    <td class="amount">{{ $formatMil($bgmTotalOpeningOs) }}</td>
+                                    <td class="amount">{{ $formatMil($bgmTotalMrc) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmTotalMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmTotalMrcPercent, '#10b981') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($bgmTotalBacklog) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($bgmTotalBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($bgmTotalBacklogPercent, '#10b981') !!}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </article>
+
+                    <!-- Risky, High Risky, Most Risky Card -->
+                    <article class="panel" style="margin-bottom: 24px;">
+                        <div class="panel-header">
+                            <h2>Risky, High Risky & Most Risky Client's MRC & Backlog Breakdown</h2>
+                            <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
+                        </div>
+                        <table class="segment-table risk-segment-table">
+                            <thead>
+                                <tr>
+                                    <th>Segment</th>
+                                    <th class="amount">No of Clients</th>
+                                    <th class="amount">CR Segment</th>
+                                    <th class="amount">Opening OS</th>
+                                    <th class="amount">Latest MRC</th>
+                                    <th class="amount">% of Total MRC</th>
+                                    <th class="amount">Net Backlog</th>
+                                    <th class="amount">% of Total Backlog</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>ISP & Other Operators</td>
+                                    <td class="amount">{{ number_format($rhmIsp['clients']) }}</td>
+                                    <td class="amount">&ge; 2.51</td>
+                                    <td class="amount">{{ $formatMil($rhmIsp['opening_os']) }}</td>
+                                    <td class="amount">{{ $formatMil($rhmIsp['mrc']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmIspMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmIspMrcPercent, '#ef4444') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($rhmIsp['backlog']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmIspBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmIspBacklogPercent, '#ef4444') !!}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>IIG Operators</td>
+                                    <td class="amount">{{ number_format($rhmIig['clients']) }}</td>
+                                    <td class="amount">&ge; 2.51</td>
+                                    <td class="amount">{{ $formatMil($rhmIig['opening_os']) }}</td>
+                                    <td class="amount">{{ $formatMil($rhmIig['mrc']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmIigMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmIigMrcPercent, '#ef4444') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($rhmIig['backlog']) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmIigBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmIigBacklogPercent, '#ef4444') !!}
+                                    </td>
+                                </tr>
+                                <tr style="font-weight: 800; background-color: #fdf2f2 !important;">
+                                    <td><strong>Sub Total:</strong></td>
+                                    <td class="amount">{{ number_format($rhmTotalClients) }}</td>
+                                    <td class="amount">&ge; 2.51</td>
+                                    <td class="amount">{{ $formatMil($rhmTotalOpeningOs) }}</td>
+                                    <td class="amount">{{ $formatMil($rhmTotalMrc) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmTotalMrcPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmTotalMrcPercent, '#ef4444') !!}
+                                    </td>
+                                    <td class="amount">{{ $formatMil($rhmTotalBacklog) }}</td>
+                                    <td class="amount">
+                                        {{ number_format($rhmTotalBacklogPercent, 0) }}%
+                                        {!! $renderProgressBar($rhmTotalBacklogPercent, '#ef4444') !!}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </article>
+                </div>
+            @endif
+        </section>
+
         {{-- SLIDE 3 --}}
         <section class="dashboard-slide">
 
@@ -718,7 +1130,7 @@
                                 $current0 = $segmentAnalysis[0]['comparisons'][0];
                                 $previous0 = $segmentAnalysis[0]['comparisons'][1];
                             @endphp
-                            <tr>
+                            <tr style="font-weight: 800; background-color: #f1f5f9 !important;">
                                 <td><strong>{{ $current0['month'] }}</strong></td>
                                 <td class="amount">
                                     {{ number_format($current0['clients_count']) }}
@@ -1054,7 +1466,7 @@
                                 $current1 = $segmentAnalysis[1]['comparisons'][0];
                                 $previous1 = $segmentAnalysis[1]['comparisons'][1];
                             @endphp
-                            <tr>
+                            <tr style="font-weight: 800; background-color: #f1f5f9 !important;">
                                 <td><strong>{{ $current1['month'] }}</strong></td>
                                 <td class="amount">
                                     {{ number_format($current1['clients_count']) }}
@@ -1389,7 +1801,7 @@
                                 $discCurrent = $discontinuedAnalysis['comparisons'][0];
                                 $discPrevious = $discontinuedAnalysis['comparisons'][1];
                             @endphp
-                            <tr>
+                            <tr style="font-weight: 800; background-color: #f1f5f9 !important;">
                                 <td><strong>{{ $discCurrent['month'] }}</strong></td>
                                 <td class="amount">
                                     {{ number_format($discCurrent['clients_count']) }}
