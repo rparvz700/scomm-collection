@@ -417,9 +417,11 @@
                 <label for="templateDesc">Description</label>
                 <textarea id="templateDesc" placeholder="Describe the purpose of this custom report"></textarea>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
                 <button class="button" onclick="closeModal('saveTemplateModal')">Cancel</button>
                 <button class="button primary" id="confirmSaveTemplateBtn">Save Template</button>
+                <button class="button" id="saveNewBtn" style="display:none;">Save as New</button>
+                <button class="button primary" id="overwriteBtn" style="display:none;">Overwrite Existing</button>
             </div>
         </div>
     </div>
@@ -432,8 +434,11 @@
             <h3>Saved Templates</h3>
             <span style="cursor:pointer;" onclick="closeModal('loadTemplateModal')">❌</span>
         </div>
-        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-            <div id="templatesListContainer">
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 12px; max-height: 440px; box-sizing: border-box;">
+            <div>
+                <input type="text" id="templateSearchInput" placeholder="Search templates by name or description..." style="width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 6px; padding: 0 12px; font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box;">
+            </div>
+            <div id="templatesListContainer" style="overflow-y: auto; max-height: 300px; display: flex; flex-direction: column; gap: 8px;">
                 @if ($templates->isEmpty())
                     <div class="empty">No saved templates found. Create one by clicking "Save Template" above.</div>
                 @else
@@ -895,14 +900,31 @@
             alert('Define a query configuration before saving.');
             return;
         }
-        document.getElementById('saveTemplateId').value = loadedTemplateId || '';
+
+        const saveNewBtn = document.getElementById('saveNewBtn');
+        const overwriteBtn = document.getElementById('overwriteBtn');
+        const confirmSaveTemplateBtn = document.getElementById('confirmSaveTemplateBtn');
+
+        if (loadedTemplateId) {
+            // Template is loaded, show Options
+            const matchedTemplate = savedTemplates.find(t => t.id == loadedTemplateId);
+            saveNewBtn.style.display = 'inline-block';
+            overwriteBtn.style.display = 'inline-block';
+            overwriteBtn.textContent = `Overwrite "${matchedTemplate ? matchedTemplate.name : 'Current'}"`;
+            confirmSaveTemplateBtn.style.display = 'none';
+        } else {
+            // No template loaded, show standard Save
+            saveNewBtn.style.display = 'none';
+            overwriteBtn.style.display = 'none';
+            confirmSaveTemplateBtn.style.display = 'inline-block';
+        }
+
         openModal('saveTemplateModal');
     });
 
-    document.getElementById('confirmSaveTemplateBtn').addEventListener('click', () => {
-        const name = document.getElementById('templateName').value;
-        const description = document.getElementById('templateDesc').value;
-        const id = document.getElementById('saveTemplateId').value;
+    function submitSaveTemplate(templateId) {
+        const name = document.getElementById('templateName').value.trim();
+        const description = document.getElementById('templateDesc').value.trim();
 
         if (!name) {
             alert('Template name is required.');
@@ -916,7 +938,7 @@
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
             },
             body: JSON.stringify({
-                id: id ? parseInt(id) : null,
+                id: templateId || null,
                 name: name,
                 description: description,
                 query_config: queryState
@@ -932,11 +954,67 @@
                 alert('Save failed.');
             }
         });
+    }
+
+    document.getElementById('confirmSaveTemplateBtn').addEventListener('click', () => {
+        submitSaveTemplate(null);
+    });
+
+    document.getElementById('saveNewBtn').addEventListener('click', () => {
+        submitSaveTemplate(null);
+    });
+
+    document.getElementById('overwriteBtn').addEventListener('click', () => {
+        submitSaveTemplate(loadedTemplateId);
     });
 
     // Load Template actions
     document.getElementById('loadTemplateBtn').addEventListener('click', () => {
+        // Reset search field and display on open
+        document.getElementById('templateSearchInput').value = '';
+        const items = document.querySelectorAll('#templatesListContainer .template-list-item');
+        items.forEach(item => item.style.display = 'flex');
+        const noMatchDiv = document.getElementById('noTemplatesMatchMessage');
+        if (noMatchDiv) noMatchDiv.style.display = 'none';
+
         openModal('loadTemplateModal');
+    });
+
+    document.getElementById('templateSearchInput').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const items = document.querySelectorAll('#templatesListContainer .template-list-item');
+        let hasVisible = false;
+
+        items.forEach(item => {
+            const nameEl = item.querySelector('strong');
+            const descEl = item.querySelector('p');
+            const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+            const desc = descEl ? descEl.textContent.toLowerCase() : '';
+
+            if (name.includes(query) || desc.includes(query)) {
+                item.style.display = 'flex';
+                hasVisible = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        let noMatchDiv = document.getElementById('noTemplatesMatchMessage');
+        if (!hasVisible) {
+            if (!noMatchDiv) {
+                noMatchDiv = document.createElement('div');
+                noMatchDiv.id = 'noTemplatesMatchMessage';
+                noMatchDiv.className = 'empty';
+                noMatchDiv.style.padding = '20px';
+                noMatchDiv.style.textAlign = 'center';
+                noMatchDiv.textContent = 'No matching templates found.';
+                document.getElementById('templatesListContainer').appendChild(noMatchDiv);
+            } else {
+                noMatchDiv.style.display = 'block';
+            }
+        } else if (noMatchDiv) {
+            noMatchDiv.style.display = 'none';
+        }
     });
 
     function loadTemplateById(id) {

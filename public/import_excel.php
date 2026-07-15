@@ -33,8 +33,8 @@ foreach ($allFiles as $f) {
     }
     
     // Extract month name and year (supporting formats like _Jun'25_ or _Jun'25)
-    if (preg_match('/_([A-Za-z]{3})\'([0-9]{2})/i', $f, $matches)) {
-        $mStr = strtolower($matches[1]);
+    if (preg_match('/_([A-Za-z]{3,4})\'([0-9]{2})/i', $f, $matches)) {
+        $mStr = strtolower(substr($matches[1], 0, 3));
         $yStr = $matches[2];
         
         if (isset($monthsMap[$mStr])) {
@@ -820,9 +820,11 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                     'postpaid_nix' => 'collection_postpaid_nix',
                 ];
                 
+                $segmentedSum = 0.0;
                 foreach ($collectionTypes as $enumVal => $field) {
-                    $amount = $fields[$field];
+                    $amount = isset($fields[$field]) ? (float)$fields[$field] : 0.0;
                     if ($amount > 0.0) {
+                        $segmentedSum += $amount;
                         DB::table('collection')->insert([
                             'client_id' => $cid,
                             'collection_datetime' => $summaryMonth . ' 23:59:59',
@@ -834,6 +836,21 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                             'created_at' => now()
                         ]);
                     }
+                }
+
+                $totalColl = isset($fields['collection_amount']) ? (float)$fields['collection_amount'] : 0.0;
+                if ($totalColl > ($segmentedSum + 0.01)) {
+                    $diff = $totalColl - $segmentedSum;
+                    DB::table('collection')->insert([
+                        'client_id' => $cid,
+                        'collection_datetime' => $summaryMonth . ' 23:59:59',
+                        'collection_month' => $summaryMonth,
+                        'collection_type' => 'postpaid_nttn',
+                        'collection_amount' => $diff,
+                        'remarks' => 'Imported unsegmented discontinued collection remainder from Excel ' . $fileToProcess,
+                        'created_by' => 'System',
+                        'created_at' => now()
+                    ]);
                 }
                 $discImportCount++;
             }

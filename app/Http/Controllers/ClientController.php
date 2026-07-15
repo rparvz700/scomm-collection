@@ -40,7 +40,7 @@ class ClientController extends Controller
             $client->current_month_cr = $cr !== null ? number_format($cr, 2) : 'N/A';
             
             // Segment Name
-            $isIig = str_contains(strtolower((string) $client->service_type_billing), 'iig');
+            $isIig = str_contains(strtolower((string) $client->license_billing), 'iig');
             $client->segment_name = $isIig ? 'IIG Operators' : 'ISP & Other Operators';
 
             // CR Range and Risk Category
@@ -181,8 +181,17 @@ class ClientController extends Controller
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($log) {
+                $formattedDate = 'N/A';
+                if ($log->created_at) {
+                    try {
+                        $formattedDate = \Carbon\Carbon::parse($log->created_at)->format('d M Y H:i');
+                    } catch (\Exception $e) {
+                        $formattedDate = 'N/A';
+                    }
+                }
+
                 return [
-                    'date' => $log->created_at->format('d M Y H:i'),
+                    'date' => $formattedDate,
                     'field' => ucwords(str_replace('_', ' ', $log->field_name)),
                     'old' => $log->old_value ?? 'N/A',
                     'new' => $log->new_value ?? 'N/A',

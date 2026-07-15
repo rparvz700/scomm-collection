@@ -197,11 +197,11 @@ class DashboardOptimizedController extends Controller
 
             $applySegmentFilter = function($q) use ($isIig) {
                 if ($isIig) {
-                    $q->where('client_service_type_billing', 'like', '%iig%');
+                    $q->where('client_license_billing', 'like', '%iig%');
                 } else {
                     $q->where(function($sub) {
-                        $sub->where('client_service_type_billing', 'not like', '%iig%')
-                            ->orWhereNull('client_service_type_billing');
+                        $sub->where('client_license_billing', 'not like', '%iig%')
+                            ->orWhereNull('client_license_billing');
                     });
                 }
             };
@@ -817,7 +817,7 @@ class DashboardOptimizedController extends Controller
 
         // 1. High Risk ISP Backlog Concentration
         $ispSummaries = $summaries->reject(function ($s) {
-            return str_contains(strtolower((string) $s->client_service_type_billing), 'iig');
+            return str_contains(strtolower((string) $s->client_license_billing), 'iig');
         });
         $totalIspBacklog = (float) $ispSummaries->sum('net_backlog_total');
         

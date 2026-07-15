@@ -413,7 +413,7 @@ class DashboardController extends Controller
 
     private function isIigSegment(MonthlySummary $summary): bool
     {
-        return str_contains(strtolower((string) $summary->client?->service_type_billing), 'iig');
+        return str_contains(strtolower((string) $summary->client?->license_billing), 'iig');
     }
 
     private function isAlreadyBarred(MonthlySummary $summary): bool
@@ -634,11 +634,11 @@ class DashboardController extends Controller
 
         if ($segment === 'IIG' || $segment === 'IIG Operators') {
             $query->whereHas('client', fn ($q) =>
-                $q->where('service_type_billing', 'like', '%iig%')
+                $q->where('license_billing', 'like', '%iig%')
             );
         } else {
             $query->whereHas('client', fn ($q) =>
-                $q->where('service_type_billing', 'not like', '%iig%')
+                $q->where('license_billing', 'not like', '%iig%')
             );
         }
 
@@ -724,13 +724,13 @@ class DashboardController extends Controller
         if ($segment === 'IIG' || $segment === 'IIG Operators') {
 
             $query->whereHas('client', function ($q) {
-                $q->where('service_type_billing', 'like', '%iig%');
+                $q->where('license_billing', 'like', '%iig%');
             });
 
         } elseif ($segment === 'ISP and Other Operators' || $segment === 'ISP & Other Operators' || $segment === 'ISP and Other Operators (High Risk)' || $segment === 'High Risk') {
 
             $query->whereHas('client', function ($q) {
-                $q->where('service_type_billing', 'not like', '%iig%');
+                $q->where('license_billing', 'not like', '%iig%');
             });
         }
 
@@ -816,8 +816,17 @@ class DashboardController extends Controller
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($log) {
+                $formattedDate = 'N/A';
+                if ($log->created_at) {
+                    try {
+                        $formattedDate = \Carbon\Carbon::parse($log->created_at)->format('d M Y H:i');
+                    } catch (\Exception $e) {
+                        $formattedDate = 'N/A';
+                    }
+                }
+
                 return [
-                    'date' => $log->created_at->format('d M Y H:i'),
+                    'date' => $formattedDate,
                     'field' => ucwords(str_replace('_', ' ', $log->field_name)),
                     'old' => $log->old_value ?? 'N/A',
                     'new' => $log->new_value ?? 'N/A',
@@ -868,8 +877,17 @@ class DashboardController extends Controller
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($log) {
+                $formattedDate = 'N/A';
+                if ($log->created_at) {
+                    try {
+                        $formattedDate = \Carbon\Carbon::parse($log->created_at)->format('d M Y H:i');
+                    } catch (\Exception $e) {
+                        $formattedDate = 'N/A';
+                    }
+                }
+
                 return [
-                    'date' => $log->created_at->format('d M Y H:i'),
+                    'date' => $formattedDate,
                     'field' => ucwords(str_replace('_', ' ', $log->field_name)),
                     'old' => $log->old_value ?? 'N/A',
                     'new' => $log->new_value ?? 'N/A',

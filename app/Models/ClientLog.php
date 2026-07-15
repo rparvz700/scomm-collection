@@ -20,6 +20,10 @@ class ClientLog extends Model
         'updated_by',
     ];
 
+    protected $casts = [
+        'created_at' => 'datetime',
+    ];
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id', 'client_id');

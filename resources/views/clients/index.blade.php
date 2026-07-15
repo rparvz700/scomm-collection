@@ -328,7 +328,7 @@
                     <th class="sortable sort-asc" data-sort="client_name">Client Name</th>
                     <th class="sortable" data-sort="opus_id">OPUS ID</th>
                     <th class="sortable" data-sort="client_status">Status</th>
-                    <th class="sortable" data-sort="service_type_billing">Service Type</th>
+                    <th class="sortable" data-sort="license_billing">License Billing</th>
                     <th class="sortable" data-sort="team_name">Team Name</th>
                     <th class="sortable" data-sort="collection_kam">Collection KAM</th>
                     <th class="sortable" data-sort="current_month_cr">Current Month CR</th>
@@ -405,9 +405,12 @@
 @push('scripts')
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
+        const discontinueRouteTemplate = "{{ route('clients.discontinue', ':id') }}";
+        const logsRouteTemplate = "{{ route('clients.logs', ':id') }}";
+
         function openDiscontinueModal(clientId, clientName) {
             const form = document.getElementById('discontinueForm');
-            form.action = `/clients/${clientId}/discontinue`;
+            form.action = discontinueRouteTemplate.replace('%3Aid', clientId).replace(':id', clientId);
             
             document.getElementById('discontinueClientText').innerText = 
                 `Are you sure you want to mark "${clientName}" as Discontinued? This will freeze their active subscription.`;
@@ -429,7 +432,8 @@
             modal.style.display = 'flex';
             
             try {
-                const response = await fetch(`/clients/${clientId}/logs`);
+                const logsUrl = logsRouteTemplate.replace('%3Aid', clientId).replace(':id', clientId);
+                const response = await fetch(logsUrl);
                 const logs = await response.json();
                 
                 tableBody.innerHTML = '';
@@ -516,7 +520,7 @@
                                (client.client_name && client.client_name.toLowerCase().includes(query)) ||
                                (client.opus_id && client.opus_id.toLowerCase().includes(query)) ||
                                (client.client_status && client.client_status.toLowerCase().includes(query)) ||
-                               (client.service_type_billing && client.service_type_billing.toLowerCase().includes(query)) ||
+                               (client.license_billing && client.license_billing.toLowerCase().includes(query)) ||
                                (client.team_name && client.team_name.toLowerCase().includes(query)) ||
                                (client.collection_kam && client.collection_kam.toLowerCase().includes(query)) ||
                                (client.current_month_cr && client.current_month_cr.toLowerCase().includes(query)) ||
@@ -683,7 +687,7 @@
                                 ${client.client_status || 'N/A'}
                             </span>
                         </td>
-                        <td>${client.service_type_billing || 'N/A'}</td>
+                        <td>${client.license_billing || 'N/A'}</td>
                         <td>${client.team_name || 'N/A'}</td>
                         <td>${client.collection_kam || 'N/A'}</td>
                         <td>${client.current_month_cr || 'N/A'}</td>
