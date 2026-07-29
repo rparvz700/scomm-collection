@@ -16,6 +16,9 @@ class Client extends Model
         'opus_id',
         'client_name',
         'client_status',
+        'barred_at',
+        'barring_percentage',
+        'barring_workflow_status',
         'agreement_status',
         'barring_priority',
         'btrc_license_discontinuation_date',
@@ -47,6 +50,7 @@ class Client extends Model
             'service_discontinuation_date' => 'date',
             'nttn_billing_commencement_date' => 'date',
             'iig_itc_billing_commencement_date' => 'date',
+            'barred_at' => 'datetime',
         ];
     }
     public function collections(): HasMany
@@ -62,9 +66,29 @@ class Client extends Model
         return $this->hasMany(ClientLog::class, 'client_id', 'client_id');
     }
 
+    public function monthlySummaries(): HasMany
+    {
+        return $this->hasMany(MonthlySummary::class, 'client_id', 'client_id');
+    }
+
+    public function latestSummary()
+    {
+        return $this->hasOne(MonthlySummary::class, 'client_id', 'client_id')->latestOfMany('summary_month');
+    }
+
     public static function boot()
     {
         parent::boot();
+
+        static::saving(function ($client) {
+            if ($client->isDirty('client_status')) {
+                if ($client->client_status === 'Barred') {
+                    $client->barred_at = $client->barred_at ?: now();
+                } else {
+                    $client->barred_at = null;
+                }
+            }
+        });
 
         static::updating(function ($client) {
             foreach ($client->getDirty() as $key => $newValue) {
@@ -79,10 +103,10 @@ class Client extends Model
                     $newValue = $newValue ? 'Yes' : 'No';
                 }
                 if ($oldValue instanceof \DateTimeInterface) {
-                    $oldValue = $oldValue->format('Y-m-d');
+                    $oldValue = $oldValue->format('Y-m-d H:i:s');
                 }
                 if ($newValue instanceof \DateTimeInterface) {
-                    $newValue = $newValue->format('Y-m-d');
+                    $newValue = $newValue->format('Y-m-d H:i:s');
                 }
 
                 if ((string)$oldValue === (string)$newValue) continue;

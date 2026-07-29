@@ -446,6 +446,178 @@
     </style>
 @endpush
 
+@php
+    $today = now();
+    $day = $today->day;
+    $monthName = $today->format('F');
+    $prevMonthName = $today->copy()->subMonth()->format('F');
+    $currentYear = $today->year;
+    $quarter = ceil($today->month / 3);
+    $quarterShortMonths = [];
+    $startMonth = ($quarter - 1) * 3 + 1;
+    for ($m = $startMonth; $m < $startMonth + 3; $m++) {
+        $quarterShortMonths[] = strtoupper(Carbon\Carbon::create($currentYear, $m, 1)->format('M'));
+    }
+
+    if ($day <= 5) {
+        $contextMessage = "Currently in <strong>{$monthName} opening</strong> phase. <strong>{$prevMonthName} closing</strong> operations are ongoing, and new collections for {$monthName} have not officially started yet.";
+    } else {
+        $contextMessage = "Currently in <strong>{$monthName} collection</strong> phase. <strong>{$prevMonthName} closing</strong> is fully finalized, and {$monthName} billing/collection is in full swing.";
+    }
+@endphp
+
+{{-- DYNAMIC CONTEXT BANNER WITH HORIZONTAL TIMELINE --}}
+<div class="no-print" style="margin-bottom: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 20px; box-shadow: var(--shadow); display: flex; justify-content: space-between; align-items: center; gap: 16px; color: var(--ink); flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 14px; flex-shrink: 0;">
+        <div style="background: rgba(2, 104, 224, 0.08); border: 1px solid rgba(2, 104, 224, 0.2); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--primary);">
+            <span style="font-size: 22px; font-weight: 900; line-height: 1;">Q{{ $quarter }}</span>
+            <div style="display: flex; flex-direction: column; font-size: 8.5px; font-weight: 800; line-height: 1.15; color: var(--muted); letter-spacing: 0.5px;">
+                @foreach($quarterShortMonths as $sm)
+                    <span>{{ $sm }}</span>
+                @endforeach
+            </div>
+        </div>
+        <div style="font-size: 13px; line-height: 1.35; color: var(--ink); max-width: 320px;">
+            {!! $contextMessage !!}
+        </div>
+    </div>
+
+    {{-- HORIZONTAL TIMELINE --}}
+    <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 280px; max-width: 560px; background: rgba(0,0,0,0.02); padding: 4px 8px; border-radius: 24px; border: 1px solid var(--line);">
+        <button id="timelinePrevBtn" type="button" style="background: var(--panel); border: 1px solid var(--line); border-radius: 50%; width: 26px; height: 26px; font-size: 14px; font-weight: 800; color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" title="Previous Months">&lsaquo;</button>
+        
+        <div id="timelineTrack" style="display: flex; align-items: center; gap: 5px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; flex: 1; padding: 2px 0; scroll-behavior: smooth;">
+            <!-- Rendered via JS -->
+        </div>
+
+        <button id="timelineNextBtn" type="button" style="background: var(--panel); border: 1px solid var(--line); border-radius: 50%; width: 26px; height: 26px; font-size: 14px; font-weight: 800; color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" title="Next Months">&rsaquo;</button>
+    </div>
+
+    <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+        <button class="button primary" style="width: 36px; height: 36px; padding: 0; background: var(--line); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" onclick="toggleGlossaryModal()" title="Data Dictionary &amp; Metric Glossary" aria-label="Data Dictionary &amp; Metric Glossary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+        </button>
+        <button class="button primary" style="width: 36px; height: 36px; padding: 0; background: var(--line); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" onclick="toggleGuidanceLogsModal()" title="Management Guidance Audit Logs" aria-label="Management Guidance Audit Logs">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+        </button>
+        <button id="exportPdfBtn" class="button primary" style="width: 36px; height: 36px; padding: 0; background: var(--line); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Export Presentation PDF" aria-label="Export Presentation PDF">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+        </button>
+    </div>
+</div>
+
+{{-- DATA GLOSSARY MODAL OVERLAY --}}
+<div id="glossaryModal" class="modal-overlay no-print" style="opacity: 0; pointer-events: none; transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); z-index: 9999; display: flex; justify-content: center; align-items: center;">
+    <div id="glossaryContent" style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; width: 90%; max-width: 680px; box-shadow: var(--shadow); max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.02);">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; color: var(--ink);">
+                <span>📖</span> Data Dictionary &amp; Metric Glossary
+            </h2>
+            <button onclick="toggleGlossaryModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
+        </div>
+        <div style="padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; text-align: left;">
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Total Opening OS (MRC+Backlog)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The sum of the opening outstanding balance (both standard Monthly Recurring Charge and long-standing backlog) at the start of the month.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Total Collection</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    Total actual money collected from the client during the current month across postpaid and prepaid NTTN/IIG/ITC/NIX circuits.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">MRC (Monthly Recurring Charge)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The contracted recurring revenue billed for the current month. Collection is allocated to this first under the LIFO model.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">MRC Collection (LIFO)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The portion of the current month's collection allocated to satisfy the MRC first.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Backlog / Opening Backlog</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    Long-standing outstanding balance from prior months. Collection is allocated here only after MRC is fully satisfied (LIFO).
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Backlog Collection (LIFO)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The portion of the current month's collection allocated to clear historical backlog (after MRC is fully covered).
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Total Latest/Closing OS</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The closing outstanding balance at the end of the month, calculated as: Opening OS + Billed MRC - Total Collection.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">OS against only MRC</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The uncollected portion of the current month's billed MRC, calculated as: Total Billed MRC - Total Collection MRC (LIFO).
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Shortfall Tagging</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    Clients are dynamically analyzed for shortfall. If current month's collection is less than MRC, they have an MRC Shortfall. If it is less than MRC + Backlog, they have a Backlog Shortfall.
+                </p>
+            </div>
+        </div>
+        <div style="padding: 16px 24px; border-top: 1px solid var(--line); background: rgba(0, 0, 0, 0.02); display: flex; justify-content: flex-end;">
+            <button class="button primary" onclick="toggleGlossaryModal()">Close Glossary</button>
+        </div>
+    </div>
+</div>
+
+{{-- MANAGEMENT GUIDANCE LOGS MODAL OVERLAY --}}
+<div id="guidanceLogsModal" class="modal-overlay no-print" style="opacity: 0; pointer-events: none; transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); z-index: 9999; display: flex; justify-content: center; align-items: center;">
+    <div id="guidanceLogsContent" style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; width: 90%; max-width: 850px; box-shadow: var(--shadow); max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+        <div style="padding: 16px 24px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.02);">
+            <h2 style="margin: 0; font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; color: var(--ink);">
+                <span>📝</span> Management Guidance Audit Logs
+            </h2>
+            <button onclick="toggleGuidanceLogsModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
+        </div>
+
+        <div style="padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+            <input type="text" id="guidanceLogSearchInput" placeholder="Search by client name, user, or guidance..." style="flex: 1; max-width: 400px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px;">
+            <span id="guidanceLogTotalCount" style="font-size: 12px; color: var(--muted); font-weight: 700;">Loading...</span>
+        </div>
+
+        <div style="padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px;" id="guidanceLogListContainer">
+            <div style="text-align:center; padding: 24px; color: var(--muted);">Loading logs...</div>
+        </div>
+
+        <div style="padding: 12px 24px; border-top: 1px solid var(--line); background: rgba(0, 0, 0, 0.02); display: flex; justify-content: space-between; align-items: center;">
+            <button id="guidanceLogPrevBtn" class="button secondary btn-small" onclick="fetchGuidanceLogsPage(-1)" disabled>&larr; Previous</button>
+            <span id="guidanceLogPageInfo" style="font-size: 12px; font-weight: 700; color: var(--muted);">Page 1 of 1</span>
+            <button id="guidanceLogNextBtn" class="button secondary btn-small" onclick="fetchGuidanceLogsPage(1)" disabled>Next &rarr;</button>
+        </div>
+    </div>
+</div>
+
 <div class="dashboard-slideshow">
 
     <button class="slide-nav prev" id="prevSlide">‹</button>
@@ -468,8 +640,6 @@
                 </div>
 
                 <aside class="dashboard-snapshot">
-
-                    <p class="dashboard-snapshot-label">Latest snapshot</p>
 
                     <p class="dashboard-snapshot-value">
                         {{ $currentMonthLabel }}
@@ -571,7 +741,7 @@
                             'muted_style' => 'color: #15803d !important;',
                         ],
                         [
-                            'title' => 'This month OS',
+                            'title' => 'OS against only MRC',
                             'value' => $formatMil($currentMonthOs),
                             'comparison' => $metricComparisons['current_month_os'],
                             'positive' => 'red',
@@ -705,11 +875,15 @@
 
         <section class="dashboard-slide">
             @php
-                $renderProgressBar = function($percent, $color = '#0f766e') {
+                $renderProgressBar = function($percent, $color = null, $isPositive = true) {
                     $val = max(0, min(100, (float) $percent));
+                    if ($color === null || $color === '' || $color === '#ffffff') {
+                        $hue = $isPositive ? (100 - $val) * 1.2 : $val * 1.2;
+                        $color = "hsl(" . round($hue) . ", 85%, 45%)";
+                    }
                     return '
                     <div style="display: flex; flex-direction: column; align-items: flex-end; margin-top: 4px; width: 100%;">
-                        <div style="width: 100%; height: 4px; background-color: rgba(0, 0, 0, 0.08); border-radius: 999px; overflow: hidden; position: relative;">
+                        <div style="width: 100%; height: 8px; background-color: rgba(226, 232, 240, 0.9); border: 2px solid #ffffff; border-radius: 999px; overflow: hidden; position: relative; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);">
                             <div style="width: ' . $val . '%; height: 100%; background-color: ' . $color . '; border-radius: 999px; transition: width 0.4s ease;"></div>
                         </div>
                     </div>';
@@ -849,12 +1023,12 @@
                                     <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['mrc_sum']) }}</td>
                                     <td class="amount" style="{{ $textStyle }}">
                                         {{ number_format($row['mrc_percentage'], 0) }}%
-                                        {!! $renderProgressBar($row['mrc_percentage'], $barColor) !!}
+                                        {!! $renderProgressBar($row['mrc_percentage'], null, true) !!}
                                     </td>
                                     <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['backlog_sum']) }}</td>
                                     <td class="amount" style="{{ $textStyle }}">
                                         {{ number_format($row['backlog_percentage'], 0) }}%
-                                        {!! $renderProgressBar($row['backlog_percentage'], $barColor) !!}
+                                        {!! $renderProgressBar($row['backlog_percentage'], null, true) !!}
                                     </td>
                                 </tr>
                             @endforeach
@@ -869,12 +1043,12 @@
                                 <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ $formatMil($totals['mrc_sum']) }}</td>
                                 <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">
                                     100%
-                                    {!! $renderProgressBar(100, '#38bdf8') !!}
+                                    {!! $renderProgressBar(100, null, true) !!}
                                 </td>
                                 <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">{{ $formatMil($totals['backlog_sum']) }}</td>
                                 <td class="amount" style="border-top: 2px double #cbd5e1; border-bottom: 2px double #cbd5e1; color: #ffffff !important;">
                                     100%
-                                    {!! $renderProgressBar(100, '#38bdf8') !!}
+                                    {!! $renderProgressBar(100, null, true) !!}
                                 </td>
                             </tr>
                         </tbody>
@@ -982,12 +1156,12 @@
                                     <td class="amount">{{ $formatMil($bgmIsp['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIspMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIspMrcPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmIspMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmIsp['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIspBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIspBacklogPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmIspBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                                 <tr>
@@ -998,12 +1172,12 @@
                                     <td class="amount">{{ $formatMil($bgmIig['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIigMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIigMrcPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmIigMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmIig['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIigBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIigBacklogPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmIigBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                                 <tr style="font-weight: 800; background-color: #e6f4ea !important;">
@@ -1014,12 +1188,12 @@
                                     <td class="amount">{{ $formatMil($bgmTotalMrc) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmTotalMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmTotalMrcPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmTotalMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmTotalBacklog) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmTotalBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmTotalBacklogPercent, '#10b981') !!}
+                                        {!! $renderProgressBar($bgmTotalBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                             </tbody>
@@ -1054,12 +1228,12 @@
                                     <td class="amount">{{ $formatMil($rhmIsp['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIspMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIspMrcPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmIspMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmIsp['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIspBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIspBacklogPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmIspBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                                 <tr>
@@ -1070,12 +1244,12 @@
                                     <td class="amount">{{ $formatMil($rhmIig['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIigMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIigMrcPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmIigMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmIig['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIigBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIigBacklogPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmIigBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                                 <tr style="font-weight: 800; background-color: #fdf2f2 !important;">
@@ -1086,12 +1260,12 @@
                                     <td class="amount">{{ $formatMil($rhmTotalMrc) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmTotalMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmTotalMrcPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmTotalMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmTotalBacklog) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmTotalBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmTotalBacklogPercent, '#ef4444') !!}
+                                        {!! $renderProgressBar($rhmTotalBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                             </tbody>
@@ -2149,19 +2323,146 @@
 
             </section>
 
-            <div class="no-print" style="display: flex; justify-content: center; margin-top: 30px; margin-bottom: 20px;">
-                <button id="exportPdfBtn" class="button primary" style="min-height: 48px; padding: 0 32px; font-size: 16px; font-weight: 800; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 10px 25px rgba(15, 118, 110, 0.25);">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Export Dashboard to PDF
-                </button>
-            </div>
-
         </section>
 
+        {{-- SLIDE 8: Management Guidance & Escalation - Barred Clients --}}
+        <section class="dashboard-slide">
+            <div class="team-performance-heading" style="margin-bottom: 24px;">
+                <h2>Management Guidance &amp; Escalations - Long-Standing Barred Clients</h2>
+                <span>{{ $currentMonthLabel }}</span>
+            </div>
+
+            <section class="grid one" style="margin-bottom: 24px;">
+                <article class="panel">
+                    <div class="panel-header">
+                        <h2>Long-Standing Barred Clients</h2>
+                        <span>Aging &gt; 2 Months (Seek Guidance)</span>
+                    </div>
+                    @if ($barredClients->isNotEmpty())
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client Name</th>
+                                    <th>Barred Date</th>
+                                    <th>Aging</th>
+                                    <th>Barred %</th>
+                                    <th>Management Guidance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($barredClients as $bc)
+                                    @php
+                                        $badgeColor = $bc->aging_months >= 3.0 ? 'background-color: #fee2e2; color: #ef4444; font-weight: 800;' : 'background-color: #ffedd5; color: #ea580c; font-weight: 800;';
+                                    @endphp
+                                    <tr>
+                                        <td><strong>{{ $bc->client_name }}</strong></td>
+                                        <td>{{ $bc->barred_at ? $bc->barred_at->format('d M Y') : 'N/A' }}</td>
+                                        <td>
+                                            <span class="pill" style="{{ $badgeColor }}">
+                                                {{ $bc->aging_months }} Months
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @php
+                                                $barPct = max(0, min(100, (float) $bc->barring_percentage));
+                                                $barHue = (100 - $barPct) * 1.2;
+                                                $barColor = "hsl(" . round($barHue) . ", 85%, 45%)";
+                                            @endphp
+                                            <div style="display:flex; align-items:center; gap:8px;">
+                                                <div style="flex:1; background-color:rgba(226, 232, 240, 0.9); height:10px; border:2px solid #ffffff; border-radius:999px; overflow:hidden; min-width:60px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
+                                                    <div style="background-color:{{ $barColor }}; height:100%; width:{{ $barPct }}%; border-radius:999px; transition: width 0.4s ease;"></div>
+                                                </div>
+                                                <span>{{ number_format($bc->barring_percentage, 0) }}%</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style="display:flex; gap:6px; align-items:center;">
+                                                <input type="text" id="guidance-{{ $bc->client_id }}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
+                                                <button class="button primary btn-small" onclick="submitInlineGuidance({{ $bc->client_id }})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <div class="empty">No long-standing barred clients found.</div>
+                    @endif
+                </article>
+            </section>
+        </section>
+
+        {{-- SLIDE 9: Management Guidance & Escalation - Top Shortfall Accounts --}}
+        <section class="dashboard-slide">
+            <div class="team-performance-heading" style="margin-bottom: 24px;">
+                <h2>Management Guidance &amp; Escalations - Top Shortfall Accounts</h2>
+                <span>{{ $currentMonthLabel }}</span>
+            </div>
+
+            <section class="grid one" style="margin-bottom: 24px;">
+                <article class="panel">
+                    <div class="panel-header">
+                        <h2>Top Shortfall Accounts (Active Only)</h2>
+                        <span>LIFO Shortfall against MRC/Backlog (in Millions)</span>
+                    </div>
+                    @if ($combinedShortfalls->isNotEmpty())
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client Name</th>
+                                    <th>OS Balance</th>
+                                    <th>MRC</th>
+                                    <th>MRC Shortfall</th>
+                                    <th>Backlog Shortfall</th>
+                                    <th>Current Month CR</th>
+                                    <th>Current Month Rating</th>
+                                    <th>Management Guidance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($combinedShortfalls as $cs)
+                                    <tr>
+                                        <td><strong>{{ $cs['client_name'] }}</strong></td>
+                                        <td class="amount">{{ number_format($cs['os'] / 1000000, 2) }}M</td>
+                                        <td class="amount">{{ number_format($cs['mrc'] / 1000000, 2) }}M</td>
+                                        <td class="amount" style="color: #ef4444; font-weight: 800;">{{ number_format($cs['mrc_shortfall'] / 1000000, 2) }}M</td>
+                                        <td class="amount" style="color: #ea580c; font-weight: 800;">{{ number_format($cs['backlog_shortfall'] / 1000000, 2) }}M</td>
+                                        <td>
+                                            {{ number_format($cs['cr'], 2) }}
+                                        </td>
+                                        <td>
+                                            @if ($cs['rating'])
+                                                @php
+                                                    $ratingColor = match($cs['rating']) {
+                                                        'Risky' => 'background-color: #ffedd5; color: #ea580c;',
+                                                        'High Risky' => 'background-color: #fee2e2; color: #ef4444;',
+                                                        'Most Risky' => 'background-color: #fca5a5; color: #b91c1c;',
+                                                        default => 'background-color: #d1fae5; color: #065f46;',
+                                                    };
+                                                @endphp
+                                                <span class="pill" style="{{ $ratingColor }} font-weight: 700;">
+                                                    {{ $cs['rating'] }}
+                                                </span>
+                                            @else
+                                                <span style="color:var(--muted);">N/A</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div style="display:flex; gap:6px; align-items:center;">
+                                                <input type="text" id="guidance-{{ $cs['client_id'] }}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
+                                                <button class="button primary btn-small" onclick="submitInlineGuidance({{ $cs['client_id'] }})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <div class="empty">No shortfall accounts found for this period.</div>
+                    @endif
+                </article>
+            </section>
+        </section>
     </div>
 
 </div>
@@ -2172,6 +2473,184 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <script>
+    function toggleGlossaryModal() {
+        const modal = document.getElementById('glossaryModal');
+        const content = document.getElementById('glossaryContent');
+        if (modal && content) {
+            const isVisible = modal.style.opacity === '1';
+            if (isVisible) {
+                modal.style.opacity = '0';
+                modal.style.pointerEvents = 'none';
+                content.style.transform = 'scale(0.95)';
+            } else {
+                modal.style.opacity = '1';
+                modal.style.pointerEvents = 'auto';
+                content.style.transform = 'scale(1)';
+            }
+        }
+    }
+
+    let guidanceLogCurrentPage = 1;
+    let guidanceLogSearchTerm = '';
+    let guidanceLogSearchDebounce = null;
+
+    function toggleGuidanceLogsModal() {
+        const modal = document.getElementById('guidanceLogsModal');
+        const content = document.getElementById('guidanceLogsContent');
+        if (!modal) return;
+        
+        const isOpen = modal.style.opacity === '1';
+        if (isOpen) {
+            modal.style.opacity = '0';
+            modal.style.pointerEvents = 'none';
+            content.style.transform = 'scale(0.95)';
+        } else {
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            content.style.transform = 'scale(1)';
+            loadGuidanceLogs(1);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function loadGuidanceLogs(page = 1) {
+        guidanceLogCurrentPage = page;
+        const container = document.getElementById('guidanceLogListContainer');
+        const pageInfo = document.getElementById('guidanceLogPageInfo');
+        const totalCount = document.getElementById('guidanceLogTotalCount');
+        const prevBtn = document.getElementById('guidanceLogPrevBtn');
+        const nextBtn = document.getElementById('guidanceLogNextBtn');
+
+        if (container) container.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--muted);">Loading logs...</div>';
+
+        const url = `{{ route('web.api.guidance-logs') }}?page=${page}&search=${encodeURIComponent(guidanceLogSearchTerm)}`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(res => {
+                if (!res.success) return;
+                if (totalCount) totalCount.innerText = `Total Logs: ${res.total}`;
+                if (pageInfo) pageInfo.innerText = `Page ${res.current_page} of ${res.last_page || 1}`;
+
+                if (prevBtn) prevBtn.disabled = res.current_page <= 1;
+                if (nextBtn) nextBtn.disabled = res.current_page >= res.last_page;
+
+                if (!res.data || res.data.length === 0) {
+                    if (container) container.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--muted);">No guidance logs found matching search.</div>';
+                    return;
+                }
+
+                let html = '<div style="display:flex; flex-direction:column; gap:12px;">';
+                res.data.forEach(log => {
+                    html += `
+                        <div style="border-bottom: 1px solid var(--line); padding-bottom: 10px; text-align: left;">
+                            <div style="display:flex; justify-content:space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px;">
+                                <strong>${escapeHtml(log.user_name)} (${escapeHtml(log.user_role)})</strong>
+                                <span>${escapeHtml(log.created_at_formatted || log.created_at_human)}</span>
+                            </div>
+                            <div style="font-size: 13.5px; color: var(--ink); margin-bottom: 4px;">
+                                <strong style="color:var(--primary);">${escapeHtml(log.client_name)}</strong>: 
+                                ${escapeHtml(log.guidance_text)}
+                            </div>
+                            ${log.action_taken ? `<span class="pill info" style="font-size:10px; background-color:#eff6ff; color:#3b82f6; padding: 2px 6px; border-radius:4px; font-weight:800;">Action: ${escapeHtml(log.action_taken)}</span>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                if (container) container.innerHTML = html;
+            })
+            .catch(err => {
+                console.error(err);
+                if (container) container.innerHTML = '<div style="text-align:center; padding: 24px; color: #ef4444;">Failed to load guidance logs.</div>';
+            });
+    }
+
+    function fetchGuidanceLogsPage(delta) {
+        loadGuidanceLogs(guidanceLogCurrentPage + delta);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.getElementById('guidanceLogSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(guidanceLogSearchDebounce);
+                guidanceLogSearchTerm = e.target.value;
+                guidanceLogSearchDebounce = setTimeout(() => {
+                    loadGuidanceLogs(1);
+                }, 300);
+            });
+        }
+    });
+
+    function updateWorkflowStatus(clientId, status, actionTaken = '') {
+        if (!confirm('Are you sure you want to update this client\'s workflow status?')) return;
+
+        fetch('{{ route("dashboard.workflow.update") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                client_id: clientId,
+                status: status,
+                action_taken: actionTaken
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error updating status');
+            }
+        })
+        .catch(err => console.error(err));
+    }
+
+    function submitInlineGuidance(clientId) {
+        const textEl = document.getElementById('guidance-' + clientId);
+        if (!textEl) return;
+        const text = textEl.value;
+
+        if (!text.trim()) {
+            alert('Please enter guidance text.');
+            return;
+        }
+
+        fetch('{{ route("dashboard.guidance.log") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                client_id: clientId,
+                guidance_text: text,
+                action_taken: 'Management Guidance Comment'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Guidance logged successfully.');
+                location.reload();
+            } else {
+                alert('Error logging guidance.');
+            }
+        })
+        .catch(err => console.error(err));
+    }
 
     const trendChart = @json($trendChart);
 
@@ -2184,25 +2663,68 @@
 
             data: {
                 labels: trendChart.labels,
-
                 datasets: [
                     {
-                        label: 'Net Backlog',
-                        data: trendChart.backlog,
-                        borderColor: '#b42318',
-                        backgroundColor: 'rgba(180, 35, 24, .12)',
+                        label: 'Total Opening OS (MRC+Backlog)',
+                        data: trendChart.total_opening_os,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, .08)',
                         tension: .35,
-                        fill: true,
+                        fill: false,
                         pointRadius: 4,
                     },
-
                     {
-                        label: 'Collection',
-                        data: trendChart.collection,
-                        borderColor: '#0f766e',
-                        backgroundColor: 'rgba(15, 118, 110, .12)',
+                        label: 'Total Collection',
+                        data: trendChart.total_collection,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, .08)',
                         tension: .35,
-                        fill: true,
+                        fill: false,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: 'Total MRC',
+                        data: trendChart.total_mrc,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, .08)',
+                        tension: .35,
+                        fill: false,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: 'MRC Collection (LIFO)',
+                        data: trendChart.collection_mrc,
+                        borderColor: '#84cc16',
+                        backgroundColor: 'rgba(132, 204, 22, .08)',
+                        tension: .35,
+                        fill: false,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: 'Net Backlog',
+                        data: trendChart.net_backlog_total,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, .08)',
+                        tension: .35,
+                        fill: false,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: 'Backlog Collection (LIFO)',
+                        data: trendChart.collection_backlog,
+                        borderColor: '#ec4899',
+                        backgroundColor: 'rgba(236, 72, 153, .08)',
+                        tension: .35,
+                        fill: false,
+                        pointRadius: 4,
+                    },
+                    {
+                        label: 'Total Latest/Closing OS',
+                        data: trendChart.total_latest_os,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, .08)',
+                        tension: .35,
+                        fill: false,
                         pointRadius: 4,
                     },
                 ],
@@ -2291,5 +2813,95 @@
         table.parentNode.insertBefore(wrapper, table);
         wrapper.appendChild(table);
     });
+
+    // --- HORIZONTAL TIMELINE LOGIC ---
+    (function initTimeline() {
+        const availableMonths = @json($availableMonths ?? []);
+        const activeMonth = @json($selectedMonth ?? '');
+        
+        const baseDateStr = activeMonth || (availableMonths.length > 0 ? availableMonths[availableMonths.length - 1] : new Date().toISOString().slice(0, 10));
+        let anchorDate = new Date(baseDateStr);
+        let windowOffset = 0;
+
+        function renderTimeline() {
+            const track = document.getElementById('timelineTrack');
+            if (!track) return;
+            track.innerHTML = '';
+
+            const endDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 2 + windowOffset, 1);
+            const monthsWindow = [];
+
+            for (let i = 17; i >= 0; i--) {
+                const d = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+                monthsWindow.push(d);
+            }
+
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            monthsWindow.forEach(d => {
+                const year = d.getFullYear();
+                const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+                const lastDay = new Date(year, d.getMonth() + 1, 0).getDate();
+                const fullDateStr = `${year}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
+                const label = `${monthNames[d.getMonth()]} ${String(year).slice(2)}`;
+
+                const isActive = activeMonth && (activeMonth.startsWith(`${year}-${monthNum}`));
+
+                const pill = document.createElement('a');
+                pill.href = `?month=${fullDateStr}`;
+                pill.className = 'timeline-pill' + (isActive ? ' active-pill' : '');
+                pill.style.cssText = isActive
+                    ? 'background: #2563eb; color: #ffffff; border: 1px solid #2563eb; border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 800; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(37,99,235,0.3); flex-shrink: 0;'
+                    : 'background: rgba(0,0,0,0.03); color: var(--ink); border: 1px solid var(--line); border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 700; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; transition: all 0.2s;';
+
+                if (isActive) {
+                    pill.innerHTML = `<span style="width: 6px; height: 6px; background: #ffffff; border-radius: 50%;"></span>${label}`;
+                } else {
+                    pill.innerHTML = label;
+                }
+
+                track.appendChild(pill);
+            });
+
+            setTimeout(() => {
+                const activePill = track.querySelector('.active-pill');
+                if (activePill) {
+                    activePill.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                } else {
+                    track.scrollTo({ left: track.scrollWidth, behavior: 'smooth' });
+                }
+            }, 80);
+        }
+
+        renderTimeline();
+
+        const track = document.getElementById('timelineTrack');
+        const prevBtn = document.getElementById('timelinePrevBtn');
+        const nextBtn = document.getElementById('timelineNextBtn');
+
+        if (prevBtn && track) {
+            prevBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (track.scrollLeft <= 10) {
+                    windowOffset -= 6;
+                    renderTimeline();
+                } else {
+                    track.scrollBy({ left: -220, behavior: 'smooth' });
+                }
+            });
+        }
+
+        if (nextBtn && track) {
+            nextBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (track.scrollLeft + track.clientWidth >= track.scrollWidth - 10) {
+                    windowOffset += 6;
+                    renderTimeline();
+                } else {
+                    track.scrollBy({ left: 220, behavior: 'smooth' });
+                }
+            });
+        }
+    })();
 </script>
 @endpush

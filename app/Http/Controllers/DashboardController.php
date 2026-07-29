@@ -12,17 +12,77 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
-        $latestSummary = MonthlySummary::query()
-            ->orderByDesc('summary_month')
-            ->first();
-        $latestMonth = $latestSummary?->summary_month;
+        $requestedMonth = $request->query('month');
+        if ($requestedMonth) {
+            $latestMonth = \Carbon\Carbon::parse($requestedMonth)->endOfMonth()->format('Y-m-d');
+            $latestSummary = MonthlySummary::query()
+                ->whereDate('summary_month', $latestMonth)
+                ->first();
+        } else {
+            $latestSummary = MonthlySummary::query()
+                ->orderByDesc('summary_month')
+                ->first();
+            $latestMonth = $latestSummary?->summary_month;
+        }
+
+        $availableMonths = MonthlySummary::query()
+            ->select('summary_month')
+            ->distinct()
+            ->orderBy('summary_month', 'asc')
+            ->pluck('summary_month')
+            ->map(fn($m) => \Carbon\Carbon::parse($m)->format('Y-m-d'))
+            ->toArray();
         $billedMrcTotal = (float) MonthlySummary::where('summary_month', $latestMonth)->sum('total_mrc');
+        $collectionMrcTotal = (float) MonthlySummary::where('summary_month', $latestMonth)->sum('collection_mrc');
         $collectionTotal = $this->currentMonthCollectionTotal($latestMonth);
 
         $discontinuedCollection = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('collection_amount');
         $discontinuedOpeningOs = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('opening_os');
+
+        $barredClients = Client::where('client_status', 'Barred')
+            ->whereNotNull('barred_at')
+            ->with('latestSummary')
+            ->get()
+            ->map(function ($client) {
+                $client->aging_days = abs(now()->diffInDays($client->barred_at, false));
+                $client->aging_months = round($client->aging_days / 30.4, 1);
+                return $client;
+            })
+            ->filter(function ($client) {
+                return $client->aging_months >= 2.0;
+            })
+            ->sortByDesc('aging_days');
+
+        $combinedShortfalls = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where(function ($q) {
+                $q->where('mrc_shortfall', '>', 0)
+                  ->orWhere('backlog_shortfall', '>', 0);
+            })
+            ->with('client')
+            ->orderByDesc('total_latest_os')
+            ->take(10)
+            ->get()
+            ->map(fn($item) => [
+                'client_id' => $item->client_id,
+                'client_name' => $item->client->client_name ?? $item->client_name,
+                'status' => 'Active',
+                'os' => (float)$item->total_latest_os,
+                'mrc' => (float)$item->total_mrc,
+                'mrc_shortfall' => (float)$item->mrc_shortfall,
+                'backlog_shortfall' => (float)$item->backlog_shortfall,
+                'cr' => (float)$item->latest_cr,
+                'rating' => $item->latest_rating_category,
+            ]);
+
+        $pendingBarringRequests = Client::where('barring_workflow_status', 'pending_approval')->get();
+        $approvedBarringRequests = Client::where('barring_workflow_status', 'approved')->get();
+
+        $guidanceLogs = \App\Models\ManagementGuidanceLog::with(['client', 'user'])
+            ->latest()
+            ->take(10)
+            ->get();
 
         return view('dashboard.dashboard', [
             'clientCount' => Client::query()->count(),
@@ -52,7 +112,7 @@ class DashboardController extends Controller
             })->count(),
             'billedMrcTotal' => $billedMrcTotal,
             'collectionTotal' => $collectionTotal,
-            'currentMonthOs' => max($billedMrcTotal - $collectionTotal, 0),
+            'currentMonthOs' => max($billedMrcTotal - $collectionMrcTotal, 0),
             'latestOutstanding' => MonthlySummary::where('summary_month', $latestMonth)->sum('total_latest_os'),
             'highRiskCount' => $this->currentMonthHighRiskCount($latestMonth),
             'latestSummary' => $latestSummary,
@@ -92,6 +152,16 @@ class DashboardController extends Controller
             'discontinuedOpeningOs' => $discontinuedOpeningOs,
             'discontinuedComparison' => $this->discontinuedMetricComparison(),
             'discontinuedAnalysis' => $this->discontinuedAnalysis(),
+            
+            // New slide 4 and workflow variables
+            'barredClients' => $barredClients,
+            'combinedShortfalls' => $combinedShortfalls,
+            'pendingBarringRequests' => $pendingBarringRequests,
+            'approvedBarringRequests' => $approvedBarringRequests,
+            'guidanceLogs' => $guidanceLogs,
+            'currentMonthLabel' => $currentMonthLabel,
+            'availableMonths' => $availableMonths,
+            'selectedMonth' => $latestMonth,
         ]);
     }
 
@@ -144,15 +214,29 @@ class DashboardController extends Controller
     private function trendChart(): array
     {
         $rows = MonthlySummary::query()
-            ->selectRaw('summary_month, SUM(net_backlog_total) as backlog, SUM(total_collection) as collection')
+            ->selectRaw('
+                summary_month, 
+                SUM(total_opening_os) as total_opening_os,
+                SUM(total_collection) as total_collection,
+                SUM(total_mrc) as total_mrc,
+                SUM(collection_mrc) as collection_mrc,
+                SUM(net_backlog_total) as net_backlog_total,
+                SUM(collection_backlog) as collection_backlog,
+                SUM(total_latest_os) as total_latest_os
+            ')
             ->groupBy('summary_month')
             ->orderBy('summary_month')
             ->get();
 
         return [
             'labels' => $rows->map(fn ($row) => $row->summary_month->format('M Y'))->values(),
-            'backlog' => $rows->map(fn ($row) => (float) $row->backlog / 1000000)->values(),
-            'collection' => $rows->map(fn ($row) => (float) $row->collection / 1000000)->values(),
+            'total_opening_os' => $rows->map(fn ($row) => (float) $row->total_opening_os / 1000000)->values(),
+            'total_collection' => $rows->map(fn ($row) => (float) $row->total_collection / 1000000)->values(),
+            'total_mrc' => $rows->map(fn ($row) => (float) $row->total_mrc / 1000000)->values(),
+            'collection_mrc' => $rows->map(fn ($row) => (float) $row->collection_mrc / 1000000)->values(),
+            'net_backlog_total' => $rows->map(fn ($row) => (float) $row->net_backlog_total / 1000000)->values(),
+            'collection_backlog' => $rows->map(fn ($row) => (float) $row->collection_backlog / 1000000)->values(),
+            'total_latest_os' => $rows->map(fn ($row) => (float) $row->total_latest_os / 1000000)->values(),
         ];
     }
 
@@ -434,8 +518,8 @@ class DashboardController extends Controller
                 SUM(total_mrc) as total_mrc,
                 SUM(total_collection) as total_collection,
                 CASE
-                    WHEN SUM(total_mrc) > SUM(total_collection)
-                    THEN SUM(total_mrc) - SUM(total_collection)
+                    WHEN SUM(total_mrc) > SUM(collection_mrc)
+                    THEN SUM(total_mrc) - SUM(collection_mrc)
                     ELSE 0
                 END as current_month_os,
                 SUM(total_latest_os) as latest_os,
@@ -1271,6 +1355,110 @@ class DashboardController extends Controller
             'month' => $latestMonthDate,
             'previousSummaries' => $previousSummaries,
             'previousClientStates' => $previousClientStates,
+        ]);
+    }
+
+    public function updateWorkflowStatus(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', 'exists:client,client_id'],
+            'status' => ['required', 'string'],
+            'action_taken' => ['nullable', 'string'],
+        ]);
+
+        $client = Client::findOrFail($data['client_id']);
+
+        $client->barring_workflow_status = $data['status'];
+
+        if ($data['status'] === 'actioned') {
+            $client->client_status = 'Barred';
+            $client->barred_at = now();
+        } elseif ($data['status'] === 'discontinued_actioned') {
+            $client->client_status = 'Discontinued';
+            $client->barring_workflow_status = 'discontinued';
+        }
+
+        $client->save();
+
+        \App\Models\ManagementGuidanceLog::create([
+            'client_id' => $client->client_id,
+            'user_id' => auth()->id(),
+            'guidance_text' => "Workflow status updated to: " . ucwords(str_replace('_', ' ', $data['status'])),
+            'action_taken' => $data['action_taken'] ?? 'Status Update',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Client workflow status updated successfully.',
+            'client' => $client,
+        ]);
+    }
+
+    public function logGuidance(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', 'exists:client,client_id'],
+            'guidance_text' => ['required', 'string'],
+            'action_taken' => ['nullable', 'string'],
+        ]);
+
+        $log = \App\Models\ManagementGuidanceLog::create([
+            'client_id' => $data['client_id'],
+            'user_id' => auth()->id(),
+            'guidance_text' => $data['guidance_text'],
+            'action_taken' => $data['action_taken'] ?? 'Guidance Logged',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Guidance logged successfully.',
+            'log' => $log->load(['client', 'user']),
+        ]);
+    }
+
+    public function getGuidanceLogs(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $search = trim((string) $request->get('search', ''));
+        $perPage = max(1, min(100, (int) $request->get('per_page', 10)));
+
+        $query = \App\Models\ManagementGuidanceLog::with(['client', 'user'])
+            ->latest();
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('guidance_text', 'like', "%{$search}%")
+                  ->orWhere('action_taken', 'like', "%{$search}%")
+                  ->orWhereHas('client', function ($cq) use ($search) {
+                      $cq->where('client_name', 'like', "%{$search}%")
+                        ->orWhere('opus_id', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('user', function ($uq) use ($search) {
+                      $uq->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $logs = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => collect($logs->items())->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'client_name' => $log->client->client_name ?? 'Unknown Client',
+                    'opus_id' => $log->client->opus_id ?? 'N/A',
+                    'user_name' => $log->user->name ?? 'System',
+                    'user_role' => $log->user ? ($log->user->roles->first()?->name ?? 'User') : 'System',
+                    'guidance_text' => $log->guidance_text,
+                    'action_taken' => $log->action_taken,
+                    'created_at_human' => $log->created_at ? $log->created_at->diffForHumans() : '',
+                    'created_at_formatted' => $log->created_at ? $log->created_at->format('d M Y, h:i A') : '',
+                ];
+            }),
+            'current_page' => $logs->currentPage(),
+            'last_page' => $logs->lastPage(),
+            'total' => $logs->total(),
+            'per_page' => $logs->perPage(),
         ]);
     }
 }

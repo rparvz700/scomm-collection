@@ -103,6 +103,66 @@
             color: var(--primary-dark);
         }
 
+        /* Dropdown Menu Styles */
+        .nav-item-dropdown {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .nav-item-dropdown > a {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            cursor: pointer;
+        }
+
+        .nav-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% - 2px);
+            left: 0;
+            min-width: 210px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 6px 0;
+            z-index: 1000;
+        }
+
+        .nav-dropdown-menu::before {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: 0;
+            right: 0;
+            height: 12px;
+            background: transparent;
+        }
+
+        .nav-item-dropdown:hover .nav-dropdown-menu,
+        .nav-item-dropdown:focus-within .nav-dropdown-menu {
+            display: block;
+        }
+
+        .nav-dropdown-menu a {
+            display: block;
+            padding: 9px 16px;
+            color: #334155;
+            font-size: 13.5px;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .nav-dropdown-menu a:hover,
+        .nav-dropdown-menu a.active {
+            background: #f1f5f9;
+            color: var(--primary);
+        }
+
         .logout-form { margin: 0; }
 
         .logout-button,
@@ -400,13 +460,32 @@
             @endcan
 
             @can('view collections')
-                <a class="{{ request()->routeIs('collection-entry.*') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Collection Entry</a>
+                <a class="{{ request()->routeIs('collection-entry.*') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Collection</a>
             @endcan
 
             @can('view monthly summaries')
-                <a class="{{ request()->routeIs('monthly-summary.*') ? 'active' : '' }}" href="{{ route('monthly-summary.index') }}">Monthly Summary</a>
-                <a class="{{ request()->routeIs('monthly-summary-discontinued.*') ? 'active' : '' }}" href="{{ route('monthly-summary-discontinued.index') }}">Discontinued Summary</a>
+                <div class="nav-item-dropdown">
+                    <a class="{{ (request()->routeIs('monthly-summary.*') || request()->routeIs('monthly-summary-discontinued.*')) ? 'active' : '' }}" href="{{ route('monthly-summary.index') }}">
+                        Monthly Summary <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                    </a>
+                    <div class="nav-dropdown-menu">
+                        <a class="{{ request()->routeIs('monthly-summary.index') ? 'active' : '' }}" href="{{ route('monthly-summary.index') }}">Active Clients</a>
+                        <a class="{{ request()->routeIs('monthly-summary-discontinued.index') ? 'active' : '' }}" href="{{ route('monthly-summary-discontinued.index') }}">Discontinued/Barred Clients</a>
+                    </div>
+                </div>
             @endcan
+
+            <div class="nav-item-dropdown">
+                <a class="{{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.client') }}">
+                    Log <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                </a>
+                <div class="nav-dropdown-menu">
+                    <a class="{{ request()->routeIs('logs.client') ? 'active' : '' }}" href="{{ route('logs.client') }}">Client Log</a>
+                    <a class="{{ request()->routeIs('logs.audit') ? 'active' : '' }}" href="{{ route('logs.audit') }}">Audit Log</a>
+                    <a class="{{ request()->routeIs('logs.guidance') ? 'active' : '' }}" href="{{ route('logs.guidance') }}">Guidance Log</a>
+                    <a class="{{ request()->routeIs('logs.system-access') ? 'active' : '' }}" href="{{ route('logs.system-access') }}">System Access Log</a>
+                </div>
+            </div>
 
             @can('view clients')
                 <a class="{{ request()->routeIs('clients.*') ? 'active' : '' }}" href="{{ route('clients.index') }}">Clients</a>
@@ -416,7 +495,7 @@
                 <a class="{{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">Settings</a>
             @endcan
 
-            <a class="{{ request()->routeIs('reports.builder') ? 'active' : '' }}" href="{{ route('reports.builder') }}" style="background: rgba(30, 41, 59, 0.05);">📊 Report Builder</a>
+            <a class="{{ request()->routeIs('reports.*') ? 'active' : '' }}" href="{{ route('reports.builder') }}">Report</a>
         </nav>
 
         <form class="logout-form" method="POST" action="{{ route('logout') }}">

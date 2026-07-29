@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\DataDictionary;
 use App\Models\MonthlySummary;
+use App\Models\SummaryAuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,13 @@ class MonthlySummaryController extends Controller
             ->whereDate('summary_month', $selectedMonthDate)
             ->get();
 
+        $existingClientIds = $summaries->pluck('client_id')->filter()->all();
+        $pendingActiveClients = Client::query()
+            ->where('client_status', 'Active')
+            ->whereNotIn('client_id', $existingClientIds)
+            ->orderBy('client_name')
+            ->get(['client_id', 'client_name', 'opus_id']);
+
         return view('monthly-summary.index', [
             'summaries' => $summaries,
             'selectedMonth' => $selectedMonth,
@@ -35,6 +43,8 @@ class MonthlySummaryController extends Controller
                 ->orderBy('client_name')
                 ->get(['client_id', 'client_name', 'opus_id']),
             'columns' => $this->columns(),
+            'pendingActiveClients' => $pendingActiveClients,
+            'pendingActiveCount' => $pendingActiveClients->count(),
         ]);
     }
 
@@ -71,8 +81,12 @@ class MonthlySummaryController extends Controller
             ], 422);
         }
 
-        $saved = DB::transaction(function () use ($rows) {
+        $saved = DB::transaction(function () use ($rows, $request) {
             $count = 0;
+            $user = auth()->user();
+            $updatedBy = $user?->email ?? $user?->name ?? 'User';
+            $userId = $user?->id;
+            $ipAddress = $request->ip();
 
             foreach ($rows as $row) {
                 if ($this->isBlankRow($row)) {
@@ -85,21 +99,64 @@ class MonthlySummaryController extends Controller
                     ->map(fn ($value) => $value === '' ? null : $value)
                     ->all();
 
+                if (empty($attributes['client_id'])) {
+                    if (!empty($row['opus_id'])) {
+                        $attributes['client_id'] = Client::where('opus_id', $row['opus_id'])->value('client_id');
+                    } elseif (!empty($row['client_name'])) {
+                        $attributes['client_id'] = Client::where('client_name', $row['client_name'])->value('client_id');
+                    }
+                }
+
                 $summaryId = $attributes['monthly_summary_id'] ?? null;
                 unset($attributes['monthly_summary_id']);
 
                 if ($summaryId) {
-                    MonthlySummary::query()
-                        ->where('monthly_summary_id', $summaryId)
-                        ->update($attributes);
+                    $existingModel = MonthlySummary::find($summaryId);
+                    if ($existingModel) {
+                        foreach ($attributes as $key => $newValue) {
+                            $oldValue = $existingModel->$key;
+
+                            $oldStr = $oldValue === null ? null : (string) $oldValue;
+                            $newStr = $newValue === null ? null : (string) $newValue;
+
+                            if ($oldStr !== $newStr) {
+                                SummaryAuditLog::create([
+                                    'summary_type' => 'active',
+                                    'summary_id' => $summaryId,
+                                    'client_id' => $existingModel->client_id,
+                                    'field_name' => $key,
+                                    'old_value' => $oldStr,
+                                    'new_value' => $newStr,
+                                    'summary_month' => $existingModel->summary_month,
+                                    'user_id' => $userId,
+                                    'updated_by' => $updatedBy,
+                                    'ip_address' => $ipAddress,
+                                ]);
+                            }
+                        }
+                        $existingModel->update($attributes);
+                    }
                 } else {
-                    MonthlySummary::query()->updateOrCreate(
+                    $newModel = MonthlySummary::updateOrCreate(
                         [
                             'client_id' => $attributes['client_id'],
                             'summary_month' => $attributes['summary_month'],
                         ],
                         $attributes
                     );
+
+                    SummaryAuditLog::create([
+                        'summary_type' => 'active',
+                        'summary_id' => $newModel->monthly_summary_id,
+                        'client_id' => $newModel->client_id,
+                        'field_name' => 'row_created',
+                        'old_value' => null,
+                        'new_value' => 'New Active Monthly Summary Row Created',
+                        'summary_month' => $newModel->summary_month,
+                        'user_id' => $userId,
+                        'updated_by' => $updatedBy,
+                        'ip_address' => $ipAddress,
+                    ]);
                 }
 
                 $count++;
@@ -134,6 +191,7 @@ class MonthlySummaryController extends Controller
         return $query->get()
             ->map(function (MonthlySummary $summary) {
                 $row = $summary->toArray();
+                $row['opus_id'] = $summary->client?->opus_id;
                 $row['client_name'] = $summary->client?->client_name;
 
                 foreach (['summary_month', 'client_payment_commitment_date'] as $dateField) {
@@ -148,8 +206,7 @@ class MonthlySummaryController extends Controller
     private function columns(): array
     {
         $columns = [
-            ['key' => 'monthly_summary_id', 'label' => 'ID', 'type' => 'numeric', 'readOnly' => true],
-            ['key' => 'client_id', 'label' => 'Client ID', 'type' => 'dropdown', 'required' => true],
+            ['key' => 'opus_id', 'label' => 'OPUS ID', 'type' => 'text', 'readOnly' => true],
             ['key' => 'client_name', 'label' => 'Client Name', 'type' => 'text', 'readOnly' => true],
             ['key' => 'summary_month', 'label' => 'Summary Month', 'type' => 'date', 'required' => true],
             ['key' => 'opening_os_postpaid_nttn', 'label' => 'Opening OS Postpaid NTTN', 'type' => 'money'],
@@ -197,6 +254,13 @@ class MonthlySummaryController extends Controller
             ['key' => 'payment_plan_prepaid', 'label' => 'Payment Plan Prepaid', 'type' => 'money'],
             ['key' => 'total_payment_plan', 'label' => 'Total Payment Plan', 'type' => 'money'],
             ['key' => 'current_month_remarks', 'label' => 'Current Month Remarks', 'type' => 'text'],
+            ['key' => 'sales_review_status', 'label' => 'Sales Review Status', 'type' => 'dropdown', 'source' => ['Pending', 'Approved', 'Rejected']],
+            ['key' => 'sales_review_remarks', 'label' => 'Sales Review Remarks', 'type' => 'text'],
+            ['key' => 'barring_percentage', 'label' => 'Barring %', 'type' => 'numeric'],
+            ['key' => 'collection_mrc', 'label' => 'Collection MRC (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'collection_backlog', 'label' => 'Collection Backlog (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'mrc_shortfall', 'label' => 'MRC Shortfall (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'backlog_shortfall', 'label' => 'Backlog Shortfall (LIFO)', 'type' => 'money', 'readOnly' => true],
             ['key' => 'shortfall_target_postpaid', 'label' => 'Shortfall Target Postpaid', 'type' => 'money'],
             ['key' => 'shortfall_target_prepaid', 'label' => 'Shortfall Target Prepaid', 'type' => 'money'],
             ['key' => 'total_shortfall_target', 'label' => 'Total Shortfall Target', 'type' => 'money'],
@@ -216,6 +280,7 @@ class MonthlySummaryController extends Controller
             ['key' => 'udc', 'label' => 'UDC', 'type' => 'money'],
             ['key' => 'expired_chq', 'label' => 'Expired CHQ', 'type' => 'money'],
             ['key' => 'payment_plan_description', 'label' => 'Payment Plan Description', 'type' => 'text'],
+            ['key' => 'visit_remarks', 'label' => 'Visit Remarks', 'type' => 'text'],
             ['key' => 'client_payment_commitment_date', 'label' => 'Payment Commitment Date', 'type' => 'date'],
             ['key' => 'nttn_tds_amount', 'label' => 'NTTN TDS Amount', 'type' => 'money'],
             ['key' => 'balance_after_recovery', 'label' => 'Balance After Recovery', 'type' => 'money'],
@@ -235,6 +300,51 @@ class MonthlySummaryController extends Controller
             ['key' => 'latest_cr', 'label' => 'Latest CR', 'type' => 'rating'],
             ['key' => 'latest_rating_category', 'label' => 'Latest Rating Category', 'type' => 'text'],
         ];
+
+        // Apply role based readOnly overrides
+        $user = auth()->user();
+        $canUpdate = $user && ($user->can('update monthly summaries') || $user->hasRole('admin'));
+        $isCollection = $user && ($user->hasRole('collection_kam') || $user->hasRole('collection_hod') || $canUpdate);
+        $isSales = $user && ($user->hasRole('sm_kam') || $user->hasRole('collection_hod') || $canUpdate);
+        $isBilling = $user && ($user->hasRole('billing') || $canUpdate);
+
+        $allowedEditableKeys = [
+            'mrc_postpaid_nttn',
+            'mrc_postpaid_nttn_iig',
+            'mrc_postpaid_iig',
+            'mrc_postpaid_itc',
+            'mrc_postpaid_nix',
+            'mrc_prepaid_nttn',
+            'mrc_prepaid_nttn_iig',
+            'mrc_prepaid_iig',
+            'mrc_prepaid_itc',
+            'mrc_prepaid_nix',
+            'total_mrc',
+            'current_month_remarks',
+            'sales_review_remarks',
+            'payment_plan_description',
+            'visit_remarks',
+        ];
+
+        foreach ($columns as &$column) {
+            if (!in_array($column['key'], $allowedEditableKeys)) {
+                $column['readOnly'] = true;
+            } else {
+                if (in_array($column['key'], ['current_month_remarks', 'payment_plan_description', 'visit_remarks'])) {
+                    if (!$isCollection) {
+                        $column['readOnly'] = true;
+                    }
+                } elseif (in_array($column['key'], ['sales_review_remarks'])) {
+                    if (!$isSales) {
+                        $column['readOnly'] = true;
+                    }
+                } else {
+                    if (!$isBilling) {
+                        $column['readOnly'] = true;
+                    }
+                }
+            }
+        }
 
         return $this->applyDataDictionaryLabels($columns);
     }
@@ -269,9 +379,13 @@ class MonthlySummaryController extends Controller
             'rows.*.summary_month' => ['required', 'date'],
             'rows.*.current_month_remarks' => ['nullable', 'string'],
             'rows.*.payment_plan_description' => ['nullable', 'string'],
+            'rows.*.visit_remarks' => ['nullable', 'string'],
             'rows.*.client_payment_commitment_date' => ['nullable', 'date'],
             'rows.*.opening_rating_category' => ['nullable', 'string', 'max:100'],
             'rows.*.latest_rating_category' => ['nullable', 'string', 'max:100'],
+            'rows.*.sales_review_status' => ['nullable', 'string', 'max:50'],
+            'rows.*.sales_review_remarks' => ['nullable', 'string'],
+            'rows.*.barring_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
 
         foreach ($this->moneyColumns() as $column) {
@@ -288,7 +402,12 @@ class MonthlySummaryController extends Controller
     private function fillableColumns(): array
     {
         return array_merge(
-            ['monthly_summary_id', 'client_id', 'summary_month', 'current_month_remarks', 'payment_plan_description', 'client_payment_commitment_date', 'opening_rating_category', 'latest_rating_category'],
+            [
+                'monthly_summary_id', 'client_id', 'summary_month', 'current_month_remarks', 
+                'payment_plan_description', 'visit_remarks', 'client_payment_commitment_date', 'opening_rating_category', 
+                'latest_rating_category', 'sales_review_status', 'sales_review_remarks', 'barring_percentage',
+                'collection_mrc', 'collection_backlog', 'mrc_shortfall', 'backlog_shortfall'
+            ],
             $this->moneyColumns(),
             ['opening_cr', 'latest_cr']
         );
@@ -372,6 +491,10 @@ class MonthlySummaryController extends Controller
             'collection_prepaid_itc',
             'collection_prepaid_nix',
             'total_collection',
+            'collection_mrc',
+            'collection_backlog',
+            'mrc_shortfall',
+            'backlog_shortfall',
         ];
     }
 

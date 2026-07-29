@@ -34,6 +34,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/save-template', [ReportController::class, 'saveTemplate'])->name('reports.save-template');
         Route::delete('/delete-template/{template}', [ReportController::class, 'deleteTemplate'])->name('reports.delete-template');
     });
+
+    Route::prefix('logs')->name('logs.')->group(function () {
+        Route::get('/client-logs', [\App\Http\Controllers\LogController::class, 'clientLogs'])->name('client');
+        Route::get('/audit-logs', [\App\Http\Controllers\LogController::class, 'auditLogs'])->name('audit');
+        Route::get('/guidance-logs', [\App\Http\Controllers\LogController::class, 'guidanceLogs'])->name('guidance');
+        Route::get('/system-access-logs', [\App\Http\Controllers\LogController::class, 'systemAccessLogs'])->name('system-access');
+    });
     
     Route::get('/dashboard/clients/drilldown', [DashboardController::class, 'clientDrilldown']);
     Route::get('/dashboard/clients', [DashboardController::class, 'clientsIndex'])
@@ -45,6 +52,10 @@ Route::middleware('auth')->group(function () {
         ->name('dashboard.client.trend');
     Route::get('/dashboard/client-trend-discontinued/{client}', [DashboardController::class, 'discontinuedClientTrend'])
         ->name('dashboard.client.trend.discontinued');
+    Route::post('/dashboard/workflow/update', [DashboardController::class, 'updateWorkflowStatus'])
+        ->name('dashboard.workflow.update');
+    Route::post('/dashboard/guidance/log', [DashboardController::class, 'logGuidance'])
+        ->name('dashboard.guidance.log');
     Route::get('/collection-entry', [CollectionEntryController::class, 'index'])
         ->middleware('permission:view collections')
         ->name('collection-entry.index');
@@ -119,3 +130,7 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 });
+
+Route::get('/api/month-opening/rollover', [\App\Http\Controllers\Api\MonthRolloverController::class, 'rollover'])->name('web.api.month-opening.rollover');
+Route::get('/api/guidance-logs', [\App\Http\Controllers\DashboardController::class, 'getGuidanceLogs'])->name('web.api.guidance-logs');
+

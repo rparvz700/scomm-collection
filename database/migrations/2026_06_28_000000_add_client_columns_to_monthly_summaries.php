@@ -12,13 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Drop foreign key constraints
-        Schema::table('monthly_summary', function (Blueprint $table) {
-            $table->dropForeign('fk_monthly_summary_client');
-        });
+        $connection = $this->getConnection() ?? config('database.default');
+        if (DB::connection($connection)->getDriverName() !== 'sqlite') {
+            Schema::table('monthly_summary', function (Blueprint $table) {
+                $table->dropForeign('fk_monthly_summary_client');
+            });
 
-        Schema::table('monthly_summary_discontinued', function (Blueprint $table) {
-            $table->dropForeign('monthly_summary_discontinued_client_id_foreign');
-        });
+            Schema::table('monthly_summary_discontinued', function (Blueprint $table) {
+                $table->dropForeign('monthly_summary_discontinued_client_id_foreign');
+            });
+        }
 
         // 2. Add client snapshot columns to monthly_summary
         Schema::table('monthly_summary', function (Blueprint $table) {
@@ -47,18 +50,21 @@ return new class extends Migration
         });
 
         // 3. Re-add foreign key constraints
-        Schema::table('monthly_summary', function (Blueprint $table) {
-            $table->foreign('client_id', 'fk_monthly_summary_client')
-                ->references('client_id')
-                ->on('client');
-        });
+        $connection = $this->getConnection() ?? config('database.default');
+        if (DB::connection($connection)->getDriverName() !== 'sqlite') {
+            Schema::table('monthly_summary', function (Blueprint $table) {
+                $table->foreign('client_id', 'fk_monthly_summary_client')
+                    ->references('client_id')
+                    ->on('client');
+            });
 
-        Schema::table('monthly_summary_discontinued', function (Blueprint $table) {
-            $table->foreign('client_id', 'monthly_summary_discontinued_client_id_foreign')
-                ->references('client_id')
-                ->on('client')
-                ->onDelete('cascade');
-        });
+            Schema::table('monthly_summary_discontinued', function (Blueprint $table) {
+                $table->foreign('client_id', 'monthly_summary_discontinued_client_id_foreign')
+                    ->references('client_id')
+                    ->on('client')
+                    ->onDelete('cascade');
+            });
+        }
     }
 
     /**

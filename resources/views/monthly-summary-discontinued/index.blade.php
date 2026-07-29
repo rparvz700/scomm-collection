@@ -7,6 +7,10 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         /* Select2 overrides */
+        .select2-container {
+            width: 100% !important;
+            min-width: 200px;
+        }
         .select2-container--default .select2-selection--single {
             border: 1px solid var(--line);
             border-radius: 6px;
@@ -21,12 +25,35 @@
         }
         .select2-container .select2-selection--single .select2-selection__rendered {
             color: var(--ink);
-            font-size: 13px;
+            font-size: 11.5px !important;
+            font-weight: 600;
         }
         .select2-dropdown {
             border-color: var(--line);
             border-radius: 6px;
-            box-shadow: var(--shadow);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+            width: auto !important;
+            min-width: 340px !important;
+            max-width: 550px !important;
+            font-size: 11.5px !important;
+        }
+        .select2-results__option {
+            font-size: 11.5px !important;
+            padding: 5px 8px !important;
+        }
+        .select2-results__group {
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            color: var(--muted) !important;
+            background: #f8fafc;
+            padding: 4px 8px !important;
+        }
+        .select2-search__field {
+            font-size: 11.5px !important;
+            padding: 4px 6px !important;
+        }
+        #rowSearch {
+            font-size: 11.5px !important;
         }
         .select2-container--default .select2-results__option--highlighted[aria-selected] {
             background-color: var(--primary);
@@ -44,6 +71,35 @@
             align-items: center;
             gap: 10px;
             flex-wrap: wrap;
+        }
+
+        /* Handsontable Sticky Column & Tooltip Overrides */
+        .handsontable td, .handsontable th {
+            max-width: 200px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        /* Custom Top Scrollbar Styling */
+        #topScrollContainer {
+            height: 18px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+        }
+        #topScrollContainer::-webkit-scrollbar {
+            height: 10px;
+        }
+        #topScrollContainer::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        #topScrollContainer::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        #topScrollContainer::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
 
         .sheet-status {
@@ -84,16 +140,13 @@
     <section class="page-heading">
         <div>
             <h1>Discontinued Monthly Summary</h1>
-            <p>Edit discontinued monthly snapshots in an Excel-style grid with typed cells, validation, filters, sorting, copy/paste, fill handle, and CSV export.</p>
+            <p>View discontinued monthly snapshots in a read-only Excel-style grid with filters, sorting, search, and CSV export.</p>
         </div>
     </section>
 
     <section class="sheet-toolbar" style="flex-wrap: wrap; gap: 20px;">
         <div class="sheet-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <button id="saveSheet" class="button primary" type="button">Save changes</button>
-            <button id="validateSheet" class="button" type="button">Validate</button>
-            <button id="addRow" class="button" type="button">Add row</button>
-            <button id="exportCsv" class="button" type="button">Export CSV</button>
+            <button id="exportCsv" class="button primary" type="button">Export CSV</button>
             
             <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
                 <label for="monthSelect" style="margin-bottom: 0; font-weight: 800; white-space: nowrap; font-size: 13px; color: var(--muted);">Selected Month:</label>
@@ -103,29 +156,32 @@
 
         <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
             <!-- Column Finder -->
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <label for="columnSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 13px;">Find Column:</label>
-                <select id="columnSearch" style="width: 180px;">
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 240px;">
+                <label for="columnSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 12px;">Find Column:</label>
+                <select id="columnSearch" style="width: 100%;">
                     <option value="">Select column...</option>
                 </select>
             </div>
             
             <!-- Global Row Filter -->
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <label for="rowSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 13px;">Search Rows:</label>
-                <input id="rowSearch" type="text" placeholder="Type to filter..." style="min-width: 180px; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font-size: 13px; outline: none; background: #ffffff;">
+            <div style="display: flex; align-items: center; gap: 6px; min-width: 220px;">
+                <label for="rowSearch" style="margin-bottom: 0; font-weight: 700; white-space: nowrap; font-size: 12px;">Search Rows:</label>
+                <input id="rowSearch" type="text" placeholder="Type to filter..." style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; font-size: 11.5px; outline: none; background: #ffffff;">
             </div>
         </div>
 
-        <div id="sheetStatus" class="sheet-status">Ready</div>
+        <div id="sheetStatus" class="sheet-status">Read-only Mode</div>
     </section>
 
     <section class="sheet-wrap">
+        <div id="topScrollContainer" style="overflow-x: auto; overflow-y: hidden; height: 18px; width: 100%; margin-bottom: 4px; display: none; background: rgba(0,0,0,0.02); border-radius: 4px;">
+            <div id="topScrollContent" style="height: 1px;"></div>
+        </div>
         <div id="discontinuedSummaryGrid"></div>
     </section>
 
     <p class="manual-save-note">
-        Required fields are Client ID and Summary Month. Numeric and date cells are validated in the grid and again on save.
+        This table is read-only. Discontinued client summary data is carried over automatically during month opening.
     </p>
 @endsection
 
@@ -138,6 +194,7 @@
         const serverColumns = @json($columns);
         const initialRows = @json($summaries->map(function ($summary) {
             $row = $summary->toArray();
+            $row['opus_id'] = $summary->client?->opus_id;
             $row['client_name'] = $summary->client?->client_name;
             $row['summary_month'] = optional($summary->summary_month)->format('Y-m-d');
             $row['nttn_discontinuation_date'] = optional($summary->nttn_discontinuation_date)->format('Y-m-d');
@@ -277,23 +334,9 @@
             const base = {
                 data: column.key,
                 title: column.label,
-                readOnly: Boolean(column.readOnly),
+                readOnly: column.readOnly ?? false,
                 allowInvalid: false,
             };
-
-            if (column.key === 'client_id') {
-                return {
-                    ...base,
-                    type: 'dropdown',
-                    source: clients.map((client) => String(client.client_id)),
-                    strict: true,
-                    validator: requiredClientValidator,
-                    renderer(instance, td, row, col, prop, value, cellProperties) {
-                        Handsontable.renderers.TextRenderer.apply(this, arguments);
-                        td.textContent = value ? `${value} - ${clientMap[String(value)] ?? 'Unknown client'}` : '';
-                    },
-                };
-            }
 
             if (column.type === 'money') {
                 return {
@@ -335,7 +378,56 @@
             height: '100%',
             stretchH: 'none',
             licenseKey: 'non-commercial-and-evaluation',
-            minSpareRows: 1,
+            fixedColumnsStart: 2,
+            maxHeaderWidth: 200,
+            minSpareRows: 0,
+            cells(row, col, prop) {
+                const cellProperties = {};
+                if (prop === 'opus_id' || prop === 'client_name') {
+                    cellProperties.readOnly = true;
+                }
+                cellProperties.renderer = function(instance, td, r, c, p, value, cellProps) {
+                    if (cellProps.type === 'numeric') {
+                        Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                    } else if (cellProps.type === 'dropdown' || cellProps.type === 'autocomplete') {
+                        Handsontable.renderers.AutocompleteRenderer.apply(this, arguments);
+                    } else if (cellProps.type === 'date') {
+                        Handsontable.renderers.DateRenderer.apply(this, arguments);
+                    } else {
+                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                    }
+
+                    td.style.maxWidth = '200px';
+                    td.style.overflow = 'hidden';
+                    td.style.textOverflow = 'ellipsis';
+                    td.style.whiteSpace = 'nowrap';
+
+                    if (!cellProps.readOnly) {
+                        td.style.backgroundColor = '#aefdc5';
+                        td.style.color = '#14532d';
+                        td.style.fontWeight = '600';
+                    } else {
+                        td.style.backgroundColor = '';
+                        td.style.color = '';
+                        td.style.fontWeight = '';
+                    }
+
+                    if (value !== null && value !== undefined && value !== '') {
+                        td.setAttribute('title', String(value));
+                    } else {
+                        td.removeAttribute('title');
+                    }
+                };
+                return cellProperties;
+            },
+            afterGetColHeader(col, TH) {
+                if (TH) {
+                    const headerNode = TH.querySelector('.colHeader');
+                    if (headerNode) {
+                        TH.setAttribute('title', headerNode.textContent);
+                    }
+                }
+            },
             manualColumnResize: true,
             manualRowResize: true,
             manualColumnMove: true,
@@ -344,9 +436,9 @@
             multiColumnSorting: true,
             filters: true,
             dropdownMenu: true,
-            contextMenu: true,
+            contextMenu: false,
             copyPaste: true,
-            fillHandle: true,
+            fillHandle: false,
             comments: true,
             hiddenColumns: { columns: [], indicators: true },
             hiddenRows: { rows: [], indicators: true },
@@ -396,16 +488,36 @@
         });
 
         $(document).ready(function() {
-            // Populate Column Finder select options
+            // Populate Column Finder select options (Editable columns grouped at top)
             const colSelect = $('#columnSearch');
+            colSelect.empty().append('<option value=""></option>');
+
+            const editableGroup = $('<optgroup label="⚡ Editable Columns"></optgroup>');
+            const readOnlyGroup = $('<optgroup label="🔒 Read-Only Columns"></optgroup>');
+
             serverColumns.forEach((col) => {
-                colSelect.append(new Option(col.label, col.key));
+                const isEditable = !col.readOnly;
+                const option = new Option((isEditable ? '✏️ ' : '') + col.label, col.key);
+                if (isEditable) {
+                    editableGroup.append(option);
+                } else {
+                    readOnlyGroup.append(option);
+                }
             });
+
+            if (editableGroup.children().length > 0) {
+                colSelect.append(editableGroup);
+            }
+            if (readOnlyGroup.children().length > 0) {
+                colSelect.append(readOnlyGroup);
+            }
 
             // Initialize Select2 on Column Finder
             colSelect.select2({
                 placeholder: "Search column...",
-                allowClear: true
+                allowClear: true,
+                dropdownAutoWidth: true,
+                width: '100%'
             });
 
             // Scroll to column on select
@@ -423,7 +535,8 @@
 
             // Global Row Filter using hiddenRows plugin
             const rowSearchInput = document.getElementById('rowSearch');
-            rowSearchInput.addEventListener('input', function() {
+            if (rowSearchInput) {
+                rowSearchInput.addEventListener('input', function() {
                 const query = this.value.toLowerCase().trim();
                 const hiddenRowsPlugin = hot.getPlugin('hiddenRows');
                 
@@ -460,6 +573,7 @@
                 hiddenRowsPlugin.hideRows(rowsToHide);
                 hot.render();
             });
+            }
         });
 
         const validateGrid = () => new Promise((resolve) => {
@@ -500,90 +614,105 @@
             setStatus(`Save failed at row ${visualRow + 1}, ${label}: ${errors[firstKey][0]}`, 'error');
         };
 
-        document.getElementById('validateSheet').addEventListener('click', async () => {
-            const valid = await validateGrid();
-            if (valid) {
-                invalidCells.clear();
-                setStatus('Grid validation passed.', 'success');
-                return;
-            }
+        const validateSheetBtn = document.getElementById('validateSheet');
+        if (validateSheetBtn) {
+            validateSheetBtn.addEventListener('click', async () => {
+                const valid = await validateGrid();
+                if (valid) {
+                    invalidCells.clear();
+                    setStatus('Grid validation passed.', 'success');
+                    return;
+                }
 
-            const first = [...invalidCells.values()][0];
-            setStatus(first ? `Validation failed at row ${first.row}, ${first.label}.` : 'Validation failed. Fix red cells before saving.', 'error');
-        });
-
-        document.getElementById('monthSelect').addEventListener('change', function() {
-            const selectedMonth = this.value;
-            if (selectedMonth) {
-                window.location.href = "{{ route('monthly-summary-discontinued.index') }}?month=" + selectedMonth;
-            }
-        });
-
-        document.getElementById('addRow').addEventListener('click', () => {
-            const targetRow = hot.countRows() - 1;
-            hot.alter('insert_row_below', targetRow - 1, 1);
-            
-            const yearMonth = '{{ $selectedMonth }}';
-            const parts = yearMonth.split('-');
-            const year = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10);
-            const lastDay = new Date(year, month, 0).getDate();
-            const defaultDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-            
-            hot.setDataAtRowProp(targetRow, 'summary_month', defaultDate);
-            dirty = true;
-            setStatus('New row added');
-        });
-
-        document.getElementById('exportCsv').addEventListener('click', () => {
-            hot.getPlugin('exportFile').downloadFile('csv', {
-                bom: true,
-                columnHeaders: true,
-                rowHeaders: false,
-                filename: 'monthly-summary-discontinued-[YYYY]-[MM]-[DD]',
-            });
-        });
-
-        document.getElementById('saveSheet').addEventListener('click', async () => {
-            const valid = await validateGrid();
-
-            if (!valid) {
                 const first = [...invalidCells.values()][0];
                 setStatus(first ? `Validation failed at row ${first.row}, ${first.label}.` : 'Validation failed. Fix red cells before saving.', 'error');
-                return;
-            }
+            });
+        }
 
-            setStatus('Saving...');
-            const payloadRows = rowsForSave();
+        const monthSelectEl = document.getElementById('monthSelect');
+        if (monthSelectEl) {
+            monthSelectEl.addEventListener('change', function() {
+                const selectedMonth = this.value;
+                if (selectedMonth) {
+                    window.location.href = "{{ route('monthly-summary-discontinued.index') }}?month=" + selectedMonth;
+                }
+            });
+        }
 
-            fetch('{{ route('monthly-summary-discontinued.bulk-update') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                },
-                body: JSON.stringify({
-                    rows: payloadRows,
-                    month: '{{ $selectedMonth }}'
-                }),
-            })
-                .then(async (response) => {
-                    const payload = await response.json();
+        const addRowBtn = document.getElementById('addRow');
+        if (addRowBtn) {
+            addRowBtn.addEventListener('click', () => {
+                const targetRow = hot.countRows() - 1;
+                hot.alter('insert_row_below', targetRow - 1, 1);
+                
+                const yearMonth = '{{ $selectedMonth }}';
+                const parts = yearMonth.split('-');
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10);
+                const lastDay = new Date(year, month, 0).getDate();
+                const defaultDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                
+                hot.setDataAtRowProp(targetRow, 'summary_month', defaultDate);
+                dirty = true;
+                setStatus('New row added');
+            });
+        }
 
-                    if (!response.ok) {
-                        throw payload;
-                    }
-
-                    hot.loadData(payload.data ?? rowsForSave());
-                    dirty = false;
-                    setStatus(payload.message ?? 'Discontinued summary saved.', 'success');
-                })
-                .catch((error) => {
-                    showServerErrors(error.errors, payloadRows);
-                    console.error(error);
+        const exportCsvBtn = document.getElementById('exportCsv');
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', () => {
+                hot.getPlugin('exportFile').downloadFile('csv', {
+                    bom: true,
+                    columnHeaders: true,
+                    rowHeaders: false,
+                    filename: 'monthly-summary-discontinued-[YYYY]-[MM]-[DD]',
                 });
-        });
+            });
+        }
+
+        const saveSheetBtn = document.getElementById('saveSheet');
+        if (saveSheetBtn) {
+            saveSheetBtn.addEventListener('click', async () => {
+                const valid = await validateGrid();
+
+                if (!valid) {
+                    const first = [...invalidCells.values()][0];
+                    setStatus(first ? `Validation failed at row ${first.row}, ${first.label}.` : 'Validation failed. Fix red cells before saving.', 'error');
+                    return;
+                }
+
+                setStatus('Saving...');
+                const payloadRows = rowsForSave();
+
+                fetch('{{ route('monthly-summary-discontinued.bulk-update') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({
+                        rows: payloadRows,
+                        month: '{{ $selectedMonth }}'
+                    }),
+                })
+                    .then(async (response) => {
+                        const payload = await response.json();
+
+                        if (!response.ok) {
+                            throw payload;
+                        }
+
+                        hot.loadData(payload.data ?? rowsForSave());
+                        dirty = false;
+                        setStatus(payload.message ?? 'Discontinued summary saved.', 'success');
+                    })
+                    .catch((error) => {
+                        showServerErrors(error.errors, payloadRows);
+                        console.error(error);
+                    });
+            });
+        }
 
         window.addEventListener('beforeunload', (event) => {
             if (!dirty) {
@@ -593,5 +722,56 @@
             event.preventDefault();
             event.returnValue = '';
         });
+
+        (function syncTopScrollbar() {
+            const topScroll = document.getElementById('topScrollContainer');
+            const topContent = document.getElementById('topScrollContent');
+            const gridContainer = document.getElementById('discontinuedSummaryGrid');
+            if (!topScroll || !topContent || !gridContainer) return;
+
+            let isSyncingTop = false;
+            let isSyncingBottom = false;
+
+            function updateTopScrollbarWidth() {
+                const wtHolder = gridContainer.querySelector('.wtHolder');
+                if (wtHolder) {
+                    const scrollWidth = wtHolder.scrollWidth;
+                    const clientWidth = wtHolder.clientWidth;
+                    topContent.style.width = scrollWidth + 'px';
+                    if (scrollWidth > clientWidth + 2) {
+                        topScroll.style.display = 'block';
+                    } else {
+                        topScroll.style.display = 'none';
+                    }
+                }
+            }
+
+            [50, 150, 300, 600, 1200, 2000].forEach((delay) => {
+                setTimeout(updateTopScrollbarWidth, delay);
+            });
+
+            topScroll.addEventListener('scroll', function() {
+                const wtHolder = gridContainer.querySelector('.wtHolder');
+                if (!wtHolder || isSyncingTop) return;
+                isSyncingBottom = true;
+                wtHolder.scrollLeft = topScroll.scrollLeft;
+                requestAnimationFrame(() => isSyncingBottom = false);
+            });
+
+            gridContainer.addEventListener('scroll', function() {
+                const wtHolder = gridContainer.querySelector('.wtHolder');
+                if (!wtHolder || isSyncingBottom) return;
+                isSyncingTop = true;
+                topScroll.scrollLeft = wtHolder.scrollLeft;
+                requestAnimationFrame(() => isSyncingTop = false);
+            }, true);
+
+            window.addEventListener('resize', updateTopScrollbarWidth);
+            window.addEventListener('load', updateTopScrollbarWidth);
+            if (typeof hot !== 'undefined') {
+                hot.addHook('afterRender', updateTopScrollbarWidth);
+                hot.addHook('afterInit', updateTopScrollbarWidth);
+            }
+        })();
     </script>
 @endpush

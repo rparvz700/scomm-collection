@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\DataDictionary;
 use App\Models\MonthlySummaryDiscontinued;
+use App\Models\SummaryAuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,8 +72,12 @@ class MonthlySummaryDiscontinuedController extends Controller
             ], 422);
         }
 
-        $saved = DB::transaction(function () use ($rows) {
+        $saved = DB::transaction(function () use ($rows, $request) {
             $count = 0;
+            $user = auth()->user();
+            $updatedBy = $user?->email ?? $user?->name ?? 'User';
+            $userId = $user?->id;
+            $ipAddress = $request->ip();
 
             foreach ($rows as $row) {
                 if ($this->isBlankRow($row)) {
@@ -89,17 +94,52 @@ class MonthlySummaryDiscontinuedController extends Controller
                 unset($attributes['monthly_summary_discontinued_id']);
 
                 if ($summaryId) {
-                    MonthlySummaryDiscontinued::query()
-                        ->where('monthly_summary_discontinued_id', $summaryId)
-                        ->update($attributes);
+                    $existingModel = MonthlySummaryDiscontinued::find($summaryId);
+                    if ($existingModel) {
+                        foreach ($attributes as $key => $newValue) {
+                            $oldValue = $existingModel->$key;
+
+                            $oldStr = $oldValue === null ? null : (string) $oldValue;
+                            $newStr = $newValue === null ? null : (string) $newValue;
+
+                            if ($oldStr !== $newStr) {
+                                SummaryAuditLog::create([
+                                    'summary_type' => 'discontinued',
+                                    'summary_id' => $summaryId,
+                                    'client_id' => $existingModel->client_id,
+                                    'field_name' => $key,
+                                    'old_value' => $oldStr,
+                                    'new_value' => $newStr,
+                                    'summary_month' => $existingModel->summary_month,
+                                    'user_id' => $userId,
+                                    'updated_by' => $updatedBy,
+                                    'ip_address' => $ipAddress,
+                                ]);
+                            }
+                        }
+                        $existingModel->update($attributes);
+                    }
                 } else {
-                    MonthlySummaryDiscontinued::query()->updateOrCreate(
+                    $newModel = MonthlySummaryDiscontinued::updateOrCreate(
                         [
                             'client_id' => $attributes['client_id'],
                             'summary_month' => $attributes['summary_month'],
                         ],
                         $attributes
                     );
+
+                    SummaryAuditLog::create([
+                        'summary_type' => 'discontinued',
+                        'summary_id' => $newModel->monthly_summary_discontinued_id,
+                        'client_id' => $newModel->client_id,
+                        'field_name' => 'row_created',
+                        'old_value' => null,
+                        'new_value' => 'New Discontinued Monthly Summary Row Created',
+                        'summary_month' => $newModel->summary_month,
+                        'user_id' => $userId,
+                        'updated_by' => $updatedBy,
+                        'ip_address' => $ipAddress,
+                    ]);
                 }
 
                 $count++;
@@ -133,6 +173,7 @@ class MonthlySummaryDiscontinuedController extends Controller
         return $query->get()
             ->map(function (MonthlySummaryDiscontinued $summary) {
                 $row = $summary->toArray();
+                $row['opus_id'] = $summary->client?->opus_id;
                 $row['client_name'] = $summary->client?->client_name;
 
                 foreach (['summary_month', 'nttn_discontinuation_date', 'iig_itc_discontinuation_date'] as $dateField) {
@@ -147,8 +188,7 @@ class MonthlySummaryDiscontinuedController extends Controller
     private function columns(): array
     {
         $columns = [
-            ['key' => 'monthly_summary_discontinued_id', 'label' => 'ID', 'type' => 'numeric', 'readOnly' => true],
-            ['key' => 'client_id', 'label' => 'Client ID', 'type' => 'dropdown', 'required' => true],
+            ['key' => 'opus_id', 'label' => 'OPUS ID', 'type' => 'text', 'readOnly' => true],
             ['key' => 'client_name', 'label' => 'Client Name', 'type' => 'text', 'readOnly' => true],
             ['key' => 'summary_month', 'label' => 'Summary Month', 'type' => 'date', 'required' => true],
             
@@ -169,6 +209,14 @@ class MonthlySummaryDiscontinuedController extends Controller
             ['key' => 'latest_os_nix', 'label' => 'Latest OS NIX', 'type' => 'money'],
             
             ['key' => 'payment_plan_description', 'label' => 'Payment Plan Description', 'type' => 'text'],
+            ['key' => 'visit_remarks', 'label' => 'Visit Remarks', 'type' => 'text'],
+            ['key' => 'sales_review_status', 'label' => 'Sales Review Status', 'type' => 'dropdown', 'source' => ['Pending', 'Approved', 'Rejected']],
+            ['key' => 'sales_review_remarks', 'label' => 'Sales Review Remarks', 'type' => 'text'],
+            ['key' => 'barring_percentage', 'label' => 'Barring %', 'type' => 'numeric'],
+            ['key' => 'collection_mrc', 'label' => 'Collection MRC (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'collection_backlog', 'label' => 'Collection Backlog (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'mrc_shortfall', 'label' => 'MRC Shortfall (LIFO)', 'type' => 'money', 'readOnly' => true],
+            ['key' => 'backlog_shortfall', 'label' => 'Backlog Shortfall (LIFO)', 'type' => 'money', 'readOnly' => true],
             ['key' => 'pdc', 'label' => 'PDC', 'type' => 'money'],
             ['key' => 'udc', 'label' => 'UDC', 'type' => 'money'],
             ['key' => 'total_security', 'label' => 'Total Security', 'type' => 'money'],
@@ -191,6 +239,51 @@ class MonthlySummaryDiscontinuedController extends Controller
             ['key' => 'unbilled_iig_os', 'label' => 'Unbilled IIG OS', 'type' => 'money'],
             ['key' => 'unbilled_itc_os', 'label' => 'Unbilled ITC OS', 'type' => 'money'],
         ];
+
+        // Apply role based readOnly overrides
+        $user = auth()->user();
+        $canUpdate = $user && ($user->can('update monthly summaries') || $user->hasRole('admin'));
+        $isCollection = $user && ($user->hasRole('collection_kam') || $user->hasRole('collection_hod') || $canUpdate);
+        $isSales = $user && ($user->hasRole('sm_kam') || $user->hasRole('collection_hod') || $canUpdate);
+        $isBilling = $user && ($user->hasRole('billing') || $canUpdate);
+
+        $allowedEditableKeys = [
+            'mrc_postpaid_nttn',
+            'mrc_postpaid_nttn_iig',
+            'mrc_postpaid_iig',
+            'mrc_postpaid_itc',
+            'mrc_postpaid_nix',
+            'mrc_prepaid_nttn',
+            'mrc_prepaid_nttn_iig',
+            'mrc_prepaid_iig',
+            'mrc_prepaid_itc',
+            'mrc_prepaid_nix',
+            'total_mrc',
+            'current_month_remarks',
+            'sales_review_remarks',
+            'payment_plan_description',
+            'visit_remarks',
+        ];
+
+        foreach ($columns as &$column) {
+            if (!in_array($column['key'], $allowedEditableKeys)) {
+                $column['readOnly'] = true;
+            } else {
+                if (in_array($column['key'], ['visit_remarks', 'payment_plan_description'])) {
+                    if (!$isCollection) {
+                        $column['readOnly'] = true;
+                    }
+                } elseif (in_array($column['key'], ['sales_review_remarks'])) {
+                    if (!$isSales) {
+                        $column['readOnly'] = true;
+                    }
+                } else {
+                    if (!$isBilling) {
+                        $column['readOnly'] = true;
+                    }
+                }
+            }
+        }
 
         return $this->applyDataDictionaryLabels($columns);
     }
@@ -223,6 +316,10 @@ class MonthlySummaryDiscontinuedController extends Controller
             'rows.*.client_id' => ['required', 'integer', 'exists:client,client_id'],
             'rows.*.summary_month' => ['required', 'date'],
             'rows.*.payment_plan_description' => ['nullable', 'string'],
+            'rows.*.visit_remarks' => ['nullable', 'string'],
+            'rows.*.sales_review_status' => ['nullable', 'string', 'max:50'],
+            'rows.*.sales_review_remarks' => ['nullable', 'string'],
+            'rows.*.barring_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'rows.*.pdc_chq' => ['nullable', 'string', 'max:255'],
             'rows.*.udc_chq' => ['nullable', 'string', 'max:255'],
             'rows.*.nttn_discontinuation_date' => ['nullable', 'date'],
@@ -241,8 +338,9 @@ class MonthlySummaryDiscontinuedController extends Controller
         return array_merge(
             [
                 'monthly_summary_discontinued_id', 'client_id', 'summary_month', 
-                'payment_plan_description', 'pdc_chq', 'udc_chq', 
-                'nttn_discontinuation_date', 'iig_itc_discontinuation_date'
+                'payment_plan_description', 'visit_remarks', 'sales_review_status', 'sales_review_remarks', 'barring_percentage',
+                'collection_mrc', 'collection_backlog', 'mrc_shortfall', 'backlog_shortfall',
+                'pdc_chq', 'udc_chq', 'nttn_discontinuation_date', 'iig_itc_discontinuation_date'
             ],
             $this->moneyColumns()
         );
@@ -278,6 +376,10 @@ class MonthlySummaryDiscontinuedController extends Controller
             'unbilled_nttn_os',
             'unbilled_iig_os',
             'unbilled_itc_os',
+            'collection_mrc',
+            'collection_backlog',
+            'mrc_shortfall',
+            'backlog_shortfall',
         ];
     }
 

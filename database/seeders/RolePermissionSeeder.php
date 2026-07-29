@@ -51,6 +51,12 @@ class RolePermissionSeeder extends Seeder
         $riskAnalyst = Role::query()->firstOrCreate(['name' => 'risk_analyst', 'guard_name' => 'web']);
         $viewer = Role::query()->firstOrCreate(['name' => 'viewer', 'guard_name' => 'web']);
 
+        // New Roles
+        $smKam = Role::query()->firstOrCreate(['name' => 'sm_kam', 'guard_name' => 'web']);
+        $collectionHod = Role::query()->firstOrCreate(['name' => 'collection_hod', 'guard_name' => 'web']);
+        $mgt = Role::query()->firstOrCreate(['name' => 'mgt', 'guard_name' => 'web']);
+        $billing = Role::query()->firstOrCreate(['name' => 'billing', 'guard_name' => 'web']);
+
         $admin->syncPermissions($permissions);
 
         $manager->syncPermissions([
@@ -74,9 +80,52 @@ class RolePermissionSeeder extends Seeder
             'view dashboard',
             'view clients',
             'view monthly summaries',
+            'update monthly summaries',
             'view collections',
             'create collections',
             'update collections',
+        ]);
+
+        $smKam->syncPermissions([
+            'view dashboard',
+            'view clients',
+            'view monthly summaries',
+            'update monthly summaries',
+        ]);
+
+        $collectionHod->syncPermissions([
+            'view dashboard',
+            'view clients',
+            'update clients',
+            'view monthly summaries',
+            'update monthly summaries',
+            'view collections',
+            'create collections',
+            'update collections',
+            'delete collections',
+            'view risks',
+            'create risks',
+            'update risks',
+            'delete risks',
+        ]);
+
+        $mgt->syncPermissions([
+            'view dashboard',
+            'view clients',
+            'view monthly summaries',
+            'view collections',
+            'view risks',
+        ]);
+
+        $billing->syncPermissions([
+            'view dashboard',
+            'view clients',
+            'view monthly summaries',
+            'update monthly summaries',
+            'view collections',
+            'create collections',
+            'update collections',
+            'delete collections',
         ]);
 
         $riskAnalyst->syncPermissions([

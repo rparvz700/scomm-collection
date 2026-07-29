@@ -97,10 +97,10 @@
                 <div class="field">
                     <label for="client_status">Client Status</label>
                     <select id="client_status" name="client_status">
-                        <option value="Active" @selected(old('client_status') === 'Active')>Active</option>
-                        <option value="Inactive" @selected(old('client_status') === 'Inactive')>Inactive</option>
-                        <option value="Barred" @selected(old('client_status') === 'Barred')>Barred</option>
-                        <option value="Discontinued" @selected(old('client_status') === 'Discontinued')>Discontinued</option>
+                        <option value="Active" @selected(old('client_status', 'Active') === 'Active')>Active</option>
+                        <option value="Inactive" disabled @selected(old('client_status') === 'Inactive')>Inactive</option>
+                        <option value="Barred" disabled @selected(old('client_status') === 'Barred')>Barred</option>
+                        <option value="Discontinued" disabled @selected(old('client_status') === 'Discontinued')>Discontinued</option>
                     </select>
                     @error('client_status')<div class="error">{{ $message }}</div>@enderror
                 </div>

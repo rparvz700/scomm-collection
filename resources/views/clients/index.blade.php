@@ -506,12 +506,91 @@
             const tableInfo = document.getElementById('tableInfo');
             const paginationContainer = document.getElementById('paginationContainer');
 
+            let lastRenderedStatus = null;
+
+            function updateTableHeader(status) {
+                if (lastRenderedStatus === status) return;
+                lastRenderedStatus = status;
+
+                const thead = document.querySelector('#clientTable thead');
+                let headerHtml = '';
+
+                if (status === 'Barred') {
+                    headerHtml = `
+                        <tr>
+                            <th class="sortable ${sortField === 'client_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_name">Client Name</th>
+                            <th class="sortable ${sortField === 'opus_id' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="opus_id">OPUS ID</th>
+                            <th class="sortable ${sortField === 'client_status' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_status">Status</th>
+                            <th class="sortable ${sortField === 'barring_percentage' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="barring_percentage">Barred %</th>
+                            <th class="sortable ${sortField === 'barred_at' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="barred_at">Barring Aging</th>
+                            <th class="sortable ${sortField === 'collection_kam' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="collection_kam">Collection KAM</th>
+                            <th class="sortable ${sortField === 'current_month_cr' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="current_month_cr">Current Month CR</th>
+                            <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
+                            <th style="width: 150px;">Actions</th>
+                        </tr>
+                    `;
+                } else if (status === 'Discontinued') {
+                    headerHtml = `
+                        <tr>
+                            <th class="sortable ${sortField === 'client_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_name">Client Name</th>
+                            <th class="sortable ${sortField === 'opus_id' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="opus_id">OPUS ID</th>
+                            <th class="sortable ${sortField === 'client_status' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_status">Status</th>
+                            <th class="sortable ${sortField === 'legal' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="legal">Legal Action</th>
+                            <th class="sortable ${sortField === 'service_discontinuation_date' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="service_discontinuation_date">Discontinued Date</th>
+                            <th class="sortable ${sortField === 'btrc_license_discontinuation_date' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="btrc_license_discontinuation_date">BTRC License Discont.</th>
+                            <th class="sortable ${sortField === 'btrc_letter' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="btrc_letter">BTRC Letter</th>
+                            <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
+                            <th style="width: 150px;">Actions</th>
+                        </tr>
+                    `;
+                } else {
+                    headerHtml = `
+                        <tr>
+                            <th class="sortable ${sortField === 'client_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_name">Client Name</th>
+                            <th class="sortable ${sortField === 'opus_id' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="opus_id">OPUS ID</th>
+                            <th class="sortable ${sortField === 'client_status' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_status">Status</th>
+                            <th class="sortable ${sortField === 'license_billing' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="license_billing">License Billing</th>
+                            <th class="sortable ${sortField === 'team_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="team_name">Team Name</th>
+                            <th class="sortable ${sortField === 'collection_kam' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="collection_kam">Collection KAM</th>
+                            <th class="sortable ${sortField === 'current_month_cr' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="current_month_cr">Current Month CR</th>
+                            <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
+                            <th style="width: 150px;">Actions</th>
+                        </tr>
+                    `;
+                }
+
+                thead.innerHTML = headerHtml;
+
+                // Re-bind click listeners for sorting
+                thead.querySelectorAll('th.sortable').forEach(th => {
+                    th.addEventListener('click', () => {
+                        const field = th.dataset.sort;
+                        if (sortField === field) {
+                            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            sortField = field;
+                            sortDirection = 'asc';
+                        }
+
+                        // Reset visual classes
+                        thead.querySelectorAll('th.sortable').forEach(h => {
+                            h.classList.remove('sort-asc', 'sort-desc');
+                        });
+                        th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                        render();
+                    });
+                });
+            }
+
             // Render function
             function render() {
                 // 1. Filter
                 const query = searchInput.value.toLowerCase().trim();
                 const selectedStatus = document.getElementById('statusFilter').value;
                 const selectedRisk = document.getElementById('riskFilter').value;
+
+                updateTableHeader(selectedStatus);
 
                 filteredClients = clients.filter(client => {
                     // Check search query
@@ -582,11 +661,19 @@
                     let valA = a[sortField];
                     let valB = b[sortField];
 
-                    if (sortField === 'current_month_cr') {
+                    if (sortField === 'current_month_cr' || sortField === 'barring_percentage') {
                         const numA = valA === 'N/A' || valA === null || valA === undefined ? -999999 : parseFloat(valA);
                         const numB = valB === 'N/A' || valB === null || valB === undefined ? -999999 : parseFloat(valB);
                         if (numA < numB) return sortDirection === 'asc' ? -1 : 1;
                         if (numA > numB) return sortDirection === 'asc' ? 1 : -1;
+                        return 0;
+                    }
+
+                    if (sortField === 'legal') {
+                        const boolA = valA ? 1 : 0;
+                        const boolB = valB ? 1 : 0;
+                        if (boolA < boolB) return sortDirection === 'asc' ? -1 : 1;
+                        if (boolA > boolB) return sortDirection === 'asc' ? 1 : -1;
                         return 0;
                     }
 
@@ -679,27 +766,112 @@
                         drilldownLink = `${drilldownBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&client_id=${client.client_id}`;
                     }
 
-                    tr.innerHTML = `
-                        <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
-                        <td>${client.opus_id || 'N/A'}</td>
-                        <td>
-                            <span class="status-badge ${statusClass}">
-                                ${client.client_status || 'N/A'}
-                            </span>
-                        </td>
-                        <td>${client.license_billing || 'N/A'}</td>
-                        <td>${client.team_name || 'N/A'}</td>
-                        <td>${client.collection_kam || 'N/A'}</td>
-                        <td>${client.current_month_cr || 'N/A'}</td>
-                        <td>
-                            <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
-                                ${client.risk_segment || 'N/A'}
-                            </a>
-                        </td>
-                        <td>${actionsHtml}</td>
-                    `;
+                    if (selectedStatus === 'Barred') {
+                        const barPercent = client.barring_percentage !== null && client.barring_percentage !== undefined ? parseFloat(client.barring_percentage).toFixed(2) + '%' : '0.00%';
+                        let agingStr = 'N/A';
+                        let agingStyle = '';
+                        if (client.barred_at) {
+                            const barredDate = new Date(client.barred_at);
+                            const today = new Date();
+                            const diffTime = Math.abs(today - barredDate);
+                            const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                            
+                            const agingMonthsNum = parseFloat((diffDays / 30.4375).toFixed(1));
+                            agingStr = agingMonthsNum.toFixed(1) + 'm';
+
+                            if (agingMonthsNum >= 3.0) {
+                                agingStyle = 'color: #ef4444; font-weight: 800; background: #fee2e2; padding: 4px 10px; border-radius: 6px; border: 1px solid #fca5a5;';
+                            } else if (agingMonthsNum >= 2.0) {
+                                agingStyle = 'color: #f97316; font-weight: 800; background: #fff7ed; padding: 4px 10px; border-radius: 6px; border: 1px solid #ffedd5;';
+                            } else {
+                                agingStyle = 'color: #1e293b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px;';
+                            }
+                        }
+
+                        tr.innerHTML = `
+                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td>${client.opus_id || 'N/A'}</td>
+                            <td>
+                                <span class="status-badge ${statusClass}">
+                                    ${client.client_status || 'N/A'}
+                                </span>
+                            </td>
+                            <td style="font-weight: 700; color: var(--primary-dark);">${barPercent}</td>
+                            <td>
+                                <span style="${agingStyle}">
+                                    ${agingStr}
+                                </span>
+                            </td>
+                            <td>${client.collection_kam || 'N/A'}</td>
+                            <td>${client.current_month_cr || 'N/A'}</td>
+                            <td>
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.risk_segment || 'N/A'}
+                                </a>
+                            </td>
+                            <td>${actionsHtml}</td>
+                        `;
+                    } else if (selectedStatus === 'Discontinued') {
+                        const legalText = client.legal ? '<span style="color: #ef4444; font-weight: 800; background: #fee2e2; padding: 2px 8px; border-radius: 999px; font-size: 11px; text-transform: uppercase;">Yes</span>' : '<span style="color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 999px; font-size: 11px; text-transform: uppercase;">No</span>';
+                        
+                        const formatJsDate = (dateStr) => {
+                            if (!dateStr) return 'N/A';
+                            try {
+                                const d = new Date(dateStr);
+                                if (isNaN(d.getTime())) return 'N/A';
+                                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                            } catch (e) {
+                                return 'N/A';
+                            }
+                        };
+
+                        const discontDate = formatJsDate(client.service_discontinuation_date);
+                        const btrcLicenseDate = formatJsDate(client.btrc_license_discontinuation_date);
+                        const btrcLetterText = client.btrc_letter || 'N/A';
+
+                        tr.innerHTML = `
+                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td>${client.opus_id || 'N/A'}</td>
+                            <td>
+                                <span class="status-badge ${statusClass}">
+                                    ${client.client_status || 'N/A'}
+                                </span>
+                            </td>
+                            <td>${legalText}</td>
+                            <td style="font-weight: 700; color: #b91c1c;">${discontDate}</td>
+                            <td>${btrcLicenseDate}</td>
+                            <td>${btrcLetterText}</td>
+                            <td>
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.risk_segment || 'N/A'}
+                                </a>
+                            </td>
+                            <td>${actionsHtml}</td>
+                        `;
+                    } else {
+                        tr.innerHTML = `
+                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td>${client.opus_id || 'N/A'}</td>
+                            <td>
+                                <span class="status-badge ${statusClass}">
+                                    ${client.client_status || 'N/A'}
+                                </span>
+                            </td>
+                            <td>${client.license_billing || 'N/A'}</td>
+                            <td>${client.team_name || 'N/A'}</td>
+                            <td>${client.collection_kam || 'N/A'}</td>
+                            <td>${client.current_month_cr || 'N/A'}</td>
+                            <td>
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.risk_segment || 'N/A'}
+                                </a>
+                            </td>
+                            <td>${actionsHtml}</td>
+                        `;
+                    }
+
                     clientTableBody.appendChild(tr);
-                    
+
                     // Trigger reflow & fade in
                     setTimeout(() => {
                         tr.style.opacity = '1';

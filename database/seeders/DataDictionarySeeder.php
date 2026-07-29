@@ -167,6 +167,14 @@ class DataDictionarySeeder extends Seeder
             'collection_prepaid_iig' => ['Collection Prepaid IIG', 'Prepaid IIG collection amount', 'DECIMAL(18,2)', 'system_generated', 'Collection', 'LIVE_Pre-Paid (Billing).IIG Payment'],
             'collection_prepaid_itc' => ['Collection Prepaid ITC', 'Prepaid ITC collection amount', 'DECIMAL(18,2)', 'system_generated', 'Collection', 'LIVE_Pre-Paid (Billing).ITC Payment'],
             'collection_prepaid_nix' => ['Collection Prepaid NIX', 'Prepaid NIX collection amount', 'DECIMAL(18,2)', 'system_generated', 'Collection', 'LIVE_Pre-Paid (Billing).NIX Payment'],
+            'visit_remarks' => ['Visit Remarks', 'Operational visit notes and customer interaction feedback', 'TEXT', 'manual', 'Collection', null],
+            'sales_review_status' => ['Sales Review Status', 'Sales review decision status (Pending, Approved, Rejected)', 'VARCHAR(50)', 'manual', 'Sales', null],
+            'sales_review_remarks' => ['Sales Review Remarks', 'Remarks and comments provided by Sales & Marketing team', 'TEXT', 'manual', 'Sales', null],
+            'barring_percentage' => ['Barring Percentage', 'Operational line barring percentage applied', 'DECIMAL(5,2)', 'manual', 'Collection', null],
+            'collection_mrc' => ['Collection MRC (LIFO)', 'Calculated LIFO collection allocated towards current month MRC', 'DECIMAL(18,2)', 'system_generated', 'Collection', null],
+            'collection_backlog' => ['Collection Backlog (LIFO)', 'Calculated LIFO collection allocated towards outstanding backlog', 'DECIMAL(18,2)', 'system_generated', 'Collection', null],
+            'mrc_shortfall' => ['MRC Shortfall (LIFO)', 'Remaining shortfall on current month MRC after LIFO collection', 'DECIMAL(18,2)', 'calculated', 'Collection', null],
+            'backlog_shortfall' => ['Backlog Shortfall (LIFO)', 'Remaining shortfall on outstanding backlog after LIFO collection', 'DECIMAL(18,2)', 'calculated', 'Collection', null],
         ];
 
         return collect($columns)
@@ -234,7 +242,14 @@ class DataDictionarySeeder extends Seeder
             'unbilled_total' => ['Unbilled Total OS', 'Total unbilled outstanding amount', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
             'unbilled_nttn_os' => ['Unbilled NTTN OS', 'Unbilled outstanding amount for NTTN service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
             'unbilled_iig_os' => ['Unbilled IIG OS', 'Unbilled outstanding amount for IIG service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
-            'unbilled_itc_os' => ['Unbilled ITC OS', 'Unbilled outstanding amount for ITC service', 'DECIMAL(15,2)', 'snapshot', 'Finance', null],
+            'visit_remarks' => ['Visit Remarks', 'Operational visit notes and customer interaction feedback', 'TEXT', 'manual', 'Collection', null],
+            'sales_review_status' => ['Sales Review Status', 'Sales review decision status (Pending, Approved, Rejected)', 'VARCHAR(50)', 'manual', 'Sales', null],
+            'sales_review_remarks' => ['Sales Review Remarks', 'Remarks and comments provided by Sales & Marketing team', 'TEXT', 'manual', 'Sales', null],
+            'barring_percentage' => ['Barring Percentage', 'Operational line barring percentage applied', 'DECIMAL(5,2)', 'manual', 'Collection', null],
+            'collection_mrc' => ['Collection MRC (LIFO)', 'Calculated LIFO collection allocated towards current month MRC', 'DECIMAL(18,2)', 'system_generated', 'Collection', null],
+            'collection_backlog' => ['Collection Backlog (LIFO)', 'Calculated LIFO collection allocated towards outstanding backlog', 'DECIMAL(18,2)', 'system_generated', 'Collection', null],
+            'mrc_shortfall' => ['MRC Shortfall (LIFO)', 'Remaining shortfall on current month MRC after LIFO collection', 'DECIMAL(18,2)', 'calculated', 'Collection', null],
+            'backlog_shortfall' => ['Backlog Shortfall (LIFO)', 'Remaining shortfall on outstanding backlog after LIFO collection', 'DECIMAL(18,2)', 'calculated', 'Collection', null],
         ];
 
         return collect($columns)

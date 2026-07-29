@@ -804,6 +804,14 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                     $fields['collection_postpaid_itc'] + 
                     $fields['collection_postpaid_nix'];
 
+                $discTotalColl = isset($fields['collection_amount']) ? (float)$fields['collection_amount'] : (float)$fields['total_collection'];
+                $discOpeningOs = isset($fields['opening_os']) ? (float)$fields['opening_os'] : 0.0;
+
+                $fields['collection_mrc'] = 0.00;
+                $fields['collection_backlog'] = $discTotalColl;
+                $fields['mrc_shortfall'] = 0.00;
+                $fields['backlog_shortfall'] = max(0.00, $discOpeningOs - $discTotalColl);
+
                 DB::table('monthly_summary_discontinued')->updateOrInsert(
                     [
                         'client_id' => $cid,
@@ -1106,6 +1114,20 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 $insertData['collection_postpaid_nttn'] + $insertData['collection_postpaid_iig'] + $insertData['collection_postpaid_itc'] + $insertData['collection_postpaid_nix'] +
                 $insertData['collection_prepaid_nttn'] + $insertData['collection_prepaid_iig'] + $insertData['collection_prepaid_itc'] + $insertData['collection_prepaid_nix'];
                 
+            $totColl = (float)$insertData['total_collection'];
+            $totMrc = (float)$insertData['total_mrc'];
+            $netBacklogTot = (float)$insertData['net_backlog_total'];
+
+            $collMrc = min($totColl, $totMrc);
+            $collBacklog = max(0.00, $totColl - $totMrc);
+            $mrcShortfall = max(0.00, $totMrc - $collMrc);
+            $backlogShortfall = max(0.00, $netBacklogTot - $collBacklog);
+
+            $insertData['collection_mrc'] = $collMrc;
+            $insertData['collection_backlog'] = $collBacklog;
+            $insertData['mrc_shortfall'] = $mrcShortfall;
+            $insertData['backlog_shortfall'] = $backlogShortfall;
+                
             $insertData['current_month_remarks'] = isset($data['current_month_remarks']) ? $data['current_month_remarks'] : null;
             $insertData['payment_plan_description'] = isset($data['payment_plan_description']) ? $data['payment_plan_description'] : null;
             
@@ -1192,6 +1214,7 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 $insertData['client_id'] = null;
                 $insertData['client_name'] = $pc['excel_name'];
                 $insertData['client_opus_id'] = $pc['excel_opus'];
+                unset($insertData['collection_mrc'], $insertData['collection_backlog'], $insertData['mrc_shortfall'], $insertData['backlog_shortfall']);
 
                 DB::table('monthly_summary_residue')->updateOrInsert(
                     [
