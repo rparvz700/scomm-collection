@@ -16,6 +16,7 @@ class RolePermissionSeeder extends Seeder
 
         $permissions = [
             'view dashboard',
+            'update workflow status',
             'view clients',
             'create clients',
             'update clients',
@@ -32,6 +33,13 @@ class RolePermissionSeeder extends Seeder
             'create risks',
             'update risks',
             'delete risks',
+            'view reports',
+            'export reports',
+            'manage report templates',
+            'view client logs',
+            'view audit logs',
+            'view guidance logs',
+            'view system access logs',
             'view data dictionary',
             'manage data dictionary',
             'manage users',
@@ -59,31 +67,83 @@ class RolePermissionSeeder extends Seeder
 
         $admin->syncPermissions($permissions);
 
-        $manager->syncPermissions([
+        $collectionHod->syncPermissions([
             'view dashboard',
+            'update workflow status',
             'view clients',
-            'create clients',
             'update clients',
-            'view monthly summaries',
-            'create monthly summaries',
-            'update monthly summaries',
             'view collections',
             'create collections',
             'update collections',
+            'delete collections',
+            'view monthly summaries',
+            'create monthly summaries',
+            'update monthly summaries',
+            'delete monthly summaries',
             'view risks',
             'create risks',
             'update risks',
+            'delete risks',
+            'view reports',
+            'export reports',
+            'manage report templates',
+            'view client logs',
+            'view audit logs',
+            'view guidance logs',
+            'view data dictionary',
+        ]);
+
+        $mgt->syncPermissions([
+            'view dashboard',
+            'view clients',
+            'view collections',
+            'view monthly summaries',
+            'view risks',
+            'view reports',
+            'export reports',
+            'view client logs',
+            'view audit logs',
+            'view guidance logs',
+            'view system access logs',
+            'view data dictionary',
+        ]);
+
+        $manager->syncPermissions([
+            'view dashboard',
+            'update workflow status',
+            'view clients',
+            'create clients',
+            'update clients',
+            'view collections',
+            'create collections',
+            'update collections',
+            'view monthly summaries',
+            'create monthly summaries',
+            'update monthly summaries',
+            'view risks',
+            'create risks',
+            'update risks',
+            'view reports',
+            'export reports',
+            'manage report templates',
+            'view client logs',
+            'view audit logs',
+            'view guidance logs',
             'view data dictionary',
         ]);
 
         $collectionKam->syncPermissions([
             'view dashboard',
             'view clients',
-            'view monthly summaries',
-            'update monthly summaries',
             'view collections',
             'create collections',
             'update collections',
+            'view monthly summaries',
+            'update monthly summaries',
+            'view risks',
+            'view reports',
+            'export reports',
+            'view client logs',
         ]);
 
         $smKam->syncPermissions([
@@ -91,59 +151,54 @@ class RolePermissionSeeder extends Seeder
             'view clients',
             'view monthly summaries',
             'update monthly summaries',
-        ]);
-
-        $collectionHod->syncPermissions([
-            'view dashboard',
-            'view clients',
-            'update clients',
-            'view monthly summaries',
-            'update monthly summaries',
             'view collections',
-            'create collections',
-            'update collections',
-            'delete collections',
-            'view risks',
-            'create risks',
-            'update risks',
-            'delete risks',
-        ]);
-
-        $mgt->syncPermissions([
-            'view dashboard',
-            'view clients',
-            'view monthly summaries',
-            'view collections',
-            'view risks',
+            'view reports',
+            'view client logs',
         ]);
 
         $billing->syncPermissions([
             'view dashboard',
             'view clients',
-            'view monthly summaries',
-            'update monthly summaries',
             'view collections',
             'create collections',
             'update collections',
             'delete collections',
+            'view monthly summaries',
+            'create monthly summaries',
+            'update monthly summaries',
+            'delete monthly summaries',
+            'view reports',
+            'export reports',
+            'view client logs',
+            'view audit logs',
         ]);
 
         $riskAnalyst->syncPermissions([
             'view dashboard',
             'view clients',
-            'view monthly summaries',
             'view collections',
+            'view monthly summaries',
             'view risks',
             'create risks',
             'update risks',
+            'delete risks',
+            'view reports',
+            'export reports',
+            'manage report templates',
+            'view client logs',
+            'view audit logs',
+            'view guidance logs',
+            'view data dictionary',
         ]);
 
         $viewer->syncPermissions([
             'view dashboard',
             'view clients',
-            'view monthly summaries',
             'view collections',
+            'view monthly summaries',
             'view risks',
+            'view reports',
+            'view client logs',
             'view data dictionary',
         ]);
 

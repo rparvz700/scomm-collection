@@ -287,7 +287,7 @@
 
         .team-performance-heading h2 {
             margin: 0;
-            font-size: clamp(28px, 4vw, 42px);
+            font-size: clamp(20px, 4vw, 30px);
             line-height: 1.08;
         }
 
@@ -501,15 +501,7 @@
                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
         </button>
-        <button class="button primary" style="width: 36px; height: 36px; padding: 0; background: var(--line); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" onclick="toggleGuidanceLogsModal()" title="Management Guidance Audit Logs" aria-label="Management Guidance Audit Logs">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-        </button>
+
         <button id="exportPdfBtn" class="button primary" style="width: 36px; height: 36px; padding: 0; background: var(--line); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Export Presentation PDF" aria-label="Export Presentation PDF">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -2334,65 +2326,276 @@
 
             <section class="grid one" style="margin-bottom: 24px;">
                 <article class="panel">
-                    <div class="panel-header">
-                        <h2>Long-Standing Barred Clients</h2>
-                        <span>Aging &gt; 2 Months (Seek Guidance)</span>
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 12px;">
+                        <div>
+                            <h2>Long-Standing Barred Clients</h2>
+                            <span style="font-size: 12px; color: var(--muted);">Sorted by Barring Aging (Descending) &bull; Aging &gt; 2 Months (Seek Guidance)</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                            <input type="text" id="barredSearch" placeholder="Search accounts..." style="padding: 6px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); width: 220px; outline: none; margin: 0;">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; margin-left: 5px;">Show:</span>
+                            <select id="barredPageSize" style="padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; background: var(--panel); color: var(--ink); font-weight: 700; cursor: pointer; margin: 0; height: 32px;">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
                     </div>
-                    @if ($barredClients->isNotEmpty())
-                        <table>
+                    
+                    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: 480px;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
                             <thead>
                                 <tr>
-                                    <th>Client Name</th>
-                                    <th>Barred Date</th>
-                                    <th>Aging</th>
-                                    <th>Barred %</th>
-                                    <th>Management Guidance</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Client Name</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Barred Date</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Aging</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Barred %</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Management Guidance</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @foreach ($barredClients as $bc)
-                                    @php
-                                        $badgeColor = $bc->aging_months >= 3.0 ? 'background-color: #fee2e2; color: #ef4444; font-weight: 800;' : 'background-color: #ffedd5; color: #ea580c; font-weight: 800;';
-                                    @endphp
-                                    <tr>
-                                        <td><strong>{{ $bc->client_name }}</strong></td>
-                                        <td>{{ $bc->barred_at ? $bc->barred_at->format('d M Y') : 'N/A' }}</td>
-                                        <td>
-                                            <span class="pill" style="{{ $badgeColor }}">
-                                                {{ $bc->aging_months }} Months
-                                            </span>
-                                        </td>
-                                        <td>
-                                            @php
-                                                $barPct = max(0, min(100, (float) $bc->barring_percentage));
-                                                $barHue = (100 - $barPct) * 1.2;
-                                                $barColor = "hsl(" . round($barHue) . ", 85%, 45%)";
-                                            @endphp
-                                            <div style="display:flex; align-items:center; gap:8px;">
-                                                <div style="flex:1; background-color:rgba(226, 232, 240, 0.9); height:10px; border:2px solid #ffffff; border-radius:999px; overflow:hidden; min-width:60px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
-                                                    <div style="background-color:{{ $barColor }}; height:100%; width:{{ $barPct }}%; border-radius:999px; transition: width 0.4s ease;"></div>
-                                                </div>
-                                                <span>{{ number_format($bc->barring_percentage, 0) }}%</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div style="display:flex; gap:6px; align-items:center;">
-                                                <input type="text" id="guidance-{{ $bc->client_id }}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
-                                                <button class="button primary btn-small" onclick="submitInlineGuidance({{ $bc->client_id }})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
+                            <tbody id="barredTableBody">
+                                <!-- Populated dynamically by JS -->
                             </tbody>
                         </table>
-                    @else
-                        <div class="empty">No long-standing barred clients found.</div>
-                    @endif
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; flex-wrap: wrap; gap: 14px; padding: 0 4px;">
+                        <div id="barredTableInfo" style="font-size: 13px; color: var(--muted); font-weight: 500;">
+                            Showing 0 to 0 of 0 entries
+                        </div>
+                        <div id="barredPagination" class="pagination" style="display: flex; gap: 4px; margin: 0; padding: 0; list-style: none;">
+                            <!-- Pagination buttons -->
+                        </div>
+                    </div>
                 </article>
             </section>
+
+            <script>
+                (function() {
+                    const barredList = @json($barredClients);
+                    let filtered = [...barredList];
+                    let currentPage = 1;
+                    let pageSize = 10;
+
+                    const searchInput = document.getElementById('barredSearch');
+                    const pageSizeSelect = document.getElementById('barredPageSize');
+                    const tableBody = document.getElementById('barredTableBody');
+                    const tableInfo = document.getElementById('barredTableInfo');
+                    const pagination = document.getElementById('barredPagination');
+
+                    function render() {
+                        const query = searchInput.value.toLowerCase().trim();
+                        
+                        // 1. Filter
+                        filtered = barredList.filter(item => {
+                            return (item.client_name && item.client_name.toLowerCase().includes(query)) ||
+                                   (item.barred_at_formatted && item.barred_at_formatted.toLowerCase().includes(query)) ||
+                                   (item.aging_months && (item.aging_months + ' months').includes(query)) ||
+                                   (item.barring_percentage !== undefined && (item.barring_percentage + '%').includes(query));
+                        });
+
+                        // 2. Paginate
+                        const totalEntries = filtered.length;
+                        const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+                        if (currentPage > totalPages) currentPage = totalPages;
+                        if (currentPage < 1) currentPage = 1;
+
+                        const startIdx = (currentPage - 1) * pageSize;
+                        const endIdx = Math.min(startIdx + pageSize, totalEntries);
+
+                        tableBody.innerHTML = '';
+                        if (totalEntries === 0) {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--muted); padding: 30px;">
+                                        No long-standing barred clients match your search criteria.
+                                    </td>
+                                </tr>
+                            `;
+                            tableInfo.textContent = 'Showing 0 to 0 of 0 entries';
+                            pagination.innerHTML = '';
+                            return;
+                        }
+
+                        const displayed = filtered.slice(startIdx, endIdx);
+                        displayed.forEach(item => {
+                            const tr = document.createElement('tr');
+                            
+                            // Determine rating color style based on aging months
+                            let badgeStyle = '';
+                            if (item.aging_months >= 3.0) {
+                                badgeStyle = 'background-color: #fee2e2; color: #ef4444; font-weight: 800;';
+                            } else {
+                                badgeStyle = 'background-color: #ffedd5; color: #ea580c; font-weight: 800;';
+                            }
+
+                            // Barred % calculation
+                            const barPct = Math.max(0, Math.min(100, item.barring_percentage || 0));
+                            const barHue = (100 - barPct) * 1.2;
+                            const barColor = `hsl(${Math.round(barHue)}, 85%, 45%)`;
+
+                            tr.innerHTML = `
+                                <td><strong>${item.client_name || 'N/A'}</strong></td>
+                                <td>${item.barred_at_formatted || 'N/A'}</td>
+                                <td>
+                                    <span class="pill" style="${badgeStyle}">
+                                        ${item.aging_months} Months
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <div style="flex:1; background-color:rgba(226, 232, 240, 0.9); height:10px; border:2px solid #ffffff; border-radius:999px; overflow:hidden; min-width:60px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
+                                            <div style="background-color:${barColor}; height:100%; width:${barPct}%; border-radius:999px; transition: width 0.4s ease;"></div>
+                                        </div>
+                                        <span>${barPct.toFixed(0)}%</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="display:flex; gap:6px; align-items:center;">
+                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
+                                        <button class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                    </div>
+                                </td>
+                            `;
+                            tableBody.appendChild(tr);
+                        });
+
+                        // Info text
+                        const showStart = totalEntries === 0 ? 0 : startIdx + 1;
+                        const showEnd = endIdx;
+                        tableInfo.textContent = `Showing ${showStart} to ${showEnd} of ${totalEntries} entries`;
+
+                        // Pagination controls
+                        renderPagination(totalPages);
+                    }
+
+                    function renderPagination(totalPages) {
+                        pagination.innerHTML = '';
+                        if (totalPages <= 1) return;
+
+                        const btnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 600; border: 1px solid var(--line, #e2e8f0); border-radius: 6px; background: #ffffff; color: var(--ink, #1e293b); cursor: pointer; transition: all 0.2s; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
+                        const activeBtnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 700; border: 1px solid #3b82f6; border-radius: 6px; background: #3b82f6; color: #ffffff; cursor: pointer; transition: all 0.2s; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(59,130,246,0.15);';
+                        const disabledBtnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 600; border: 1px solid var(--line, #e2e8f0); border-radius: 6px; background: #f8fafc; color: #94a3b8; cursor: not-allowed; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.6;';
+
+                        function styleBtn(btn, isActive, isDisabled) {
+                            if (isDisabled) {
+                                btn.style.cssText = disabledBtnCss;
+                                btn.disabled = true;
+                            } else if (isActive) {
+                                btn.style.cssText = activeBtnCss;
+                            } else {
+                                btn.style.cssText = btnCss;
+                                btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#f1f5f9');
+                                btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '#ffffff');
+                            }
+                        }
+
+                        // Prev button
+                        const prevBtn = document.createElement('button');
+                        prevBtn.textContent = '« Prev';
+                        styleBtn(prevBtn, false, currentPage === 1);
+                        prevBtn.addEventListener('click', () => {
+                            currentPage--;
+                            render();
+                        });
+                        pagination.appendChild(prevBtn);
+
+                        // Calculate range of page numbers to show
+                        let startPage = Math.max(1, currentPage - 2);
+                        let endPage = Math.min(totalPages, currentPage + 2);
+
+                        // Adjust if near boundary
+                        if (currentPage <= 3) {
+                            endPage = Math.min(5, totalPages);
+                        }
+                        if (currentPage >= totalPages - 2) {
+                            startPage = Math.max(1, totalPages - 4);
+                        }
+
+                        // First page indicator
+                        if (startPage > 1) {
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = '1';
+                            styleBtn(pBtn, false, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = 1;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+
+                            if (startPage > 2) {
+                                const dots = document.createElement('span');
+                                dots.textContent = '...';
+                                dots.style.alignSelf = 'center';
+                                dots.style.padding = '0 6px';
+                                dots.style.color = 'var(--muted, #64748b)';
+                                dots.style.fontSize = '13px';
+                                pagination.appendChild(dots);
+                            }
+                        }
+
+                        // Page numbers
+                        for (let i = startPage; i <= endPage; i++) {
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = i;
+                            styleBtn(pBtn, i === currentPage, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = i;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+                        }
+
+                        // Last page indicator
+                        if (endPage < totalPages) {
+                            if (endPage < totalPages - 1) {
+                                const dots = document.createElement('span');
+                                dots.textContent = '...';
+                                dots.style.alignSelf = 'center';
+                                dots.style.padding = '0 6px';
+                                dots.style.color = 'var(--muted, #64748b)';
+                                dots.style.fontSize = '13px';
+                                pagination.appendChild(dots);
+                            }
+
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = totalPages;
+                            styleBtn(pBtn, false, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = totalPages;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+                        }
+
+                        // Next button
+                        const nextBtn = document.createElement('button');
+                        nextBtn.textContent = 'Next »';
+                        styleBtn(nextBtn, false, currentPage === totalPages);
+                        nextBtn.addEventListener('click', () => {
+                            currentPage++;
+                            render();
+                        });
+                        pagination.appendChild(nextBtn);
+                    }
+
+                    searchInput.addEventListener('input', () => {
+                        currentPage = 1;
+                        render();
+                    });
+
+                    pageSizeSelect.addEventListener('change', (e) => {
+                        pageSize = parseInt(e.target.value) || 10;
+                        currentPage = 1;
+                        render();
+                    });
+
+                    render();
+                })();
+            </script>
         </section>
 
-        {{-- SLIDE 9: Management Guidance & Escalation - Top Shortfall Accounts --}}
         <section class="dashboard-slide">
             <div class="team-performance-heading" style="margin-bottom: 24px;">
                 <h2>Management Guidance &amp; Escalations - Top Shortfall Accounts</h2>
@@ -2401,67 +2604,278 @@
 
             <section class="grid one" style="margin-bottom: 24px;">
                 <article class="panel">
-                    <div class="panel-header">
-                        <h2>Top Shortfall Accounts (Active Only)</h2>
-                        <span>LIFO Shortfall against MRC/Backlog (in Millions)</span>
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 12px;">
+                        <div>
+                            <h2>Top Shortfall Accounts (Active Only)</h2>
+                            <span style="font-size: 12px; color: var(--muted);">Sorted by Outstanding Balance (in Millions)</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                            <input type="text" id="shortfallSearch" placeholder="Search accounts..." style="padding: 6px 12px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); width: 220px; outline: none; margin: 0;">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; margin-left: 5px;">Show:</span>
+                            <select id="shortfallPageSize" style="padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; background: var(--panel); color: var(--ink); font-weight: 700; cursor: pointer; margin: 0; height: 32px;">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
                     </div>
-                    @if ($combinedShortfalls->isNotEmpty())
-                        <table>
+                    
+                    <div class="table-responsive" style="overflow-x: auto; overflow-y: auto; max-height: 480px;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
                             <thead>
                                 <tr>
-                                    <th>Client Name</th>
-                                    <th>OS Balance</th>
-                                    <th>MRC</th>
-                                    <th>MRC Shortfall</th>
-                                    <th>Backlog Shortfall</th>
-                                    <th>Current Month CR</th>
-                                    <th>Current Month Rating</th>
-                                    <th>Management Guidance</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Client Name</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">OS Balance</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC Shortfall</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Backlog Shortfall</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month CR</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month Rating</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Management Guidance</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @foreach ($combinedShortfalls as $cs)
-                                    <tr>
-                                        <td><strong>{{ $cs['client_name'] }}</strong></td>
-                                        <td class="amount">{{ number_format($cs['os'] / 1000000, 2) }}M</td>
-                                        <td class="amount">{{ number_format($cs['mrc'] / 1000000, 2) }}M</td>
-                                        <td class="amount" style="color: #ef4444; font-weight: 800;">{{ number_format($cs['mrc_shortfall'] / 1000000, 2) }}M</td>
-                                        <td class="amount" style="color: #ea580c; font-weight: 800;">{{ number_format($cs['backlog_shortfall'] / 1000000, 2) }}M</td>
-                                        <td>
-                                            {{ number_format($cs['cr'], 2) }}
-                                        </td>
-                                        <td>
-                                            @if ($cs['rating'])
-                                                @php
-                                                    $ratingColor = match($cs['rating']) {
-                                                        'Risky' => 'background-color: #ffedd5; color: #ea580c;',
-                                                        'High Risky' => 'background-color: #fee2e2; color: #ef4444;',
-                                                        'Most Risky' => 'background-color: #fca5a5; color: #b91c1c;',
-                                                        default => 'background-color: #d1fae5; color: #065f46;',
-                                                    };
-                                                @endphp
-                                                <span class="pill" style="{{ $ratingColor }} font-weight: 700;">
-                                                    {{ $cs['rating'] }}
-                                                </span>
-                                            @else
-                                                <span style="color:var(--muted);">N/A</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            <div style="display:flex; gap:6px; align-items:center;">
-                                                <input type="text" id="guidance-{{ $cs['client_id'] }}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
-                                                <button class="button primary btn-small" onclick="submitInlineGuidance({{ $cs['client_id'] }})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
+                            <tbody id="shortfallTableBody">
+                                <!-- Populated dynamically by JS -->
                             </tbody>
                         </table>
-                    @else
-                        <div class="empty">No shortfall accounts found for this period.</div>
-                    @endif
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; flex-wrap: wrap; gap: 14px; padding: 0 4px;">
+                        <div id="shortfallTableInfo" style="font-size: 13px; color: var(--muted); font-weight: 500;">
+                            Showing 0 to 0 of 0 entries
+                        </div>
+                        <div id="shortfallPagination" class="pagination" style="display: flex; gap: 4px; margin: 0; padding: 0; list-style: none;">
+                            <!-- Pagination buttons -->
+                        </div>
+                    </div>
                 </article>
             </section>
+
+            <script>
+                (function() {
+                    const shortfalls = @json($combinedShortfalls);
+                    let filtered = [...shortfalls];
+                    let currentPage = 1;
+                    let pageSize = 10;
+
+                    const searchInput = document.getElementById('shortfallSearch');
+                    const pageSizeSelect = document.getElementById('shortfallPageSize');
+                    const tableBody = document.getElementById('shortfallTableBody');
+                    const tableInfo = document.getElementById('shortfallTableInfo');
+                    const pagination = document.getElementById('shortfallPagination');
+
+                    function render() {
+                        const query = searchInput.value.toLowerCase().trim();
+                        
+                        // 1. Filter
+                        filtered = shortfalls.filter(item => {
+                            return (item.client_name && item.client_name.toLowerCase().includes(query)) ||
+                                   (item.rating && item.rating.toLowerCase().includes(query)) ||
+                                   (item.os && (item.os / 1000000).toFixed(2).includes(query)) ||
+                                   (item.mrc && (item.mrc / 1000000).toFixed(2).includes(query)) ||
+                                   (item.mrc_shortfall && (item.mrc_shortfall / 1000000).toFixed(2).includes(query)) ||
+                                   (item.backlog_shortfall && (item.backlog_shortfall / 1000000).toFixed(2).includes(query));
+                        });
+
+                        // 2. Paginate
+                        const totalEntries = filtered.length;
+                        const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+                        if (currentPage > totalPages) currentPage = totalPages;
+                        if (currentPage < 1) currentPage = 1;
+
+                        const startIdx = (currentPage - 1) * pageSize;
+                        const endIdx = Math.min(startIdx + pageSize, totalEntries);
+
+                        tableBody.innerHTML = '';
+                        if (totalEntries === 0) {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="8" style="text-align: center; color: var(--muted); padding: 30px;">
+                                        No shortfall accounts match your search criteria.
+                                    </td>
+                                </tr>
+                            `;
+                            tableInfo.textContent = 'Showing 0 to 0 of 0 entries';
+                            pagination.innerHTML = '';
+                            return;
+                        }
+
+                        const displayed = filtered.slice(startIdx, endIdx);
+                        displayed.forEach(item => {
+                            const tr = document.createElement('tr');
+                            
+                            // Determine rating color style
+                            let ratingHtml = '<span style="color:var(--muted);">N/A</span>';
+                            if (item.rating) {
+                                let style = '';
+                                switch(item.rating) {
+                                    case 'Risky': style = 'background-color: #ffedd5; color: #ea580c;'; break;
+                                    case 'High Risky': style = 'background-color: #fee2e2; color: #ef4444;'; break;
+                                    case 'Most Risky': style = 'background-color: #fca5a5; color: #b91c1c;'; break;
+                                    default: style = 'background-color: #d1fae5; color: #065f46;'; break;
+                                }
+                                ratingHtml = `<span class="pill" style="${style} font-weight: 700;">${item.rating}</span>`;
+                            }
+
+                            // Build formatters
+                            const formatM = (val) => (val / 1000000).toFixed(2) + 'M';
+
+                            tr.innerHTML = `
+                                <td>
+                                    <a href="{{ route('dashboard.clients.index') }}?segment=${encodeURIComponent(item.segment)}&range=${encodeURIComponent(item.range)}&month=${encodeURIComponent(item.month_param)}&client_id=${item.client_id}" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 700;">
+                                        ${item.client_name || 'N/A'}
+                                    </a>
+                                </td>
+                                <td class="amount">${formatM(item.os)}</td>
+                                <td class="amount">${formatM(item.mrc)}</td>
+                                <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.mrc_shortfall)}</td>
+                                <td class="amount" style="color: #ea580c; font-weight: 800;">${formatM(item.backlog_shortfall)}</td>
+                                <td>${(item.cr || 0).toFixed(2)}</td>
+                                <td>${ratingHtml}</td>
+                                <td>
+                                    <div style="display:flex; gap:6px; align-items:center;">
+                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
+                                        <button class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                    </div>
+                                </td>
+                            `;
+                            tableBody.appendChild(tr);
+                        });
+
+                        // Info text
+                        const showStart = totalEntries === 0 ? 0 : startIdx + 1;
+                        const showEnd = endIdx;
+                        tableInfo.textContent = `Showing ${showStart} to ${showEnd} of ${totalEntries} entries`;
+
+                        // Pagination controls
+                        renderPagination(totalPages);
+                    }
+
+                    function renderPagination(totalPages) {
+                        pagination.innerHTML = '';
+                        if (totalPages <= 1) return;
+
+                        const btnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 600; border: 1px solid var(--line, #e2e8f0); border-radius: 6px; background: #ffffff; color: var(--ink, #1e293b); cursor: pointer; transition: all 0.2s; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
+                        const activeBtnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 700; border: 1px solid #3b82f6; border-radius: 6px; background: #3b82f6; color: #ffffff; cursor: pointer; transition: all 0.2s; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(59,130,246,0.15);';
+                        const disabledBtnCss = 'padding: 6px 12px; font-size: 13px; font-weight: 600; border: 1px solid var(--line, #e2e8f0); border-radius: 6px; background: #f8fafc; color: #94a3b8; cursor: not-allowed; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.6;';
+
+                        function styleBtn(btn, isActive, isDisabled) {
+                            if (isDisabled) {
+                                btn.style.cssText = disabledBtnCss;
+                                btn.disabled = true;
+                            } else if (isActive) {
+                                btn.style.cssText = activeBtnCss;
+                            } else {
+                                btn.style.cssText = btnCss;
+                                btn.addEventListener('mouseenter', () => btn.style.backgroundColor = '#f1f5f9');
+                                btn.addEventListener('mouseleave', () => btn.style.backgroundColor = '#ffffff');
+                            }
+                        }
+
+                        // Prev button
+                        const prevBtn = document.createElement('button');
+                        prevBtn.textContent = '« Prev';
+                        styleBtn(prevBtn, false, currentPage === 1);
+                        prevBtn.addEventListener('click', () => {
+                            currentPage--;
+                            render();
+                        });
+                        pagination.appendChild(prevBtn);
+
+                        // Calculate range of page numbers to show
+                        let startPage = Math.max(1, currentPage - 2);
+                        let endPage = Math.min(totalPages, currentPage + 2);
+
+                        // Adjust if near boundary
+                        if (currentPage <= 3) {
+                            endPage = Math.min(5, totalPages);
+                        }
+                        if (currentPage >= totalPages - 2) {
+                            startPage = Math.max(1, totalPages - 4);
+                        }
+
+                        // First page indicator
+                        if (startPage > 1) {
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = '1';
+                            styleBtn(pBtn, false, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = 1;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+
+                            if (startPage > 2) {
+                                const dots = document.createElement('span');
+                                dots.textContent = '...';
+                                dots.style.alignSelf = 'center';
+                                dots.style.padding = '0 6px';
+                                dots.style.color = 'var(--muted, #64748b)';
+                                dots.style.fontSize = '13px';
+                                pagination.appendChild(dots);
+                            }
+                        }
+
+                        // Page numbers
+                        for (let i = startPage; i <= endPage; i++) {
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = i;
+                            styleBtn(pBtn, i === currentPage, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = i;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+                        }
+
+                        // Last page indicator
+                        if (endPage < totalPages) {
+                            if (endPage < totalPages - 1) {
+                                const dots = document.createElement('span');
+                                dots.textContent = '...';
+                                dots.style.alignSelf = 'center';
+                                dots.style.padding = '0 6px';
+                                dots.style.color = 'var(--muted, #64748b)';
+                                dots.style.fontSize = '13px';
+                                pagination.appendChild(dots);
+                            }
+
+                            const pBtn = document.createElement('button');
+                            pBtn.textContent = totalPages;
+                            styleBtn(pBtn, false, false);
+                            pBtn.addEventListener('click', () => {
+                                currentPage = totalPages;
+                                render();
+                            });
+                            pagination.appendChild(pBtn);
+                        }
+
+                        // Next button
+                        const nextBtn = document.createElement('button');
+                        nextBtn.textContent = 'Next »';
+                        styleBtn(nextBtn, false, currentPage === totalPages);
+                        nextBtn.addEventListener('click', () => {
+                            currentPage++;
+                            render();
+                        });
+                        pagination.appendChild(nextBtn);
+                    }
+
+                    searchInput.addEventListener('input', () => {
+                        currentPage = 1;
+                        render();
+                    });
+
+                    pageSizeSelect.addEventListener('change', (e) => {
+                        pageSize = parseInt(e.target.value) || 10;
+                        currentPage = 1;
+                        render();
+                    });
+
+                    render();
+                })();
+            </script>
         </section>
     </div>
 

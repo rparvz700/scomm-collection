@@ -475,17 +475,27 @@
                 </div>
             @endcan
 
-            <div class="nav-item-dropdown">
-                <a class="{{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.client') }}">
-                    Log <span style="font-size: 10px; margin-left: 2px;">▾</span>
-                </a>
-                <div class="nav-dropdown-menu">
-                    <a class="{{ request()->routeIs('logs.client') ? 'active' : '' }}" href="{{ route('logs.client') }}">Client Log</a>
-                    <a class="{{ request()->routeIs('logs.audit') ? 'active' : '' }}" href="{{ route('logs.audit') }}">Audit Log</a>
-                    <a class="{{ request()->routeIs('logs.guidance') ? 'active' : '' }}" href="{{ route('logs.guidance') }}">Guidance Log</a>
-                    <a class="{{ request()->routeIs('logs.system-access') ? 'active' : '' }}" href="{{ route('logs.system-access') }}">System Access Log</a>
+            @canany(['view client logs', 'view audit logs', 'view guidance logs', 'view system access logs'])
+                <div class="nav-item-dropdown">
+                    <a class="{{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.client') }}">
+                        Log <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                    </a>
+                    <div class="nav-dropdown-menu">
+                        @can('view client logs')
+                            <a class="{{ request()->routeIs('logs.client') ? 'active' : '' }}" href="{{ route('logs.client') }}">Client Log</a>
+                        @endcan
+                        @can('view audit logs')
+                            <a class="{{ request()->routeIs('logs.audit') ? 'active' : '' }}" href="{{ route('logs.audit') }}">Audit Log</a>
+                        @endcan
+                        @can('view guidance logs')
+                            <a class="{{ request()->routeIs('logs.guidance') ? 'active' : '' }}" href="{{ route('logs.guidance') }}">Guidance Log</a>
+                        @endcan
+                        @can('view system access logs')
+                            <a class="{{ request()->routeIs('logs.system-access') ? 'active' : '' }}" href="{{ route('logs.system-access') }}">System Access Log</a>
+                        @endcan
+                    </div>
                 </div>
-            </div>
+            @endcanany
 
             @can('view clients')
                 <a class="{{ request()->routeIs('clients.*') ? 'active' : '' }}" href="{{ route('clients.index') }}">Clients</a>
@@ -495,7 +505,9 @@
                 <a class="{{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">Settings</a>
             @endcan
 
-            <a class="{{ request()->routeIs('reports.*') ? 'active' : '' }}" href="{{ route('reports.builder') }}">Report</a>
+            @can('view reports')
+                <a class="{{ request()->routeIs('reports.*') ? 'active' : '' }}" href="{{ route('reports.builder') }}">Report</a>
+            @endcan
         </nav>
 
         <form class="logout-form" method="POST" action="{{ route('logout') }}">

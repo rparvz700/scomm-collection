@@ -46,14 +46,34 @@ class DashboardController extends Controller
             ->with('latestSummary')
             ->get()
             ->map(function ($client) {
-                $client->aging_days = abs(now()->diffInDays($client->barred_at, false));
-                $client->aging_months = round($client->aging_days / 30.4, 1);
-                return $client;
+                $days = abs(now()->diffInDays($client->barred_at, false));
+                $months = round($days / 30.4, 1);
+                
+                return [
+                    'client_id' => $client->client_id,
+                    'client_name' => $client->client_name,
+                    'barred_at_formatted' => $client->barred_at ? $client->barred_at->format('d M Y') : 'N/A',
+                    'barred_at_raw' => $client->barred_at ? $client->barred_at->format('Y-m-d') : null,
+                    'aging_days' => $days,
+                    'aging_months' => $months,
+                    'barring_percentage' => (float) $client->barring_percentage,
+                ];
             })
             ->filter(function ($client) {
-                return $client->aging_months >= 2.0;
+                return $client['aging_months'] >= 2.0;
             })
-            ->sortByDesc('aging_days');
+            ->sortByDesc('aging_days')
+            ->values();
+
+        $ranges = [
+            ['label' => '0.00 - 1.50', 'min' => 0, 'max' => 1.50],
+            ['label' => '1.51 - 2.00', 'min' => 1.51, 'max' => 2.00],
+            ['label' => '2.01 - 2.50', 'min' => 2.01, 'max' => 2.50],
+            ['label' => '2.51 - 2.99', 'min' => 2.51, 'max' => 2.99],
+            ['label' => '3.00 - 3.49', 'min' => 3.00, 'max' => 3.49],
+            ['label' => '>= 3.50', 'min' => 3.50, 'max' => null],
+        ];
+        $monthParam = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('Y-m') : now()->format('Y-m');
 
         $combinedShortfalls = MonthlySummary::whereDate('summary_month', $latestMonth)
             ->where(function ($q) {
@@ -62,19 +82,42 @@ class DashboardController extends Controller
             })
             ->with('client')
             ->orderByDesc('total_latest_os')
-            ->take(10)
             ->get()
-            ->map(fn($item) => [
-                'client_id' => $item->client_id,
-                'client_name' => $item->client->client_name ?? $item->client_name,
-                'status' => 'Active',
-                'os' => (float)$item->total_latest_os,
-                'mrc' => (float)$item->total_mrc,
-                'mrc_shortfall' => (float)$item->mrc_shortfall,
-                'backlog_shortfall' => (float)$item->backlog_shortfall,
-                'cr' => (float)$item->latest_cr,
-                'rating' => $item->latest_rating_category,
-            ]);
+            ->map(function ($item) use ($ranges, $monthParam) {
+                $cr = (float)$item->latest_cr;
+                $rangeLabel = '0.00 - 1.50';
+                foreach ($ranges as $r) {
+                    if ($r['max'] === null) {
+                        if ($cr >= $r['min']) {
+                            $rangeLabel = $r['label'];
+                            break;
+                        }
+                    } else {
+                        if ($cr >= $r['min'] && $cr <= $r['max']) {
+                            $rangeLabel = $r['label'];
+                            break;
+                        }
+                    }
+                }
+
+                $billing = $item->client->license_billing ?? '';
+                $segment = (stripos($billing, 'iig') !== false) ? 'IIG' : 'ISP & Other Operators';
+
+                return [
+                    'client_id' => $item->client_id,
+                    'client_name' => $item->client->client_name ?? $item->client_name,
+                    'status' => 'Active',
+                    'os' => (float)$item->total_latest_os,
+                    'mrc' => (float)$item->total_mrc,
+                    'mrc_shortfall' => (float)$item->mrc_shortfall,
+                    'backlog_shortfall' => (float)$item->backlog_shortfall,
+                    'cr' => $cr,
+                    'rating' => $item->latest_rating_category,
+                    'segment' => $segment,
+                    'range' => $rangeLabel,
+                    'month_param' => $monthParam,
+                ];
+            });
 
         $pendingBarringRequests = Client::where('barring_workflow_status', 'pending_approval')->get();
         $approvedBarringRequests = Client::where('barring_workflow_status', 'approved')->get();

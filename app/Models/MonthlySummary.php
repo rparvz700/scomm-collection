@@ -32,6 +32,8 @@ class MonthlySummary extends Model
             'client_iig_itc_billing_commencement_date' => 'date',
             'client_legal' => 'boolean',
             'client_other_upstream' => 'boolean',
+            'client_barred_at' => 'datetime',
+            'client_barring_percentage' => 'decimal:2',
         ];
     }
 

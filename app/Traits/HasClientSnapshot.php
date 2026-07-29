@@ -43,6 +43,9 @@ trait HasClientSnapshot
                     $model->client_iig_itc_billing_kam = $client->iig_itc_billing_kam;
                     $model->client_nttn_billing_commencement_date = $client->nttn_billing_commencement_date;
                     $model->client_iig_itc_billing_commencement_date = $client->iig_itc_billing_commencement_date;
+                    $model->client_barred_at = $client->barred_at;
+                    $model->client_barring_percentage = $client->barring_percentage;
+                    $model->client_barring_workflow_status = $client->barring_workflow_status;
                 }
             }
         });
@@ -92,6 +95,9 @@ trait HasClientSnapshot
         $client->iig_itc_billing_kam = $this->client_iig_itc_billing_kam;
         $client->nttn_billing_commencement_date = $this->client_nttn_billing_commencement_date;
         $client->iig_itc_billing_commencement_date = $this->client_iig_itc_billing_commencement_date;
+        $client->barred_at = $this->client_barred_at;
+        $client->barring_percentage = $this->client_barring_percentage;
+        $client->barring_workflow_status = $this->client_barring_workflow_status;
 
         $this->clientMockInstance = $client;
         return $client;

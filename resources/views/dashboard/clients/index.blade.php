@@ -502,14 +502,14 @@
                                     'iig_itc_billing_commencement_date' => $c->client->iig_itc_billing_commencement_date?->format('Y-m-d'),
                                     
                                     'opening_cr' => number_format($c->opening_cr, 2),
-                                    'opening_os' => number_format($c->total_opening_os, 2),
+                                    'opening_os' => number_format($c->total_opening_os / 1000000, 2) . 'M',
                                     'closing_cr' => number_format($c->latest_cr, 2),
-                                    'closing_os' => number_format($c->total_latest_os, 2),
-                                    'mrc' => number_format($c->total_mrc, 2),
-                                    'backlog' => number_format($c->net_backlog_total, 2),
-                                    'collection' => number_format($c->total_collection, 2),
-                                    'payment_plan_amount' => number_format($c->total_payment_plan, 2),
-                                    'shortfall' => number_format($c->shortfall_from_payment_plan ?? 0, 2),
+                                    'closing_os' => number_format($c->total_latest_os / 1000000, 2) . 'M',
+                                    'mrc' => number_format($c->total_mrc / 1000000, 2) . 'M',
+                                    'backlog' => number_format($c->net_backlog_total / 1000000, 2) . 'M',
+                                    'collection' => number_format($c->total_collection / 1000000, 2) . 'M',
+                                    'payment_plan_amount' => number_format($c->total_payment_plan / 1000000, 2) . 'M',
+                                    'shortfall' => number_format(($c->shortfall_from_payment_plan ?? 0) / 1000000, 2) . 'M',
                                     'remarks' => $c->current_month_remarks,
                                     'actual_month' => $c->summary_month ? $c->summary_month->format('F Y') : (optional($month)->format('F Y') ?? 'This Month'),
                                 ],
@@ -538,14 +538,14 @@
                                     'iig_itc_billing_commencement_date' => $previousClientStates[$c->client_id]['iig_itc_billing_commencement_date'] ?? 'N/A',
  
                                     'opening_cr' => number_format($prevSummary->opening_cr, 2),
-                                    'opening_os' => number_format($prevSummary->total_opening_os, 2),
+                                    'opening_os' => number_format($prevSummary->total_opening_os / 1000000, 2) . 'M',
                                     'closing_cr' => number_format($prevSummary->latest_cr, 2),
-                                    'closing_os' => number_format($prevSummary->total_latest_os, 2),
-                                    'mrc' => number_format($prevSummary->total_mrc, 2),
-                                    'backlog' => number_format($prevSummary->net_backlog_total, 2),
-                                    'collection' => number_format($prevSummary->total_collection, 2),
-                                    'payment_plan_amount' => number_format($prevSummary->total_payment_plan, 2),
-                                    'shortfall' => number_format($prevSummary->shortfall_from_payment_plan ?? 0, 2),
+                                    'closing_os' => number_format($prevSummary->total_latest_os / 1000000, 2) . 'M',
+                                    'mrc' => number_format($prevSummary->total_mrc / 1000000, 2) . 'M',
+                                    'backlog' => number_format($prevSummary->net_backlog_total / 1000000, 2) . 'M',
+                                    'collection' => number_format($prevSummary->total_collection / 1000000, 2) . 'M',
+                                    'payment_plan_amount' => number_format($prevSummary->total_payment_plan / 1000000, 2) . 'M',
+                                    'shortfall' => number_format(($prevSummary->shortfall_from_payment_plan ?? 0) / 1000000, 2) . 'M',
                                     'remarks' => $prevSummary->current_month_remarks,
                                     'actual_month' => $prevSummary->summary_month ? $prevSummary->summary_month->format('F Y') : ($month ? $month->copy()->subMonth()->format('F Y') : 'Last Month'),
                                 ] : null,
@@ -579,7 +579,7 @@
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_opening_os, 2) }}
+                        {{ number_format($c->total_opening_os / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
@@ -587,27 +587,27 @@
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_latest_os, 2) }}
+                        {{ number_format($c->total_latest_os / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_mrc, 2) }}
+                        {{ number_format($c->total_mrc / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->net_backlog_total, 2) }}
+                        {{ number_format($c->net_backlog_total / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_collection, 2) }}
+                        {{ number_format($c->total_collection / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->total_payment_plan, 2) }}
+                        {{ number_format($c->total_payment_plan / 1000000, 2) }}M
                     </td>
 
                     <td class="amount">
-                        {{ number_format($c->shortfall_from_payment_plan ?? 0, 2) }}
+                        {{ number_format(($c->shortfall_from_payment_plan ?? 0) / 1000000, 2) }}M
                     </td>
 
                     <td>
