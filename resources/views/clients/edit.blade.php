@@ -198,33 +198,98 @@
                 </div>
 
                 <div class="field">
-                    <label for="sm_kam">Sales & Marketing KAM</label>
+                    <label for="sm_kam">Sales & Marketing KAM (Name)</label>
                     <input id="sm_kam" name="sm_kam" type="text" placeholder="KAM Name" value="{{ old('sm_kam', $client->sm_kam) }}">
                     @error('sm_kam')<div class="error">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="field">
-                    <label for="collection_kam">Collection KAM</label>
+                    <label for="sm_kam_id">Sales & Marketing KAM (User Mapping)</label>
+                    <select id="sm_kam_id" name="sm_kam_id" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px; outline: none; cursor: pointer; height: 38px;">
+                        <option value="">Select User...</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ old('sm_kam_id', $client->sm_kam_id) == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }} ({{ $user->email }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('sm_kam_id')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
+                    <label for="collection_kam">Collection KAM (Name)</label>
                     <input id="collection_kam" name="collection_kam" type="text" placeholder="KAM Name" value="{{ old('collection_kam', $client->collection_kam) }}">
                     @error('collection_kam')<div class="error">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="field">
-                    <label for="collection_supervisor">Collection Supervisor</label>
+                    <label for="collection_kam_id">Collection KAM (User Mapping)</label>
+                    <select id="collection_kam_id" name="collection_kam_id" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px; outline: none; cursor: pointer; height: 38px;">
+                        <option value="">Select User...</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ old('collection_kam_id', $client->collection_kam_id) == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }} ({{ $user->email }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('collection_kam_id')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
+                    <label for="collection_supervisor">Collection Supervisor (Name)</label>
                     <input id="collection_supervisor" name="collection_supervisor" type="text" placeholder="Supervisor Name" value="{{ old('collection_supervisor', $client->collection_supervisor) }}">
                     @error('collection_supervisor')<div class="error">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="field">
-                    <label for="nttn_billing_kam">NTTN Billing KAM</label>
+                    <label for="collection_supervisor_id">Collection Supervisor (User Mapping)</label>
+                    <select id="collection_supervisor_id" name="collection_supervisor_id" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px; outline: none; cursor: pointer; height: 38px;">
+                        <option value="">Select User...</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ old('collection_supervisor_id', $client->collection_supervisor_id) == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }} ({{ $user->email }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('collection_supervisor_id')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
+                    <label for="nttn_billing_kam">NTTN Billing KAM (Name)</label>
                     <input id="nttn_billing_kam" name="nttn_billing_kam" type="text" placeholder="KAM Name" value="{{ old('nttn_billing_kam', $client->nttn_billing_kam) }}">
                     @error('nttn_billing_kam')<div class="error">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="field">
-                    <label for="iig_itc_billing_kam">IIG/ITC Billing KAM</label>
+                    <label for="nttn_billing_kam_id">NTTN Billing KAM (User Mapping)</label>
+                    <select id="nttn_billing_kam_id" name="nttn_billing_kam_id" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px; outline: none; cursor: pointer; height: 38px;">
+                        <option value="">Select User...</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ old('nttn_billing_kam_id', $client->nttn_billing_kam_id) == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }} ({{ $user->email }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('nttn_billing_kam_id')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
+                    <label for="iig_itc_billing_kam">IIG/ITC Billing KAM (Name)</label>
                     <input id="iig_itc_billing_kam" name="iig_itc_billing_kam" type="text" placeholder="KAM Name" value="{{ old('iig_itc_billing_kam', $client->iig_itc_billing_kam) }}">
                     @error('iig_itc_billing_kam')<div class="error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="field">
+                    <label for="iig_itc_billing_kam_id">IIG/ITC Billing KAM (User Mapping)</label>
+                    <select id="iig_itc_billing_kam_id" name="iig_itc_billing_kam_id" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 13px; outline: none; cursor: pointer; height: 38px;">
+                        <option value="">Select User...</option>
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ old('iig_itc_billing_kam_id', $client->iig_itc_billing_kam_id) == $user->id ? 'selected' : '' }}>
+                                {{ $user->name }} ({{ $user->email }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('iig_itc_billing_kam_id')<div class="error">{{ $message }}</div>@enderror
                 </div>
             </div>
 

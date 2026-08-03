@@ -32,11 +32,16 @@ class Client extends Model
         'payment_plan',
         'other_upstream',
         'sm_kam',
+        'sm_kam_id',
         'team_name',
         'collection_kam',
+        'collection_kam_id',
         'collection_supervisor',
+        'collection_supervisor_id',
         'nttn_billing_kam',
+        'nttn_billing_kam_id',
         'iig_itc_billing_kam',
+        'iig_itc_billing_kam_id',
         'nttn_billing_commencement_date',
         'iig_itc_billing_commencement_date',
     ];
@@ -76,9 +81,67 @@ class Client extends Model
         return $this->hasOne(MonthlySummary::class, 'client_id', 'client_id')->latestOfMany('summary_month');
     }
 
+    public function collectionKamUser()
+    {
+        return $this->belongsTo(User::class, 'collection_kam_id', 'id');
+    }
+
+    public function collectionSupervisorUser()
+    {
+        return $this->belongsTo(User::class, 'collection_supervisor_id', 'id');
+    }
+
+    public function nttnBillingKamUser()
+    {
+        return $this->belongsTo(User::class, 'nttn_billing_kam_id', 'id');
+    }
+
+    public function iigItcBillingKamUser()
+    {
+        return $this->belongsTo(User::class, 'iig_itc_billing_kam_id', 'id');
+    }
+
+    public function smKamUser()
+    {
+        return $this->belongsTo(User::class, 'sm_kam_id', 'id');
+    }
+
     public static function boot()
     {
         parent::boot();
+
+        static::addGlobalScope('role_based_clients', function (\Illuminate\Database\Eloquent\Builder $builder) {
+            if (auth()->check()) {
+                $user = auth()->user();
+                
+                // Admin and Supervisors bypass scoping
+                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod')) {
+                    return;
+                }
+
+                $builder->where(function ($query) use ($user) {
+                    // Condition 1: Completely untagged (visible to everyone)
+                    $query->whereNull('collection_kam_id')
+                          ->whereNull('nttn_billing_kam_id')
+                          ->whereNull('iig_itc_billing_kam_id')
+                          ->whereNull('sm_kam_id');
+
+                    // Condition 2: Assigned specifically to the user's role
+                    if ($user->hasRole('collection_kam')) {
+                        $query->orWhere('collection_kam_id', $user->id);
+                    }
+                    if ($user->hasRole('nttn_billing_kam')) {
+                        $query->orWhere('nttn_billing_kam_id', $user->id);
+                    }
+                    if ($user->hasRole('iig_itc_billing_kam')) {
+                        $query->orWhere('iig_itc_billing_kam_id', $user->id);
+                    }
+                    if ($user->hasRole('sm_kam')) {
+                        $query->orWhere('sm_kam_id', $user->id);
+                    }
+                });
+            }
+        });
 
         static::saving(function ($client) {
             if ($client->isDirty('client_status')) {

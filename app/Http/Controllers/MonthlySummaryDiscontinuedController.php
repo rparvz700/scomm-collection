@@ -72,8 +72,12 @@ class MonthlySummaryDiscontinuedController extends Controller
             ], 422);
         }
 
-        $saved = DB::transaction(function () use ($rows, $request) {
-            $count = 0;
+        $result = DB::transaction(function () use ($rows, $request) {
+            $savedCount = 0;
+            $savedClients = [];
+            $skippedClients = [];
+            $savedClientIds = [];
+
             $user = auth()->user();
             $updatedBy = $user?->email ?? $user?->name ?? 'User';
             $userId = $user?->id;
@@ -90,7 +94,30 @@ class MonthlySummaryDiscontinuedController extends Controller
                     ->map(fn ($value) => $value === '' ? null : $value)
                     ->all();
 
+                $clientId = $attributes['client_id'] ?? null;
                 $summaryId = $attributes['monthly_summary_discontinued_id'] ?? null;
+
+                if (!$clientId && $summaryId) {
+                    $clientId = MonthlySummaryDiscontinued::where('monthly_summary_discontinued_id', $summaryId)->value('client_id');
+                }
+
+                $clientName = $row['client_name'] ?? \App\Models\Client::where('client_id', $clientId)->value('client_name') ?? 'Client ID: ' . $clientId;
+
+                $hotRowIndex = isset($row['__hotRow']) ? (int) $row['__hotRow'] : null;
+                $rowLabel = $hotRowIndex !== null ? " (Row " . ($hotRowIndex + 1) . ")" : '';
+
+                if ($clientId) {
+                    $clientExists = \App\Models\Client::where('client_id', $clientId)->exists();
+                    if (!$clientExists) {
+                        $skippedClients[] = $clientName . $rowLabel;
+                        continue;
+                    }
+                }
+
+                $savedClients[] = $clientName;
+                if ($clientId) {
+                    $savedClientIds[] = (int) $clientId;
+                }
                 unset($attributes['monthly_summary_discontinued_id']);
 
                 if ($summaryId) {
@@ -142,15 +169,28 @@ class MonthlySummaryDiscontinuedController extends Controller
                     ]);
                 }
 
-                $count++;
+                $savedCount++;
             }
 
-            return $count;
+            return [
+                'saved_count' => $savedCount,
+                'saved_clients' => $savedClients,
+                'skipped_clients' => $skippedClients,
+                'saved_client_ids' => $savedClientIds,
+            ];
         });
 
+        $message = "{$result['saved_count']} discontinued summary rows saved.";
+        if (!empty($result['skipped_clients'])) {
+            $message .= " Edits for the following clients were not saved due to permission restrictions: " . implode(', ', $result['skipped_clients']);
+        }
+
         return response()->json([
-            'message' => "{$saved} discontinued summary rows saved.",
+            'message' => $message,
             'data' => $this->monthlySummaryRows($request->input('month')),
+            'saved_client_ids' => $result['saved_client_ids'] ?? [],
+            'saved_count' => $result['saved_count'] ?? 0,
+            'skipped_count' => count($result['skipped_clients'] ?? []),
         ]);
     }
 
@@ -327,7 +367,7 @@ class MonthlySummaryDiscontinuedController extends Controller
         ];
 
         foreach ($this->moneyColumns() as $column) {
-            $rules["rows.*.{$column}"] = ['nullable', 'numeric', 'min:0'];
+            $rules["rows.*.{$column}"] = ['nullable', 'numeric'];
         }
 
         return $rules;

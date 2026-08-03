@@ -13,8 +13,25 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardOptimizedController extends Controller
 {
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request)
     {
+        $user = auth()->user();
+        if ($user) {
+            $role = $user->roles()->first();
+            if ($role && $role->landing_page) {
+                $currentRouteName = $request->route()->getName();
+                $targetPage = $role->landing_page;
+                $isDashboardTarget = ($targetPage === 'dashboard' || $targetPage === 'dashboard.optimized');
+                $isDashboardCurrent = ($currentRouteName === 'dashboard' || $currentRouteName === 'dashboard.optimized');
+                
+                if ($targetPage !== $currentRouteName && !($isDashboardTarget && $isDashboardCurrent)) {
+                    if (\Route::has($targetPage)) {
+                        return redirect()->route($targetPage);
+                    }
+                }
+            }
+        }
+
         $startTime = microtime(true);
 
         $requestedMonth = $request->query('month');

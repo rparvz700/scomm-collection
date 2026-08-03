@@ -20,13 +20,23 @@ class CollectionEntryController extends Controller
         $defaultMonthString = $defaultMonthDate ? $defaultMonthDate->format('Y-m') : '';
         $defaultMonthFullDate = $defaultMonthDate ? $defaultMonthDate->format('Y-m-d') : '';
 
+        $collectionsQuery = Collection::query()
+            ->whereHas('client')
+            ->with('client')
+            ->latest('collection_datetime');
+
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->hasRole('admin') && !$user->hasRole('collection_supervisor') && !$user->hasRole('collection_hod')) {
+                $collectionsQuery->where('created_by', $user->email);
+            }
+        }
+
+        $collections = $collectionsQuery->take(15)->get();
+
         return view('collection-entry.index', [
             'clients' => Client::query()->orderBy('client_name')->get(),
-            'collections' => Collection::query()
-                ->with('client')
-                ->latest('collection_datetime')
-                ->take(15)
-                ->get(),
+            'collections' => $collections,
             'collectionTypes' => [
                 'postpaid_nttn',
                 'postpaid_nttn_iig',
@@ -127,9 +137,18 @@ class CollectionEntryController extends Controller
         $clientId = $request->query('client_id');
 
         $query = Collection::query()
+            ->whereHas('client')
             ->with('client')
-            ->latest('collection_datetime')
-            ->take(15);
+            ->latest('collection_datetime');
+
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->hasRole('admin') && !$user->hasRole('collection_supervisor') && !$user->hasRole('collection_hod')) {
+                $query->where('created_by', $user->email);
+            }
+        }
+
+        $query->take(15);
 
         if ($clientId) {
             $query->where('client_id', $clientId);
@@ -145,5 +164,88 @@ class CollectionEntryController extends Controller
         });
 
         return response()->json($collections);
+    }
+
+    public function collectionsIndex(Request $request): View
+    {
+        // Check if there are any filter parameters in request
+        $hasFilters = $request->has('client_id') || 
+                      $request->has('collection_type') || 
+                      $request->has('collection_month') || 
+                      $request->has('date_from') || 
+                      $request->has('date_to') || 
+                      $request->has('search');
+
+        $selectedMonth = $request->input('collection_month');
+
+        if (!$hasFilters) {
+            $latestMonthDate = Collection::max('collection_month');
+            if ($latestMonthDate) {
+                $selectedMonth = Carbon::parse($latestMonthDate)->format('Y-m');
+            }
+        }
+
+        $query = Collection::query()
+            ->whereHas('client')
+            ->with('client')
+            ->latest('collection_datetime');
+
+        // Apply filters
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->client_id);
+        }
+        if ($request->filled('collection_type')) {
+            $query->where('collection_type', $request->collection_type);
+        }
+        if ($selectedMonth) {
+            $query->whereDate('collection_month', Carbon::parse($selectedMonth)->endOfMonth()->format('Y-m-d'));
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('collection_datetime', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('collection_datetime', '<=', $request->date_to);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('remarks', 'like', "%{$search}%")
+                  ->orWhere('collection_amount', 'like', "%{$search}%")
+                  ->orWhereHas('client', function($cq) use ($search) {
+                      $cq->where('client_name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $perPage = (int)$request->input('per_page', 25);
+        $collections = $query->paginate($perPage)->withQueryString();
+
+        // Get unique clients and types for filter dropdowns
+        $clients = Client::query()->orderBy('client_name')->get();
+        $collectionTypes = [
+            'postpaid_nttn',
+            'postpaid_nttn_iig',
+            'postpaid_iig',
+            'postpaid_itc',
+            'postpaid_nix',
+            'prepaid_nttn',
+            'prepaid_nttn_iig',
+            'prepaid_iig',
+            'prepaid_itc',
+            'prepaid_nix',
+        ];
+
+        return view('collections.index', [
+            'collections' => $collections,
+            'clients' => $clients,
+            'collectionTypes' => $collectionTypes,
+            'selectedClientId' => $request->client_id,
+            'selectedType' => $request->collection_type,
+            'selectedMonth' => $selectedMonth,
+            'selectedDateFrom' => $request->date_from,
+            'selectedDateTo' => $request->date_to,
+            'searchText' => $request->search,
+            'perPage' => $perPage,
+        ]);
     }
 }

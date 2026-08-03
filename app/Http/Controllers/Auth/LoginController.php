@@ -22,6 +22,7 @@ class LoginController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
+        $credentials['is_active'] = true;
 
         $remember = $request->boolean('remember');
 
@@ -39,7 +40,24 @@ class LoginController extends Controller
                 'user_agent' => $request->header('User-Agent'),
             ]);
 
-            return redirect()->intended(route('dashboard.optimized'));
+            // Role landing page check
+            $role = $user->roles()->first();
+            if ($role && $role->landing_page) {
+                if (\Route::has($role->landing_page)) {
+                    return redirect()->intended(route($role->landing_page));
+                }
+            }
+
+            // Fallback checks depending on permissions
+            if ($user->can('view dashboard')) {
+                return redirect()->intended(route('dashboard.optimized'));
+            } elseif ($user->can('view collections')) {
+                return redirect()->intended(route('collection-entry.index'));
+            } elseif ($user->can('view monthly summaries')) {
+                return redirect()->intended(route('monthly-summary.index'));
+            } else {
+                return redirect()->intended(route('settings.index'));
+            }
         }
 
         SystemAccessLog::create([

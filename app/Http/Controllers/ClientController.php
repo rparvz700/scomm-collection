@@ -73,7 +73,8 @@ class ClientController extends Controller
 
     public function create(): View
     {
-        return view('clients.create');
+        $users = \App\Models\User::orderBy('name')->get();
+        return view('clients.create', compact('users'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -95,11 +96,16 @@ class ClientController extends Controller
             'payment_plan' => ['nullable', 'string', 'max:255'],
             'other_upstream' => ['boolean'],
             'sm_kam' => ['nullable', 'string', 'max:255'],
+            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'team_name' => ['nullable', 'string', 'max:255'],
             'collection_kam' => ['nullable', 'string', 'max:255'],
+            'collection_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'collection_supervisor' => ['nullable', 'string', 'max:255'],
+            'collection_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_kam' => ['nullable', 'string', 'max:255'],
+            'nttn_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'iig_itc_billing_kam' => ['nullable', 'string', 'max:255'],
+            'iig_itc_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_commencement_date' => ['nullable', 'date'],
             'iig_itc_billing_commencement_date' => ['nullable', 'date'],
         ]);
@@ -117,7 +123,8 @@ class ClientController extends Controller
 
     public function edit(Client $client): View
     {
-        return view('clients.edit', compact('client'));
+        $users = \App\Models\User::orderBy('name')->get();
+        return view('clients.edit', compact('client', 'users'));
     }
 
     public function update(Request $request, Client $client): RedirectResponse
@@ -139,11 +146,16 @@ class ClientController extends Controller
             'payment_plan' => ['nullable', 'string', 'max:255'],
             'other_upstream' => ['boolean'],
             'sm_kam' => ['nullable', 'string', 'max:255'],
+            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'team_name' => ['nullable', 'string', 'max:255'],
             'collection_kam' => ['nullable', 'string', 'max:255'],
+            'collection_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'collection_supervisor' => ['nullable', 'string', 'max:255'],
+            'collection_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_kam' => ['nullable', 'string', 'max:255'],
+            'nttn_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'iig_itc_billing_kam' => ['nullable', 'string', 'max:255'],
+            'iig_itc_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_commencement_date' => ['nullable', 'date'],
             'iig_itc_billing_commencement_date' => ['nullable', 'date'],
         ]);

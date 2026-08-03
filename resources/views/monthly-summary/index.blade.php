@@ -3,9 +3,12 @@
 @section('title', 'Monthly Summary | SCOMM Collection')
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.6.0/dist/handsontable.full.min.css">
+    <link rel="stylesheet" href="{{ asset('css/handsontable.full.min.css') }}">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
         /* Select2 overrides */
         .select2-container {
             width: 100% !important;
@@ -158,7 +161,7 @@
 
     <section class="sheet-toolbar" style="flex-wrap: wrap; gap: 20px;">
         <div class="sheet-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <button id="saveSheet" class="button" type="button" style="display: none; background: #166534; border-color: #166534; color: #ffffff; font-weight: 700;">💾 Save New Rows</button>
+            <button id="saveSheet" class="button" type="button" style="display: inline-flex; background: #166534; border-color: #166534; color: #ffffff; font-weight: 700;">💾 Save Changes</button>
             <button id="exportCsv" class="button" type="button">Export CSV</button>
             
             <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
@@ -183,37 +186,127 @@
             </div>
         </div>
 
-        <div id="sheetStatus" class="sheet-status">Read-only Mode</div>
+        <div id="sheetStatus" class="sheet-status">Ready</div>
     </section>
 
-    <section class="sheet-wrap">
+    <section class="sheet-wrap" style="position: relative;">
         <div id="topScrollContainer" style="overflow-x: auto; overflow-y: hidden; height: 18px; width: 100%; margin-bottom: 4px; display: none; background: rgba(0,0,0,0.02); border-radius: 4px;">
             <div id="topScrollContent" style="height: 1px;"></div>
         </div>
-        <div id="monthlySummaryGrid"></div>
+        <div id="monthlySummaryGrid" style="width: 100%; height: 100%;"></div>
+        
+        <div id="gridLoader" style="display: flex; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.7); z-index: 1000; align-items: center; justify-content: center; transition: opacity 0.3s ease; border-radius: 8px;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                <div class="spinner" style="width: 40px; height: 40px; border: 4px solid #166534; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                <div style="font-weight: 700; color: #166534; font-size: 14px;">Loading sheet data...</div>
+            </div>
+        </div>
     </section>
 
     <p class="manual-save-note">
-        This table is read-only for rolled over data. Use the notification banner above to insert editable rows for new active clients.
+        This table is editable for your assigned clients (marked in green). Use the notification banner above to insert new active client rows.
     </p>
 @endsection
 
 @push('scripts')
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/handsontable@14.6.0/dist/handsontable.full.min.js"></script>
+    <script src="{{ asset('js/handsontable.full.min.js') }}"></script>
     <script>
         const clients = @json($clients);
         const serverColumns = @json($columns);
+        const currentUser = {!! json_encode(auth()->user() ? [
+            'id' => auth()->user()->id,
+            'is_admin' => auth()->user()->hasRole('admin'),
+            'is_supervisor' => auth()->user()->hasRole('collection_supervisor'),
+            'is_hod' => auth()->user()->hasRole('collection_hod'),
+            'is_collection_kam' => auth()->user()->hasRole('collection_kam'),
+            'is_nttn_billing_kam' => auth()->user()->hasRole('nttn_billing_kam'),
+            'is_iig_itc_billing_kam' => auth()->user()->hasRole('iig_itc_billing_kam'),
+            'is_sm_kam' => auth()->user()->hasRole('sm_kam'),
+        ] : null) !!};
+
         const initialRows = @json($summaries->map(function ($summary) {
             $row = $summary->toArray();
             $row['opus_id'] = $summary->client?->opus_id;
             $row['client_name'] = $summary->client?->client_name;
+            $row['collection_kam_id'] = $summary->client?->collection_kam_id;
+            $row['nttn_billing_kam_id'] = $summary->client?->nttn_billing_kam_id;
+            $row['iig_itc_billing_kam_id'] = $summary->client?->iig_itc_billing_kam_id;
+            $row['sm_kam_id'] = $summary->client?->sm_kam_id;
             $row['summary_month'] = optional($summary->summary_month)->format('Y-m-d');
             $row['client_payment_commitment_date'] = optional($summary->client_payment_commitment_date)->format('Y-m-d');
 
             return $row;
         })->values());
+
+        let loaderTimeout = null;
+
+        const showLoader = (text = 'Loading sheet data...') => {
+            const loader = document.getElementById('gridLoader');
+            if (loader) {
+                if (loaderTimeout) {
+                    clearTimeout(loaderTimeout);
+                    loaderTimeout = null;
+                }
+                const textEl = loader.querySelector('div > div:last-child');
+                if (textEl) textEl.textContent = text;
+                loader.style.display = 'flex';
+                loader.offsetHeight; // force reflow
+                loader.style.opacity = '1';
+            }
+        };
+
+        const hideLoader = () => {
+            const loader = document.getElementById('gridLoader');
+            if (loader) {
+                loader.style.opacity = '0';
+                if (loaderTimeout) {
+                    clearTimeout(loaderTimeout);
+                }
+                loaderTimeout = setTimeout(() => {
+                    loader.style.display = 'none';
+                    loaderTimeout = null;
+                }, 300);
+            }
+        };
+
+        window.addEventListener('load', hideLoader);
+
+        function isRowEditable(rowData) {
+            if (!currentUser) return false;
+            // Admin, Supervisor, and HOD can edit anything
+            if (currentUser.is_admin || currentUser.is_supervisor || currentUser.is_hod) {
+                return true;
+            }
+
+            // Completely untagged clients can be edited by any KAM
+            const isUntagged = !rowData.collection_kam_id && 
+                               !rowData.nttn_billing_kam_id && 
+                               !rowData.iig_itc_billing_kam_id && 
+                               !rowData.sm_kam_id;
+            if (isUntagged) {
+                return true;
+            }
+
+            // Otherwise, only editable if mapped specifically to this user
+            let isTagged = false;
+            if (currentUser.is_collection_kam && rowData.collection_kam_id == currentUser.id) {
+                isTagged = true;
+            }
+            if (currentUser.is_nttn_billing_kam && rowData.nttn_billing_kam_id == currentUser.id) {
+                isTagged = true;
+            }
+            if (currentUser.is_iig_itc_billing_kam && rowData.iig_itc_billing_kam_id == currentUser.id) {
+                isTagged = true;
+            }
+            if (currentUser.is_sm_kam && rowData.sm_kam_id == currentUser.id) {
+                isTagged = true;
+            }
+
+            return isTagged;
+        }
+
         const sheetDebug = false;
 
         const clientMap = Object.fromEntries(clients.map((client) => [
@@ -277,9 +370,18 @@
             return result;
         };
 
-        const moneyValidator = (value, callback) => {
-            callback(value === null || value === '' || (!Number.isNaN(Number(value)) && Number(value) >= 0));
-        };
+        function moneyValidator(value, callback) {
+            if (value === null || value === '') {
+                callback(true);
+                return;
+            }
+            const num = Number(value);
+            if (Number.isNaN(num)) {
+                callback(false);
+                return;
+            }
+            callback(true);
+        }
 
         function requiredDateValidator(value, callback) {
             if (!isRealSheetRow(this.instance, this.row)) {
@@ -375,6 +477,9 @@
         const container = document.getElementById('monthlySummaryGrid');
         const status = document.getElementById('sheetStatus');
         let dirty = false;
+        const dirtyRows = new Set();
+        const dirtyCells = new Set();
+        const savedCells = new Set();
 
         const setStatus = (message, tone = 'muted') => {
             status.textContent = message;
@@ -400,6 +505,11 @@
                 const cellProperties = {};
                 if (prop === 'opus_id' || prop === 'client_name') {
                     cellProperties.readOnly = true;
+                } else {
+                    const rowData = this.instance.getSourceDataAtRow(row);
+                    if (rowData && !isRowEditable(rowData)) {
+                        cellProperties.readOnly = true;
+                    }
                 }
                 cellProperties.renderer = function(instance, td, r, c, p, value, cellProps) {
                     if (cellProps.type === 'numeric') {
@@ -417,11 +527,31 @@
                     td.style.textOverflow = 'ellipsis';
                     td.style.whiteSpace = 'nowrap';
 
-                    if (!cellProps.readOnly) {
-                        td.style.backgroundColor = '#a6ffc1';
-                        td.style.color = '#14532d';
-                        td.style.fontWeight = '600';
+                    const cellKey = `${r}:${p}`;
+                    const numValue = Number(value);
+
+                    if (value !== null && value !== undefined && value !== '' && !Number.isNaN(numValue) && numValue < 0) {
+                        // Negative values are colored in RED
+                        td.style.backgroundColor = '#fee2e2';
+                        td.style.color = '#991b1b';
+                        td.style.fontWeight = '700';
+                    } else if (dirtyCells.has(cellKey)) {
+                        // Edited cells are colored in BLUE (deeper)
+                        td.style.backgroundColor = '#bfdbfe';
+                        td.style.color = '#1e3a8a';
+                        td.style.fontWeight = '700';
+                    } else if (savedCells.has(cellKey)) {
+                        // Saved cells are colored in GREEN
+                        td.style.backgroundColor = '#dcfce7';
+                        td.style.color = '#166534';
+                        td.style.fontWeight = '700';
+                    } else if (!cellProps.readOnly) {
+                        // Editable cells (default state - soft yellow-cream)
+                        td.style.backgroundColor = '#fffbeb';
+                        td.style.color = '#111827';
+                        td.style.fontWeight = '500';
                     } else {
+                        // Read-only cells
                         td.style.backgroundColor = '';
                         td.style.color = '';
                         td.style.fontWeight = '';
@@ -472,8 +602,15 @@
                 }
 
                 changes.forEach(([row, prop, oldValue, newValue]) => {
-                    if (prop === 'client_id' && oldValue !== newValue) {
-                        hot.setDataAtRowProp(row, 'client_name', clientNameById[String(newValue)] ?? null, 'clientNameSync');
+                    if (oldValue !== newValue) {
+                        if (prop === 'client_id') {
+                            hot.setDataAtRowProp(row, 'client_name', clientNameById[String(newValue)] ?? null, 'clientNameSync');
+                        }
+                        dirtyRows.add(row);
+                        
+                        const key = `${row}:${prop}`;
+                        dirtyCells.add(key);
+                        savedCells.delete(key);
                     }
                 });
 
@@ -481,6 +618,7 @@
                     dirty = true;
                     setStatus('Unsaved changes');
                 }
+                hot.render();
             },
             afterValidate(isValid, value, row, prop) {
                 const key = `${row}:${prop}`;
@@ -488,16 +626,43 @@
                 if (isValid) {
                     invalidCells.delete(key);
                 } else {
+                    const colConfig = serverColumns.find((c) => c.key === prop);
+                    const label = colConfig?.label ?? prop;
+                    let reason = "invalid value";
+                    
+                    if (colConfig) {
+                        if (colConfig.type === 'money' || colConfig.type === 'numeric') {
+                            if (value === undefined || value === null || String(value).trim() === '') {
+                                reason = "cannot be empty";
+                            } else if (Number.isNaN(Number(value))) {
+                                reason = `must be a valid number (found "${value}")`;
+                            }
+                        } else if (colConfig.type === 'date') {
+                            if (colConfig.required && (value === undefined || value === null || String(value).trim() === '')) {
+                                reason = "cannot be empty";
+                            } else {
+                                reason = `must be a valid date in YYYY-MM-DD format (found "${value}")`;
+                            }
+                        }
+                    }
+
                     invalidCells.set(key, {
                         row: row + 1,
                         prop,
-                        label: serverColumns.find((column) => column.key === prop)?.label ?? prop,
+                        label,
+                        reason,
                     });
                 }
 
-                if (!isValid) {
+                if (invalidCells.size > 0) {
                     const first = [...invalidCells.values()][0];
-                    setStatus(`Validation failed at row ${first.row}, ${first.label}.`, 'error');
+                    setStatus(`Validation failed at row ${first.row}, ${first.label}: ${first.reason}.`, 'error');
+                } else {
+                    if (dirty) {
+                        setStatus('Unsaved changes');
+                    } else {
+                        setStatus('Ready');
+                    }
                 }
             },
         });
@@ -590,12 +755,16 @@
         });
 
         const validateGrid = () => new Promise((resolve) => {
-            hot.validateCells((valid) => resolve(valid));
+            if (dirtyRows.size === 0) {
+                resolve(true);
+                return;
+            }
+            hot.validateRows([...dirtyRows], (valid) => resolve(valid));
         });
 
         const rowsForSave = () => hot.getSourceData()
             .map((row, index) => ({ ...row, __hotRow: index }))
-            .filter((row) => isRealSheetRow(hot, row.__hotRow));
+            .filter((row) => isRealSheetRow(hot, row.__hotRow) && dirtyRows.has(row.__hotRow));
 
         const showServerErrors = (errors = {}, payloadRows = []) => {
             const firstKey = Object.keys(errors)[0];
@@ -630,7 +799,9 @@
         const validateSheetBtn = document.getElementById('validateSheet');
         if (validateSheetBtn) {
             validateSheetBtn.addEventListener('click', async () => {
+                showLoader('Validating cells...');
                 const valid = await validateGrid();
+                hideLoader();
                 if (valid) {
                     invalidCells.clear();
                     setStatus('Grid validation passed.', 'success');
@@ -638,7 +809,7 @@
                 }
 
                 const first = [...invalidCells.values()][0];
-                setStatus(first ? `Validation failed at row ${first.row}, ${first.label}.` : 'Validation failed. Fix red cells before saving.', 'error');
+                setStatus(first ? `Validation failed at row ${first.row}, ${first.label}: ${first.reason}.` : 'Validation failed. Fix red cells before saving.', 'error');
             });
         }
 
@@ -647,6 +818,7 @@
             monthSelectEl.addEventListener('change', function() {
                 const selectedMonth = this.value;
                 if (selectedMonth) {
+                    showLoader('Loading month data...');
                     window.location.href = "{{ route('monthly-summary.index') }}?month=" + selectedMonth;
                 }
             });
@@ -671,6 +843,7 @@
                 if (prefillData.client_name) hot.setDataAtRowProp(targetRow, 'client_name', prefillData.client_name);
             }
 
+            dirtyRows.add(targetRow);
             dirty = true;
             setStatus('New editable row added');
             const saveBtn = document.getElementById('saveSheet');
@@ -713,45 +886,83 @@
 
         const saveSheetBtn = document.getElementById('saveSheet');
         if (saveSheetBtn) {
-            saveSheetBtn.addEventListener('click', async () => {
-                const valid = await validateGrid();
+            saveSheetBtn.addEventListener('click', () => {
+                // Show loader immediately
+                saveSheetBtn.disabled = true;
+                saveSheetBtn.innerHTML = '<span class="spinner" style="display: inline-block; width: 12px; height: 12px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; margin-right: 6px; animation: spin 0.8s linear infinite;"></span> Saving...';
+                showLoader('Validating and saving changes...');
 
-                if (!valid) {
-                    const first = [...invalidCells.values()][0];
-                    setStatus(first ? `Validation failed at row ${first.row}, ${first.label}.` : 'Validation failed. Fix red cells before saving.', 'error');
-                    return;
-                }
+                // Yield thread to allow browser to render loading UI
+                setTimeout(async () => {
+                    const valid = await validateGrid();
 
-                setStatus('Saving...');
-                const payloadRows = rowsForSave();
+                    if (!valid) {
+                        hideLoader();
+                        saveSheetBtn.disabled = false;
+                        saveSheetBtn.innerHTML = '💾 Save Changes';
 
-                fetch('{{ route('monthly-summary.bulk-update') }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    },
-                    body: JSON.stringify({
-                        rows: payloadRows,
-                        month: '{{ $selectedMonth }}'
-                    }),
-                })
-                    .then(async (response) => {
-                        const payload = await response.json();
+                        const first = [...invalidCells.values()][0];
+                        setStatus(first ? `Validation failed at row ${first.row}, ${first.label}: ${first.reason}.` : 'Validation failed. Fix red cells before saving.', 'error');
+                        return;
+                    }
 
-                        if (!response.ok) {
-                            throw payload;
-                        }
+                    setStatus('Saving...');
+                    const payloadRows = rowsForSave();
 
-                        hot.loadData(payload.data ?? rowsForSave());
-                        dirty = false;
-                        setStatus(payload.message ?? 'Monthly summary saved.', 'success');
+                    fetch('{{ route('monthly-summary.bulk-update') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        },
+                        body: JSON.stringify({
+                            rows: payloadRows,
+                            month: '{{ $selectedMonth }}'
+                        }),
                     })
-                    .catch((error) => {
-                        showServerErrors(error.errors, payloadRows);
-                        console.error(error);
-                    });
+                        .then(async (response) => {
+                            const payload = await response.json();
+
+                            if (!response.ok) {
+                                throw payload;
+                            }
+
+                            // Mark only successfully saved cells as saved (green), keep skipped cells as unsaved (blue)
+                            const savedClientIds = new Set((payload.saved_client_ids ?? []).map(String));
+                            dirtyCells.forEach(key => {
+                                const [rowStr, prop] = key.split(':');
+                                const rowIndex = Number(rowStr);
+                                const rowData = hot.getSourceDataAtRow(rowIndex);
+                                if (rowData && savedClientIds.has(String(rowData.client_id))) {
+                                    savedCells.add(key);
+                                    dirtyCells.delete(key);
+                                }
+                            });
+                            
+                            hot.loadData(payload.data ?? rowsForSave());
+                            
+                            // Re-calculate dirtyRows based on remaining dirtyCells
+                            dirtyRows.clear();
+                            dirtyCells.forEach(key => {
+                                const [rowStr] = key.split(':');
+                                dirtyRows.add(Number(rowStr));
+                            });
+                            
+                            dirty = dirtyCells.size > 0;
+                            const tone = (payload.skipped_count > 0) ? 'error' : 'success';
+                            setStatus(payload.message ?? 'Monthly summary saved.', tone);
+                        })
+                        .catch((error) => {
+                            showServerErrors(error.errors, payloadRows);
+                            console.error(error);
+                        })
+                        .finally(() => {
+                            hideLoader();
+                            saveSheetBtn.disabled = false;
+                            saveSheetBtn.innerHTML = '💾 Save Changes';
+                        });
+                }, 50);
             });
         }
 

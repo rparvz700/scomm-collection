@@ -387,6 +387,68 @@
             }
         }
 
+        /* Dynamic Pagination Styles for Laravel Tailwind paginator */
+        nav[role="navigation"] svg {
+            width: 16px !important;
+            height: 16px !important;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        nav[role="navigation"] p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        nav[role="navigation"] a,
+        nav[role="navigation"] span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 32px;
+            padding: 0 10px;
+            margin: 0 2px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #ffffff;
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        nav[role="navigation"] a:hover {
+            border-color: var(--primary);
+            background: rgba(15, 118, 110, 0.05);
+            color: var(--primary);
+        }
+        nav[role="navigation"] span.cursor-default,
+        nav[role="navigation"] span[aria-disabled="true"] {
+            background: #f1f5f9;
+            color: var(--muted);
+            cursor: default;
+        }
+        nav[role="navigation"] span[aria-current="page"] {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+        }
+        nav[role="navigation"] .font-medium {
+            font-weight: 700;
+        }
+        nav[role="navigation"] div.hidden {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        nav[role="navigation"] div.flex {
+            display: none !important;
+        }
+
         @media (max-width: 700px) {
             .page-heading {
                 align-items: flex-start;
@@ -460,7 +522,19 @@
             @endcan
 
             @can('view collections')
-                <a class="{{ request()->routeIs('collection-entry.*') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Collection</a>
+                @if(auth()->check() && (auth()->user()->hasRole('collection_hod') || auth()->user()->hasRole('admin')))
+                    <div class="nav-item-dropdown">
+                        <a class="{{ (request()->routeIs('collection-entry.*') || request()->routeIs('collections.index')) ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">
+                            Collection <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                        </a>
+                        <div class="nav-dropdown-menu">
+                            <a class="{{ request()->routeIs('collection-entry.index') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Entry</a>
+                            <a class="{{ request()->routeIs('collections.index') ? 'active' : '' }}" href="{{ route('collections.index') }}">Collection Log</a>
+                        </div>
+                    </div>
+                @else
+                    <a class="{{ request()->routeIs('collection-entry.*') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Collection</a>
+                @endif
             @endcan
 
             @can('view monthly summaries')

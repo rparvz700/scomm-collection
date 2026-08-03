@@ -12,8 +12,25 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request)
     {
+        $user = auth()->user();
+        if ($user) {
+            $role = $user->roles()->first();
+            if ($role && $role->landing_page) {
+                $currentRouteName = $request->route()->getName();
+                $targetPage = $role->landing_page;
+                $isDashboardTarget = ($targetPage === 'dashboard' || $targetPage === 'dashboard.optimized');
+                $isDashboardCurrent = ($currentRouteName === 'dashboard' || $currentRouteName === 'dashboard.optimized');
+                
+                if ($targetPage !== $currentRouteName && !($isDashboardTarget && $isDashboardCurrent)) {
+                    if (\Route::has($targetPage)) {
+                        return redirect()->route($targetPage);
+                    }
+                }
+            }
+        }
+
         $requestedMonth = $request->query('month');
         if ($requestedMonth) {
             $latestMonth = \Carbon\Carbon::parse($requestedMonth)->endOfMonth()->format('Y-m-d');
@@ -37,6 +54,8 @@ class DashboardController extends Controller
         $billedMrcTotal = (float) MonthlySummary::where('summary_month', $latestMonth)->sum('total_mrc');
         $collectionMrcTotal = (float) MonthlySummary::where('summary_month', $latestMonth)->sum('collection_mrc');
         $collectionTotal = $this->currentMonthCollectionTotal($latestMonth);
+
+        $currentMonthLabel = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('F Y') : 'Current Month';
 
         $discontinuedCollection = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('collection_amount');
         $discontinuedOpeningOs = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('opening_os');

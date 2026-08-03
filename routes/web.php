@@ -11,7 +11,29 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardOptimizedController;
 use App\Http\Controllers\ReportController;
 
-Route::redirect('/', '/dashboard');
+Route::get('/', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+        $role = $user->roles()->first();
+        if ($role && $role->landing_page) {
+            if (Route::has($role->landing_page)) {
+                return redirect()->route($role->landing_page);
+            }
+        }
+        
+        // Fallbacks based on permission checks
+        if ($user->can('view dashboard')) {
+            return redirect()->route('dashboard.optimized');
+        } elseif ($user->can('view collections')) {
+            return redirect()->route('collection-entry.index');
+        } elseif ($user->can('view monthly summaries')) {
+            return redirect()->route('monthly-summary.index');
+        } else {
+            return redirect()->route('settings.index');
+        }
+    }
+    return redirect()->route('login');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -91,6 +113,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:create collections')
         ->name('collection-entry.store');
 
+    Route::get('/collections', [CollectionEntryController::class, 'collectionsIndex'])
+        ->middleware(['role:collection_hod|admin'])
+        ->name('collections.index');
+
     Route::get('/clients', [ClientController::class, 'index'])
         ->middleware('permission:view clients')
         ->name('clients.index');
@@ -146,6 +172,41 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])
         ->middleware('permission:manage roles')
         ->name('settings.index');
+
+    Route::prefix('settings')->name('settings.')->group(function () {
+        // User management CRUD
+        Route::post('/users', [SettingsController::class, 'storeUser'])
+            ->middleware('permission:manage users')
+            ->name('users.store');
+        Route::put('/users/{user}', [SettingsController::class, 'updateUser'])
+            ->middleware('permission:manage users')
+            ->name('users.update');
+        Route::post('/users/{user}/reset-password', [SettingsController::class, 'resetUserPassword'])
+            ->middleware('permission:manage users')
+            ->name('users.reset-password');
+        Route::delete('/users/{user}', [SettingsController::class, 'deleteUser'])
+            ->middleware('permission:manage users')
+            ->name('users.destroy');
+
+        // Role management CRUD
+        Route::post('/roles', [SettingsController::class, 'storeRole'])
+            ->middleware('permission:manage roles')
+            ->name('roles.store');
+        Route::put('/roles/{role}', [SettingsController::class, 'updateRole'])
+            ->middleware('permission:manage roles')
+            ->name('roles.update');
+        Route::put('/roles/{role}/landing-page', [SettingsController::class, 'updateRoleLandingPage'])
+            ->middleware('permission:manage roles')
+            ->name('roles.landing-page');
+        Route::delete('/roles/{role}', [SettingsController::class, 'deleteRole'])
+            ->middleware('permission:manage roles')
+            ->name('roles.destroy');
+
+        // System operations
+        Route::post('/system/rollover', [SettingsController::class, 'triggerRollover'])
+            ->middleware('permission:manage roles')
+            ->name('system.rollover');
+    });
 
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 });
