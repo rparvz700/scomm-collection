@@ -377,6 +377,8 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
         DB::table('monthly_summary_discontinued_residue')->where('summary_month', $summaryMonth)->delete();
         DB::table('collection')->where('collection_month', $summaryMonth)->delete();
         
+        $matchedActiveClientIds = [];
+        
         // PHASE 1: Parse Post-Paid+Pre-Paid Worksheet (Live Client Data)
         $parsedLiveClients = [];
         $liveNameToParsedIndex = [];
@@ -399,6 +401,7 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             $client = $findClient($clientName, $opusId);
             if ($client) {
                 $updateClientStatusIfNeeded($client, 'Active');
+                $matchedActiveClientIds[$client->client_id] = true;
             }
             
             $nttnTds = isset($row[71]) && is_numeric($row[71]) ? (float)$row[71] : 0;
@@ -665,6 +668,10 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 
                 // Match client strictly (no insertions)
                 $client = $findClient($clientName, $opusId);
+                
+                if ($client && isset($matchedActiveClientIds[$client->client_id])) {
+                    continue;
+                }
 
                 $btrcDisDate = isset($colMap['btrc_dis_date']) && isset($row[$colMap['btrc_dis_date']]) ? $excelDateToPhp($row[$colMap['btrc_dis_date']]) : null;
                 $legalStr = isset($colMap['legal']) && isset($row[$colMap['legal']]) ? strtolower(trim($row[$colMap['legal']])) : '';

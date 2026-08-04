@@ -273,7 +273,7 @@
 
         .team-performance-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 18px;
         }
 
@@ -305,6 +305,7 @@
         .team-performance-table th,
         .team-performance-table td {
             white-space: nowrap;
+            padding: 8px 14px;
         }
 
         .team-performance-table td:first-child {
@@ -441,7 +442,23 @@
                 flex-direction: column !important;
                 gap: 20px !important;
                 width: 100% !important;
-            }
+        }
+        
+        /* Avatar Image Preview Modal styles */
+        .emp-avatar-lazy {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .emp-avatar-lazy:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .avatar-modal-close {
+            transition: transform 0.2s, color 0.2s;
+        }
+        .avatar-modal-close:hover {
+            color: #ef4444 !important;
+            transform: scale(1.15) rotate(90deg);
         }
     </style>
 @endpush
@@ -2130,10 +2147,10 @@
 
                 @php
                     $performanceTables = [
-                        'Teams' => $teams,
                         'Collection KAMs' => $collectionKams,
-                        'Supervisors' => $supervisors,
-                        'SM KAMs' => $smKams,
+                        'Collection Supervisors' => $supervisors,
+                        'Sales KAMs' => $smKams,
+                        'Sales Team' => $teams,
                     ];
                 @endphp
 
@@ -2149,17 +2166,27 @@
                             </div>
 
                             @if (! empty($rows))
+                                @php
+                                    $totalClients = array_sum(array_column($rows, 'clients'));
+                                    $totalPortfolio = array_sum(array_column($rows, 'maturity'));
+                                @endphp
 
                                 <table class="team-performance-table">
                                      <thead>
                                          <tr>
                                              <th>Name</th>
-                                             <th>Clients</th>
+                                             @if ($title === 'Collection KAMs')
+                                                 <th>Supervisor</th>
+                                             @endif
+                                             @if ($title === 'Sales KAMs')
+                                                 <th>Team</th>
+                                             @endif
+                                             <th>Clients (% of Total)</th>
+                                             <th>Portfolio (% of Total)</th>
                                              <th>Collection</th>
-                                             <th>Maturity</th>
-                                             <th>Efficiency</th>
+                                             <th>Achievement (%)</th>
                                              <th>Latest OS</th>
-                                             <th>High risk</th>
+                                             <th>High risk clients (≥ 2.51)</th>
                                              <th>Late entry</th>
                                          </tr>
                                      </thead>
@@ -2169,14 +2196,35 @@
                                          @foreach ($rows as $row)
 
                                              <tr>
-                                                 <td>{{ $row['name'] }}</td>
-                                                 <td class="amount">{{ number_format($row['clients']) }}</td>
-                                                 <td class="amount">{{ $formatMil($row['collection']) }}</td>
-                                                 <td class="amount">{{ $formatMil($row['maturity']) }}</td>
-                                                 <td class="amount">{{ number_format($row['efficiency'], 2) }}%</td>
-                                                 <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
-                                                 <td class="amount">{{ number_format($row['high_risk']) }}</td>
-                                                 <td class="amount">{{ $row['late_entry'] }} / {{ $row['total_entry'] }}</td>
+                                                  <td style="vertical-align: middle;">
+                                                      <div style="display: flex; align-items: center; gap: 10px;">
+                                                          <img class="emp-avatar-lazy" data-email="{{ $row['email'] ?? '' }}" src="https://ui-avatars.com/api/?name={{ urlencode($row['name']) }}&background=e6f4f2&color=0f766e&bold=true&size=40" alt="{{ $row['name'] }}" style="width: 40px; height: 40px; border-radius: 6px; border: 1.5px solid #dbe3ef; flex-shrink: 0;">
+                                                          <span style="font-weight: 700; color: #1e293b;">{{ $row['name'] }}</span>
+                                                      </div>
+                                                  </td>
+                                                  @if ($title === 'Collection KAMs')
+                                                      <td>{{ $kamSupervisorMap[strtolower(trim($row['name']))] ?? 'Unassigned' }}</td>
+                                                  @endif
+                                                  @if ($title === 'Sales KAMs')
+                                                      <td>{{ $smKamTeamMap[strtolower(trim($row['name']))] ?? 'Unassigned' }}</td>
+                                                  @endif
+                                                  <td class="amount">
+                                                      {{ number_format($row['clients']) }} 
+                                                      <span style="font-size: 11px; color: var(--muted); font-weight: normal;">
+                                                          ({{ number_format($totalClients > 0 ? ($row['clients'] / $totalClients) * 100 : 0, 1) }}%)
+                                                      </span>
+                                                  </td>
+                                                  <td class="amount">
+                                                      {{ $formatMil($row['maturity']) }}
+                                                      <span style="font-size: 11px; color: var(--muted); font-weight: normal;">
+                                                          ({{ number_format($totalPortfolio > 0 ? ($row['maturity'] / $totalPortfolio) * 100 : 0, 1) }}%)
+                                                      </span>
+                                                  </td>
+                                                  <td class="amount">{{ $formatMil($row['collection']) }}</td>
+                                                  <td class="amount" style="font-weight: 700; color: #0f766e;">{{ number_format($row['efficiency'], 2) }}%</td>
+                                                  <td class="amount">{{ $formatMil($row['latest_os']) }}</td>
+                                                  <td class="amount">{{ number_format($row['high_risk']) }}</td>
+                                                  <td class="amount">{{ $row['late_entry'] }} / {{ $row['total_entry'] }}</td>
                                              </tr>
 
                                         @endforeach
@@ -2202,120 +2250,7 @@
 
         </section>
 
-        {{-- SLIDE 7 --}}
-        <section class="dashboard-slide">
 
-            <section class="grid two">
-
-                <article class="panel">
-
-                    <div class="panel-header">
-                        <h2>Recent collections</h2>
-                        <span>{{ $currentMonthLabel }} · Latest 5</span>
-                    </div>
-
-                    @if ($recentCollections->isNotEmpty())
-
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Client</th>
-                                    <th>Type</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-
-                                @foreach ($recentCollections as $collection)
-
-                                    <tr>
-                                        <td>{{ $collection->client->client_name ?? 'Unknown client' }}</td>
-
-                                        <td>
-                                            <span class="pill">
-                                                {{ str_replace('_', ' ', $collection->collection_type) }}
-                                            </span>
-                                        </td>
-
-                                        <td class="amount">
-                                            {{ $formatMil($collection->collection_amount) }}
-                                        </td>
-                                    </tr>
-
-                                @endforeach
-
-                            </tbody>
-                        </table>
-
-                    @else
-
-                        <div class="empty">
-                            No collection records found.
-                        </div>
-
-                    @endif
-
-                </article>
-
-                <article class="panel">
-
-                    <div class="panel-header">
-                        <h2>Recent risk events</h2>
-                        <span>{{ $currentMonthLabel }} · Latest 5</span>
-                    </div>
-
-                    @if ($recentRisks->isNotEmpty())
-
-                        <table>
-
-                            <thead>
-                                <tr>
-                                    <th>Client</th>
-                                    <th>Category</th>
-                                    <th>CR</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-
-                                @foreach ($recentRisks as $risk)
-
-                                    <tr>
-
-                                        <td>{{ $risk->client->client_name ?? 'Unknown client' }}</td>
-
-                                        <td>
-                                            <span class="pill {{ $risk->rating_category === 'High' ? 'high' : '' }}">
-                                                {{ $risk->rating_category }}
-                                            </span>
-                                        </td>
-
-                                        <td class="amount">
-                                            {{ number_format((float) $risk->cr_value, 2) }}
-                                        </td>
-
-                                    </tr>
-
-                                @endforeach
-
-                            </tbody>
-
-                        </table>
-
-                    @else
-
-                        <div class="empty">
-                            No risk events found.
-                        </div>
-
-                    @endif
-
-                </article>
-
-            </section>
-
-        </section>
 
         {{-- SLIDE 8: Management Guidance & Escalation - Barred Clients --}}
         <section class="dashboard-slide">
@@ -3316,6 +3251,66 @@
                 }
             });
         }
-    })();
-</script>
+     })();
+
+     // Async load employee avatar images
+     document.addEventListener('DOMContentLoaded', () => {
+         document.querySelectorAll('.emp-avatar-lazy').forEach(img => {
+             const email = img.getAttribute('data-email');
+             if (email && email.trim() !== '') {
+                 fetch(`{{ route('employee.avatar.json') }}?email=${encodeURIComponent(email)}`)
+                     .then(response => response.json())
+                     .then(data => {
+                         if (data.success && data.image) {
+                             img.src = data.image;
+                         }
+                     })
+                     .catch(err => {
+                         // Fallback remains as the default ui-avatars.com source
+                     });
+             }
+         });
+
+         // Modal preview triggers
+         const modal = document.getElementById('avatarPreviewModal');
+         const previewImg = document.getElementById('avatarPreviewImg');
+         const previewName = document.getElementById('avatarPreviewName');
+         const previewEmail = document.getElementById('avatarPreviewEmail');
+
+         document.querySelectorAll('.emp-avatar-lazy').forEach(img => {
+             img.addEventListener('click', () => {
+                 const email = img.getAttribute('data-email');
+                 const name = img.getAttribute('alt');
+                 
+                 previewImg.src = img.src;
+                 previewName.textContent = name;
+                 previewEmail.textContent = email && email.trim() !== '' ? email : 'No Email Assigned';
+                 
+                 modal.style.display = 'flex';
+             });
+         });
+
+         // Close modal handlers
+         const closeModal = () => {
+             modal.style.display = 'none';
+         };
+         
+         document.querySelector('.avatar-modal-close').addEventListener('click', closeModal);
+         modal.addEventListener('click', (e) => {
+             if (e.target === modal) {
+                 closeModal();
+             }
+         });
+     });
+ </script>
+
+ <!-- Avatar Image Preview Modal -->
+ <div id="avatarPreviewModal" class="avatar-modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.85); align-items: center; justify-content: center; backdrop-filter: blur(4px); transition: all 0.3s ease;">
+     <span class="avatar-modal-close" style="position: absolute; top: 20px; right: 30px; color: #f8fafc; font-size: 40px; font-weight: bold; cursor: pointer; transition: 0.2s;">&times;</span>
+     <div style="background: white; padding: 12px; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); text-align: center; max-width: 90%; max-height: 90%; display: flex; flex-direction: column; align-items: center;">
+         <img id="avatarPreviewImg" src="" style="width: 240px; height: 240px; border-radius: 8px; object-fit: cover; border: 2px solid #e2e8f0;">
+         <h3 id="avatarPreviewName" style="margin-top: 14px; margin-bottom: 4px; font-size: 18px; font-weight: 700; color: #0f172a;"></h3>
+         <p id="avatarPreviewEmail" style="font-size: 14px; color: #64748b; margin: 0; font-family: monospace;"></p>
+     </div>
+ </div>
 @endpush

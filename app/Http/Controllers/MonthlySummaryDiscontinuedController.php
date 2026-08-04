@@ -250,7 +250,7 @@ class MonthlySummaryDiscontinuedController extends Controller
             
             ['key' => 'payment_plan_description', 'label' => 'Payment Plan Description', 'type' => 'text'],
             ['key' => 'visit_remarks', 'label' => 'Visit Remarks', 'type' => 'text'],
-            ['key' => 'sales_review_status', 'label' => 'Sales Review Status', 'type' => 'dropdown', 'source' => ['Pending', 'Approved', 'Rejected']],
+            ['key' => 'sales_review_status', 'label' => 'Sales Review Status', 'type' => 'dropdown', 'source' => ['Pending', 'Approved', 'Rejected', 'Completed']],
             ['key' => 'sales_review_remarks', 'label' => 'Sales Review Remarks', 'type' => 'text'],
             ['key' => 'barring_percentage', 'label' => 'Barring %', 'type' => 'numeric'],
             ['key' => 'collection_mrc', 'label' => 'Collection MRC (LIFO)', 'type' => 'money', 'readOnly' => true],

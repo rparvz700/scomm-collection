@@ -587,6 +587,19 @@
                     return;
                 }
 
+                if (source === 'formulaSync' || source === 'clientNameSync') {
+                    changes.forEach(([row, prop, oldValue, newValue]) => {
+                        if (oldValue !== newValue) {
+                            dirtyRows.add(row);
+                            const key = `${row}:${prop}`;
+                            dirtyCells.add(key);
+                            savedCells.delete(key);
+                        }
+                    });
+                    return;
+                }
+
+                const statusUpdates = [];
                 changes.forEach(([row, prop, oldValue, newValue]) => {
                     if (oldValue !== newValue) {
                         if (prop === 'client_id') {
@@ -597,10 +610,21 @@
                         const key = `${row}:${prop}`;
                         dirtyCells.add(key);
                         savedCells.delete(key);
+
+                        if (prop === 'sales_review_remarks' && newValue && String(newValue).trim() !== '') {
+                            const currentStatus = hot.getDataAtRowProp(row, 'sales_review_status');
+                            if (!currentStatus || currentStatus === 'Pending') {
+                                statusUpdates.push([row, 'sales_review_status', 'Completed']);
+                            }
+                        }
                     }
                 });
 
-                if (source !== 'clientNameSync') {
+                if (statusUpdates.length > 0) {
+                    hot.setDataAtRowProp(statusUpdates, 'formulaSync');
+                }
+
+                if (source !== 'clientNameSync' && source !== 'formulaSync') {
                     dirty = true;
                     setStatus('Unsaved changes');
                 }

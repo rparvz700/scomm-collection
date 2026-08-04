@@ -601,6 +601,25 @@
                     return;
                 }
 
+                if (source === 'formulaSync' || source === 'clientNameSync') {
+                    changes.forEach(([row, prop, oldValue, newValue]) => {
+                        if (oldValue !== newValue) {
+                            dirtyRows.add(row);
+                            const key = `${row}:${prop}`;
+                            dirtyCells.add(key);
+                            savedCells.delete(key);
+                        }
+                    });
+                    return;
+                }
+
+                const components = [
+                    'postpaid_nttn', 'postpaid_iig_nttn', 'postpaid_iig', 'postpaid_itc', 'postpaid_nix',
+                    'prepaid_nttn', 'prepaid_iig_nttn', 'prepaid_iig', 'prepaid_itc', 'prepaid_nix'
+                ];
+
+                const rowsToRecalculate = new Set();
+                const statusUpdates = [];
                 changes.forEach(([row, prop, oldValue, newValue]) => {
                     if (oldValue !== newValue) {
                         if (prop === 'client_id') {
@@ -611,10 +630,139 @@
                         const key = `${row}:${prop}`;
                         dirtyCells.add(key);
                         savedCells.delete(key);
+                        rowsToRecalculate.add(row);
+
+                        if (prop === 'sales_review_remarks' && newValue && String(newValue).trim() !== '') {
+                            const currentStatus = hot.getDataAtRowProp(row, 'sales_review_status');
+                            if (!currentStatus || currentStatus === 'Pending') {
+                                statusUpdates.push([row, 'sales_review_status', 'Completed']);
+                            }
+                        }
                     }
                 });
 
-                if (source !== 'clientNameSync') {
+                if (rowsToRecalculate.size > 0) {
+                    const formulaUpdates = [];
+
+                    rowsToRecalculate.forEach(row => {
+                        // 1. Recalculate component-wise Opening OS = MRC + Backlog
+                        components.forEach(comp => {
+                            const mrcCol = 'mrc_' + comp;
+                            const backlogCol = 'backlog_' + comp;
+                            const openingCol = 'opening_os_' + comp;
+
+                            const mrcVal = parseFloat(hot.getDataAtRowProp(row, mrcCol)) || 0;
+                            const backlogVal = parseFloat(hot.getDataAtRowProp(row, backlogCol)) || 0;
+                            const newOpeningVal = mrcVal + backlogVal;
+
+                            const oldOpeningVal = parseFloat(hot.getDataAtRowProp(row, openingCol)) || 0;
+                            if (Math.abs(newOpeningVal - oldOpeningVal) > 0.005) {
+                                formulaUpdates.push([row, openingCol, newOpeningVal]);
+                            }
+
+                            // 2. Recalculate component-wise Latest OS = Opening OS - Collection
+                            const collectionCol = 'collection_' + comp;
+                            const latestCol = 'latest_os_' + comp;
+
+                            const collectionVal = parseFloat(hot.getDataAtRowProp(row, collectionCol)) || 0;
+                            const newLatestVal = newOpeningVal - collectionVal;
+
+                            const oldLatestVal = parseFloat(hot.getDataAtRowProp(row, latestCol)) || 0;
+                            if (Math.abs(newLatestVal - oldLatestVal) > 0.005) {
+                                formulaUpdates.push([row, latestCol, newLatestVal]);
+                            }
+                        });
+
+                        const getCurrentVal = (propName) => {
+                            const update = formulaUpdates.find(u => u[0] === row && u[1] === propName);
+                            if (update) return update[2];
+                            return parseFloat(hot.getDataAtRowProp(row, propName)) || 0;
+                        };
+
+                        const sumCurrentVals = (prefix, suffixes) => {
+                            return suffixes.reduce((sum, s) => sum + getCurrentVal(prefix + s), 0);
+                        };
+
+                        const postpaidSuffixes = ['postpaid_nttn', 'postpaid_iig_nttn', 'postpaid_iig', 'postpaid_itc', 'postpaid_nix'];
+                        const prepaidSuffixes = ['prepaid_nttn', 'prepaid_iig_nttn', 'prepaid_iig', 'prepaid_itc', 'prepaid_nix'];
+
+                        // Calculate Total Opening OS postpaid/prepaid/total
+                        const totalOpeningOsPostpaid = sumCurrentVals('opening_os_', postpaidSuffixes);
+                        const totalOpeningOsPrepaid = sumCurrentVals('opening_os_', prepaidSuffixes);
+                        const totalOpeningOs = totalOpeningOsPostpaid + totalOpeningOsPrepaid;
+
+                        formulaUpdates.push([row, 'total_opening_os_postpaid', totalOpeningOsPostpaid]);
+                        formulaUpdates.push([row, 'total_opening_os_prepaid', totalOpeningOsPrepaid]);
+                        formulaUpdates.push([row, 'total_opening_os', totalOpeningOs]);
+
+                        // Calculate Total MRC postpaid/prepaid/total
+                        const totalMrcPostpaid = sumCurrentVals('mrc_', postpaidSuffixes);
+                        const totalMrcPrepaid = sumCurrentVals('mrc_', prepaidSuffixes);
+                        const totalMrc = totalMrcPostpaid + totalMrcPrepaid;
+
+                        formulaUpdates.push([row, 'total_mrc_postpaid', totalMrcPostpaid]);
+                        formulaUpdates.push([row, 'total_mrc_prepaid', totalMrcPrepaid]);
+                        formulaUpdates.push([row, 'total_mrc', totalMrc]);
+
+                        // Calculate Net Backlog postpaid/prepaid/total
+                        const netBacklogPostpaid = sumCurrentVals('backlog_', postpaidSuffixes);
+                        const netBacklogPrepaid = sumCurrentVals('backlog_', prepaidSuffixes);
+                        const netBacklogTotal = netBacklogPostpaid + netBacklogPrepaid;
+
+                        formulaUpdates.push([row, 'net_backlog_postpaid', netBacklogPostpaid]);
+                        formulaUpdates.push([row, 'net_backlog_prepaid', netBacklogPrepaid]);
+                        formulaUpdates.push([row, 'net_backlog_total', netBacklogTotal]);
+
+                        // Recalculate shortfall/backlog collection allocations (LIFO)
+                        const totalCollection = parseFloat(hot.getDataAtRowProp(row, 'total_collection')) || 0;
+                        const collectionMrc = Math.min(totalCollection, totalMrc);
+                        const collectionBacklog = Math.max(0.00, totalCollection - totalMrc);
+                        const mrcShortfall = Math.max(0.00, totalMrc - collectionMrc);
+                        const backlogShortfall = Math.max(0.00, netBacklogTotal - collectionBacklog);
+
+                        formulaUpdates.push([row, 'collection_mrc', collectionMrc]);
+                        formulaUpdates.push([row, 'collection_backlog', collectionBacklog]);
+                        formulaUpdates.push([row, 'mrc_shortfall', mrcShortfall]);
+                        formulaUpdates.push([row, 'backlog_shortfall', backlogShortfall]);
+                        formulaUpdates.push([row, 'total_shortfall_maturity', mrcShortfall]);
+
+                        // Calculate Total Latest OS postpaid/prepaid/total
+                        const latestOsPostpaid = sumCurrentVals('latest_os_', postpaidSuffixes);
+                        const latestOsPrepaid = sumCurrentVals('latest_os_', prepaidSuffixes);
+                        const totalLatestOs = latestOsPostpaid + latestOsPrepaid;
+
+                        formulaUpdates.push([row, 'latest_os_balance_postpaid', latestOsPostpaid]);
+                        formulaUpdates.push([row, 'latest_os_balance_prepaid', latestOsPrepaid]);
+                        formulaUpdates.push([row, 'total_latest_os', totalLatestOs]);
+
+                        // 4. Calculate Latest CR = Total Latest OS / Total MRC
+                        const latestCr = totalMrc > 0 ? (totalLatestOs / totalMrc) : 0.00;
+                        formulaUpdates.push([row, 'latest_cr', parseFloat(latestCr.toFixed(2))]);
+
+                        // 5. Calculate Latest Rating Category
+                        let ratingCategory = 'Unknown';
+                        const cr = latestCr;
+                        if (cr <= 1.50) ratingCategory = 'Best';
+                        else if (cr <= 2.00) ratingCategory = 'Good';
+                        else if (cr <= 2.50) ratingCategory = 'Moderate';
+                        else if (cr <= 2.99) ratingCategory = 'Risky';
+                        else if (cr <= 3.49) ratingCategory = 'High Risky';
+                        else ratingCategory = 'Most Risky';
+
+                        formulaUpdates.push([row, 'latest_rating_category', ratingCategory]);
+                    });
+
+                    // Add status updates
+                    statusUpdates.forEach(update => {
+                        formulaUpdates.push(update);
+                    });
+
+                    if (formulaUpdates.length > 0) {
+                        hot.setDataAtRowProp(formulaUpdates, 'formulaSync');
+                    }
+                }
+
+                if (source !== 'clientNameSync' && source !== 'formulaSync') {
                     dirty = true;
                     setStatus('Unsaved changes');
                 }

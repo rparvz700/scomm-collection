@@ -74,28 +74,84 @@ class MonthRolloverController extends Controller
 
             $sourceSummary = $sourceActiveSummaries->get($client->client_id);
 
-            $prevClosingOs = $sourceSummary ? (float) $sourceSummary->total_latest_os : 0.00;
-            $totalMrc = $sourceSummary ? (float) $sourceSummary->total_mrc : (float) ($client->mrc ?? 0.00);
+            // Roll over MRC components
+            $mrcComponents = [
+                'mrc_postpaid_nttn', 'mrc_postpaid_nttn_iig', 'mrc_postpaid_iig', 'mrc_postpaid_itc', 'mrc_postpaid_nix',
+                'mrc_prepaid_nttn', 'mrc_prepaid_nttn_iig', 'mrc_prepaid_iig', 'mrc_prepaid_itc', 'mrc_prepaid_nix'
+            ];
+            $mrcData = [];
+            foreach ($mrcComponents as $col) {
+                $mrcData[$col] = ($sourceSummary && isset($sourceSummary->$col)) ? (float) $sourceSummary->$col : 0.00;
+            }
 
-            // Formula per requirement:
-            // total_opening_os = last month latest OS + this month MRC
-            // total_latest_os = total_opening_os
-            $openingOs = $prevClosingOs + $totalMrc;
-            $totalLatestOs = $openingOs;
+            // Roll over Backlog components from prev month's Latest OS components
+            $backlogData = [];
+            $components = ['postpaid_nttn', 'postpaid_iig_nttn', 'postpaid_iig', 'postpaid_itc', 'postpaid_nix', 'prepaid_nttn', 'prepaid_iig_nttn', 'prepaid_iig', 'prepaid_itc', 'prepaid_nix'];
+            foreach ($components as $comp) {
+                $latestOsCol = 'latest_os_' . $comp;
+                $backlogCol = 'backlog_' . $comp;
+                if ($sourceSummary && isset($sourceSummary->$latestOsCol)) {
+                    $backlogData[$backlogCol] = (float) $sourceSummary->$latestOsCol;
+                } else {
+                    // fallback
+                    $openingCol = 'opening_os_' . $comp;
+                    $mrcCol = 'mrc_' . $comp;
+                    $prevOpening = ($sourceSummary && isset($sourceSummary->$openingCol)) ? (float) $sourceSummary->$openingCol : 0.00;
+                    $prevMrc = ($sourceSummary && isset($sourceSummary->$mrcCol)) ? (float) $sourceSummary->$mrcCol : 0.00;
+                    $backlogData[$backlogCol] = max(0.00, $prevOpening - $prevMrc);
+                }
+            }
 
-            $openingCr = $totalMrc > 0 ? round($openingOs / $totalMrc, 2) : 0.00;
+            // Calculate Opening OS components = mrc + backlog
+            $openingOsData = [];
+            foreach ($components as $comp) {
+                $openingCol = 'opening_os_' . $comp;
+                $mrcCol = 'mrc_' . $comp;
+                $backlogCol = 'backlog_' . $comp;
+                $openingOsData[$openingCol] = $mrcData[$mrcCol] + $backlogData[$backlogCol];
+            }
+
+            // Sum totals
+            $totalMrcPostpaid = $mrcData['mrc_postpaid_nttn'] + $mrcData['mrc_postpaid_nttn_iig'] + $mrcData['mrc_postpaid_iig'] + $mrcData['mrc_postpaid_itc'] + $mrcData['mrc_postpaid_nix'];
+            $totalMrcPrepaid = $mrcData['mrc_prepaid_nttn'] + $mrcData['mrc_prepaid_nttn_iig'] + $mrcData['mrc_prepaid_iig'] + $mrcData['mrc_prepaid_itc'] + $mrcData['mrc_prepaid_nix'];
+            $totalMrc = $totalMrcPostpaid + $totalMrcPrepaid;
+
+            $totalOpeningOsPostpaid = $openingOsData['opening_os_postpaid_nttn'] + $openingOsData['opening_os_postpaid_iig_nttn'] + $openingOsData['opening_os_postpaid_iig'] + $openingOsData['opening_os_postpaid_itc'] + $openingOsData['opening_os_postpaid_nix'];
+            $totalOpeningOsPrepaid = $openingOsData['opening_os_prepaid_nttn'] + $openingOsData['opening_os_prepaid_iig_nttn'] + $openingOsData['opening_os_prepaid_iig'] + $openingOsData['opening_os_prepaid_itc'] + $openingOsData['opening_os_prepaid_nix'];
+            $totalOpeningOs = $totalOpeningOsPostpaid + $totalOpeningOsPrepaid;
+
+            $netBacklogPostpaid = $backlogData['backlog_postpaid_nttn'] + $backlogData['backlog_postpaid_iig_nttn'] + $backlogData['backlog_postpaid_iig'] + $backlogData['backlog_postpaid_itc'] + $backlogData['backlog_postpaid_nix'];
+            $netBacklogPrepaid = $backlogData['backlog_prepaid_nttn'] + $backlogData['backlog_prepaid_iig_nttn'] + $backlogData['backlog_prepaid_iig'] + $backlogData['backlog_prepaid_itc'] + $backlogData['backlog_prepaid_nix'];
+            $netBacklogTotal = $netBacklogPostpaid + $netBacklogPrepaid;
+
+            // Latest OS components (initial = opening os, collection = 0)
+            $latestOsData = [];
+            foreach ($components as $comp) {
+                $latestCol = 'latest_os_' . $comp;
+                $openingCol = 'opening_os_' . $comp;
+                $latestOsData[$latestCol] = $openingOsData[$openingCol];
+            }
+            $latestOsBalancePostpaid = $totalOpeningOsPostpaid;
+            $latestOsBalancePrepaid = $totalOpeningOsPrepaid;
+            $totalLatestOs = $totalOpeningOs;
+
+            $openingCr = $totalMrc > 0 ? round($totalOpeningOs / $totalMrc, 2) : 0.00;
             $openingRating = Collection::getRatingCategory($openingCr);
             $latestCr = $openingCr;
             $latestRating = $openingRating;
 
-            $netBacklogTotal = $sourceSummary ? (float) $sourceSummary->net_backlog_total : $prevClosingOs;
-
-            $data = [
+            $data = array_merge([
                 'client_id' => $client->client_id,
                 'summary_month' => $targetMonthDate,
-                'total_opening_os' => $openingOs,
+                'total_opening_os' => $totalOpeningOs,
+                'total_opening_os_postpaid' => $totalOpeningOsPostpaid,
+                'total_opening_os_prepaid' => $totalOpeningOsPrepaid,
                 'total_mrc' => $totalMrc,
+                'total_mrc_postpaid' => $totalMrcPostpaid,
+                'total_mrc_prepaid' => $totalMrcPrepaid,
                 'total_maturity' => $totalMrc,
+                'net_backlog_postpaid' => $netBacklogPostpaid,
+                'net_backlog_prepaid' => $netBacklogPrepaid,
                 'net_backlog_total' => $netBacklogTotal,
                 'opening_cr' => $openingCr,
                 'opening_rating_category' => $openingRating,
@@ -105,21 +161,14 @@ class MonthRolloverController extends Controller
                 'mrc_shortfall' => $totalMrc,
                 'backlog_shortfall' => $netBacklogTotal,
                 'total_shortfall_maturity' => $totalMrc,
+                'latest_os_balance_postpaid' => $latestOsBalancePostpaid,
+                'latest_os_balance_prepaid' => $latestOsBalancePrepaid,
                 'total_latest_os' => $totalLatestOs,
                 'latest_cr' => $latestCr,
                 'latest_rating_category' => $latestRating,
                 'barring_percentage' => (float) ($client->barring_percentage ?? 0.00),
                 'created_at' => $now,
-            ];
-
-            foreach ([
-                'opening_os_postpaid_nttn', 'opening_os_postpaid_iig_nttn', 'opening_os_postpaid_iig', 'opening_os_postpaid_itc', 'opening_os_postpaid_nix',
-                'opening_os_prepaid_nttn', 'opening_os_prepaid_iig_nttn', 'opening_os_prepaid_iig', 'opening_os_prepaid_itc', 'opening_os_prepaid_nix',
-                'mrc_postpaid_nttn', 'mrc_postpaid_nttn_iig', 'mrc_postpaid_iig', 'mrc_postpaid_itc', 'mrc_postpaid_nix',
-                'mrc_prepaid_nttn', 'mrc_prepaid_nttn_iig', 'mrc_prepaid_iig', 'mrc_prepaid_itc', 'mrc_prepaid_nix',
-            ] as $col) {
-                $data[$col] = ($sourceSummary && isset($sourceSummary->$col)) ? (float) $sourceSummary->$col : 0.00;
-            }
+            ], $mrcData, $backlogData, $openingOsData, $latestOsData);
 
             $activeRowsToInsert[] = $data;
             $activeCreated++;

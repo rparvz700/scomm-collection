@@ -114,8 +114,8 @@ class Client extends Model
             if (auth()->check()) {
                 $user = auth()->user();
                 
-                // Admin and Supervisors bypass scoping
-                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod')) {
+                // Admin, Supervisors, and Dashboard routes bypass scoping
+                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod') || request()->routeIs('dashboard*') || request()->is('dashboard*')) {
                     return;
                 }
 

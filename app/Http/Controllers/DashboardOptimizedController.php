@@ -15,22 +15,7 @@ class DashboardOptimizedController extends Controller
 {
     public function __invoke(Request $request)
     {
-        $user = auth()->user();
-        if ($user) {
-            $role = $user->roles()->first();
-            if ($role && $role->landing_page) {
-                $currentRouteName = $request->route()->getName();
-                $targetPage = $role->landing_page;
-                $isDashboardTarget = ($targetPage === 'dashboard' || $targetPage === 'dashboard.optimized');
-                $isDashboardCurrent = ($currentRouteName === 'dashboard' || $currentRouteName === 'dashboard.optimized');
-                
-                if ($targetPage !== $currentRouteName && !($isDashboardTarget && $isDashboardCurrent)) {
-                    if (\Route::has($targetPage)) {
-                        return redirect()->route($targetPage);
-                    }
-                }
-            }
-        }
+
 
         $startTime = microtime(true);
 
@@ -216,12 +201,32 @@ class DashboardOptimizedController extends Controller
                 'os' => $this->extractMetricComparison($comparisonData, 'latest_os'),
                 'risk' => $this->extractMetricComparison($comparisonData, 'high_risk'),
             ],
+            'kamSupervisorMap' => \Illuminate\Support\Facades\DB::table('client')
+                ->whereNotNull('collection_kam')
+                ->whereNotNull('collection_supervisor')
+                ->select('collection_kam', 'collection_supervisor')
+                ->distinct()
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [strtolower(trim($item->collection_kam)) => trim($item->collection_supervisor)];
+                })
+                ->toArray(),
+            'smKamTeamMap' => \Illuminate\Support\Facades\DB::table('client')
+                ->whereNotNull('sm_kam')
+                ->whereNotNull('team_name')
+                ->select('sm_kam', 'team_name')
+                ->distinct()
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [strtolower(trim($item->sm_kam)) => trim($item->team_name)];
+                })
+                ->toArray(),
             'collectionEfficiency' => $this->collectionEfficiency($latestMonth),
             'kamPerformance' => $this->kamPerformanceOptimized($latestMonth),
-            'teams' => $this->teamPerformanceOptimized($latestMonth, 'client_team_name'),
-            'collectionKams' => $this->teamPerformanceOptimized($latestMonth, 'client_collection_kam'),
-            'supervisors' => $this->teamPerformanceOptimized($latestMonth, 'client_collection_supervisor'),
-            'smKams' => $this->teamPerformanceOptimized($latestMonth, 'client_sm_kam'),
+            'teams' => $this->teamPerformanceOptimized($latestMonth, 'client_team_name', true),
+            'collectionKams' => $this->teamPerformanceOptimized($latestMonth, 'client_collection_kam', false),
+            'supervisors' => $this->teamPerformanceOptimized($latestMonth, 'client_collection_supervisor', false),
+            'smKams' => $this->teamPerformanceOptimized($latestMonth, 'client_sm_kam', true),
             'dynamicInsights' => $this->dynamicInsights($latestMonth),
             'discontinuedCollection' => $discontinuedCollection,
             'discontinuedOpeningOs' => $discontinuedOpeningOs,
@@ -734,7 +739,7 @@ class DashboardOptimizedController extends Controller
     /**
      * Optimized team performance query. Grouping and aggregating directly in SQL.
      */
-    private function teamPerformanceOptimized($latestMonth, string $dbField): array
+    private function teamPerformanceOptimized($latestMonth, string $dbField, bool $excludeDiscontinued = false): array
     {
         if (! $latestMonth) {
             return [];
@@ -750,28 +755,58 @@ class DashboardOptimizedController extends Controller
         };
 
         $date = \Carbon\Carbon::parse($latestMonth);
-        $lateEntries = \Illuminate\Support\Facades\DB::table('collection')
+        $lateEntriesQuery = \Illuminate\Support\Facades\DB::table('collection')
             ->join('client', 'collection.client_id', '=', 'client.client_id')
             ->whereMonth('collection.collection_datetime', $date->month)
             ->whereYear('collection.collection_datetime', $date->year)
-            ->whereRaw("DATEDIFF(collection.created_at, collection.collection_datetime) > 2")
+            ->whereRaw("DATEDIFF(collection.created_at, collection.collection_datetime) > 2");
+
+        if ($excludeDiscontinued) {
+            $lateEntriesQuery->where('client.client_status', '!=', 'Discontinued');
+        }
+
+        $lateEntries = $lateEntriesQuery
             ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as late_count")
             ->groupBy('name')
             ->pluck('late_count', 'name')
             ->toArray();
 
         // Query total entries count
-        $totalEntries = \Illuminate\Support\Facades\DB::table('collection')
+        $totalEntriesQuery = \Illuminate\Support\Facades\DB::table('collection')
             ->join('client', 'collection.client_id', '=', 'client.client_id')
             ->whereMonth('collection.collection_datetime', $date->month)
-            ->whereYear('collection.collection_datetime', $date->year)
+            ->whereYear('collection.collection_datetime', $date->year);
+
+        if ($excludeDiscontinued) {
+            $totalEntriesQuery->where('client.client_status', '!=', 'Discontinued');
+        }
+
+        $totalEntries = $totalEntriesQuery
             ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as total_count")
             ->groupBy('name')
             ->pluck('total_count', 'name')
             ->toArray();
 
-        return MonthlySummary::query()
-            ->whereDate('summary_month', $latestMonth)
+        $summaryQuery = MonthlySummary::query()
+            ->whereDate('summary_month', $latestMonth);
+
+        if ($excludeDiscontinued) {
+            $summaryQuery->where('client_status', '!=', 'Discontinued');
+        }
+
+        $userEmails = \App\Models\User::pluck('email', 'name')->toArray();
+        $emailsMap = [];
+        foreach ($userEmails as $name => $email) {
+            $emailsMap[strtolower(trim($name))] = trim($email);
+        }
+
+        $staticNicknames = config('peoplemapping.nicknames', []);
+
+        foreach ($staticNicknames as $nick => $email) {
+            $emailsMap[$nick] = $email;
+        }
+
+        return $summaryQuery
             ->selectRaw("
                 COALESCE({$dbField}, 'Unassigned') as name,
                 COUNT(*) as clients,
@@ -782,11 +817,13 @@ class DashboardOptimizedController extends Controller
             ")
             ->groupBy($dbField)
             ->get()
-            ->map(function ($row) use ($lateEntries, $totalEntries) {
+            ->map(function ($row) use ($lateEntries, $totalEntries, $emailsMap) {
                 $collection = (float) $row->collection;
                 $maturity = (float) $row->maturity;
+                $lookupKey = strtolower(trim($row->name));
                 return [
                     'name' => $row->name,
+                    'email' => $emailsMap[$lookupKey] ?? null,
                     'clients' => (int) $row->clients,
                     'collection' => $collection,
                     'maturity' => $maturity,
@@ -1133,5 +1170,51 @@ class DashboardOptimizedController extends Controller
             'total' => $logs->total(),
             'per_page' => $logs->perPage(),
         ]);
+    }
+
+    public function getEmployeeAvatarJson(Request $request)
+    {
+        $email = $request->query('email');
+        if (!$email || trim($email) === '') {
+            return response()->json(['success' => false]);
+        }
+
+        $cacheKey = 'emp_avatar_uri_' . md5(trim(strtolower($email)));
+        $avatarUri = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addDays(30), function () use ($email) {
+            try {
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://oss.summitcommunications.net/api/v1/getEmployeeImage?email=' . urlencode(trim($email)));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'x-api-key: it_dev_api_oss@key'
+                ]);
+                
+                $responseBody = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($httpCode === 200 && $responseBody) {
+                    $json = json_decode($responseBody, true);
+                    if (!empty($json['success']) && !empty($json['image'])) {
+                        return $json['image'];
+                    }
+                }
+            } catch (\Exception $e) {
+                // Ignore and fall back
+            }
+            return null;
+        });
+
+        if ($avatarUri) {
+            return response()->json([
+                'success' => true,
+                'image' => $avatarUri
+            ]);
+        }
+
+        return response()->json(['success' => false]);
     }
 }

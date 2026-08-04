@@ -49,6 +49,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:view dashboard')
         ->name('dashboard.optimized');
 
+    Route::get('/employee-avatar-json', [DashboardOptimizedController::class, 'getEmployeeAvatarJson'])
+        ->middleware('permission:view dashboard')
+        ->name('employee.avatar.json');
+
     Route::prefix('reports')->group(function () {
         Route::get('/builder', [ReportController::class, 'index'])
             ->middleware('permission:view reports')
