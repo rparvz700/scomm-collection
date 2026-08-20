@@ -476,22 +476,43 @@
 @endpush
 
 @php
-    $today = now();
-    $day = $today->day;
-    $monthName = $today->format('F');
-    $prevMonthName = $today->copy()->subMonth()->format('F');
-    $currentYear = $today->year;
-    $quarter = ceil($today->month / 3);
+    $selectedDate = \Carbon\Carbon::parse($selectedMonth)->startOfMonth();
+    $selectedMonthName = $selectedDate->format('F');
+    $selectedQuarter = ceil($selectedDate->month / 3);
+    $selectedYear = $selectedDate->year;
+
+    $quarter = $selectedQuarter;
     $quarterShortMonths = [];
-    $startMonth = ($quarter - 1) * 3 + 1;
+    $startMonth = ($selectedQuarter - 1) * 3 + 1;
     for ($m = $startMonth; $m < $startMonth + 3; $m++) {
-        $quarterShortMonths[] = strtoupper(Carbon\Carbon::create($currentYear, $m, 1)->format('M'));
+        $quarterShortMonths[] = strtoupper(\Carbon\Carbon::create($selectedYear, $m, 1)->format('M'));
     }
 
-    if ($day <= 5) {
-        $contextMessage = "Currently in <strong>{$monthName} opening</strong> phase. <strong>{$prevMonthName} closing</strong> operations are ongoing, and new collections for {$monthName} have not officially started yet.";
+    $currentDate = now();
+    $currentDay = $currentDate->day;
+    $currentMonthName = $currentDate->format('F');
+    $prevMonthName = $currentDate->copy()->subMonth()->format('F');
+
+    $prevMonthStart = $currentDate->copy()->subMonth()->startOfMonth();
+
+    if ($currentDay <= 12) {
+        // Case 1: First 12 days of the month
+        if ($selectedDate->gte($prevMonthStart)) {
+            // Rule 1.1: Selected month is current month or previous month
+            $contextMessage = "Currently in <strong>{$currentMonthName} opening</strong> phase. <strong>{$prevMonthName} closing</strong> operations are ongoing, and new collections for {$currentMonthName} have not officially started yet.";
+        } else {
+            // Rule 1.2: Selected month is two or more months ago
+            $contextMessage = "<strong>{$selectedMonthName}</strong> month collection is fully finalized. Currently in <strong>{$currentMonthName} opening</strong> phase. <strong>{$prevMonthName} closing</strong> operations are ongoing...";
+        }
     } else {
-        $contextMessage = "Currently in <strong>{$monthName} collection</strong> phase. <strong>{$prevMonthName} closing</strong> is fully finalized, and {$monthName} billing/collection is in full swing.";
+        // Case 2: After 12th day of the month
+        if ($selectedDate->gte($prevMonthStart)) {
+            // Rule 2.1: Selected month is current month or previous month
+            $contextMessage = "Currently in <strong>{$currentMonthName} collection</strong> phase. <strong>{$prevMonthName} closing</strong> is fully finalized, and {$currentMonthName} billing/collection is in full swing.";
+        } else {
+            // Rule 2.2: Selected month is two or more months ago
+            $contextMessage = "<strong>{$selectedMonthName}</strong> month collection is fully finalized. <strong>{$currentMonthName} billing/collection</strong> is in full swing.";
+        }
     }
 @endphp
 
@@ -2135,7 +2156,7 @@
 
                     @if ($kamPerformance['best'])
                         <div class="insight-statement">
-                            <strong>Best performing KAM:</strong>
+                            <strong>Highest Achievement KAM:</strong>
                             {{ $kamPerformance['best']['kam'] }}
 
                             <span class="insight-change up">
@@ -2146,7 +2167,7 @@
 
                     @if ($kamPerformance['worst'])
                         <div class="insight-statement">
-                            <strong>Worst performing KAM:</strong>
+                            <strong>Needs Improvement KAM:</strong>
                             {{ $kamPerformance['worst']['kam'] }}
 
                             <span class="insight-change down">
@@ -3262,6 +3283,19 @@
                     pill.innerHTML = label;
                 }
 
+                pill.addEventListener('click', function(e) {
+                    if (isActive) {
+                        e.preventDefault();
+                        return;
+                    }
+                    const loader = document.getElementById('pageLoader');
+                    if (loader) {
+                        loader.style.display = 'flex';
+                        loader.offsetHeight; // force reflow
+                        loader.style.opacity = '1';
+                    }
+                });
+
                 track.appendChild(pill);
             });
 
@@ -3354,6 +3388,17 @@
                  closeModal();
              }
          });
+
+         // Safely dismiss loader when restoring page from cache or on complete load
+         window.addEventListener('pageshow', function() {
+             const loader = document.getElementById('pageLoader');
+             if (loader) {
+                 loader.style.opacity = '0';
+                 setTimeout(() => {
+                     loader.style.display = 'none';
+                 }, 200);
+             }
+         });
      });
  </script>
 
@@ -3364,6 +3409,20 @@
          <img id="avatarPreviewImg" src="" style="width: 240px; height: 240px; border-radius: 8px; object-fit: cover; border: 2px solid #e2e8f0;">
          <h3 id="avatarPreviewName" style="margin-top: 14px; margin-bottom: 4px; font-size: 18px; font-weight: 700; color: #0f172a;"></h3>
          <p id="avatarPreviewEmail" style="font-size: 14px; color: #64748b; margin: 0; font-family: monospace;"></p>
+     </div>
+ </div>
+
+ <!-- Page Loader Overlay -->
+ <style>
+     @keyframes pageLoaderSpin {
+         0% { transform: rotate(0deg); }
+         100% { transform: rotate(360deg); }
+     }
+ </style>
+ <div id="pageLoader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); z-index: 99999; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease;">
+     <div style="text-align: center;">
+         <div style="width: 48px; height: 48px; border: 4px solid #2563eb; border-top-color: transparent; border-radius: 50%; animation: pageLoaderSpin 1s linear infinite; margin: 0 auto 12px;"></div>
+         <div style="font-weight: 700; color: #1e293b; font-size: 14px;">Loading dashboard data...</div>
      </div>
  </div>
 @endpush
