@@ -346,7 +346,26 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             return null; // Unmatched
         };
 
-        $updateClientStatusIfNeeded = function($client, $newStatus) {
+        $ignoredStatusChangeIds = [
+            106, 679, 942, 916, 595, 623, 11, 1064, 133, 959, 1009, 1022, 273, 1069, 419, 1080, 1026, 994, 965, 981, 1084, 445, 458, 1050, 1000, 520, 560, 592
+        ];
+        
+        $ignoredStatusChangeNames = [
+            'central net broadband network', 'drik ict limited', 'ideal network', 'pioneer services limited',
+            'tamim net service', 'united communications & service', 'united communications & service ltd',
+            'united communication services', 'united communication services ltd.', 'adel online', 'adel online technology',
+            'cyber solutions bd', 'cybernet communications', 'cyber net communication', 'explore online',
+            'green net city', 'idea tec ltd.', 'it link', 'jbh net', 'm/s net zone', 'net zone', 'maxtop tech',
+            'modhumoti internet service', 'net relation', 'network solution', 'our online', 'paradise technologies ltd.',
+            'proton communication', 'rodela online', 'royal green ltd.', 'royal green limited', 'shahrasti broadband service',
+            'speed plus', 'talha café', 'talha cafe'
+        ];
+
+        $updateClientStatusIfNeeded = function($client, $newStatus) use ($ignoredStatusChangeIds, $ignoredStatusChangeNames) {
+            $clientNameLower = strtolower(trim($client->client_name));
+            if (in_array($client->client_id, $ignoredStatusChangeIds) || in_array($clientNameLower, $ignoredStatusChangeNames)) {
+                return; // Do not update status for these clients
+            }
             if ($client->client_status !== $newStatus) {
                 // Log status change
                 \App\Models\ClientLog::create([
@@ -397,8 +416,37 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             
             $clientName = $cleanClientName($rawClientName);
             
-            // Match with strict matching logic (NO client creation)
+            // Match client
             $client = $findClient($clientName, $opusId);
+            if (!$client && isset($_GET['create_clients']) && $_GET['create_clients'] == 1) {
+                $serviceType = isset($row[3]) ? trim($row[3]) : null;
+                $licenseBilling = isset($row[5]) ? trim($row[5]) : null;
+                $smKam = isset($row[65]) ? trim($row[65]) : null;
+                $teamName = isset($row[66]) ? trim($row[66]) : null;
+                $collectionKam = isset($row[67]) ? trim($row[67]) : null;
+                $collectionSupervisor = isset($row[68]) ? trim($row[68]) : null;
+                $nttnKam = isset($row[69]) ? trim($row[69]) : null;
+                $iigKam = isset($row[70]) ? trim($row[70]) : null;
+
+                $opusIdToSave = (empty($opusId) || strtolower($opusId) === 'n/a') ? null : $opusId;
+                $newId = DB::table('client')->insertGetId([
+                    'opus_id' => $opusIdToSave,
+                    'client_name' => $clientName,
+                    'client_status' => 'Active',
+                    'service_type_billing' => $serviceType,
+                    'license_billing' => $licenseBilling,
+                    'sm_kam' => $smKam,
+                    'team_name' => $teamName,
+                    'collection_kam' => $collectionKam,
+                    'collection_supervisor' => $collectionSupervisor,
+                    'nttn_billing_kam' => $nttnKam,
+                    'iig_itc_billing_kam' => $iigKam,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+                $client = DB::table('client')->where('client_id', $newId)->first();
+                $existingClients->push($client);
+            }
             if ($client) {
                 $updateClientStatusIfNeeded($client, 'Active');
                 $matchedActiveClientIds[$client->client_id] = true;
@@ -666,8 +714,42 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 
                 $opusId = strpos($discId, 'DISC-') === 0 ? $discId : "DISC-" . $discId;
                 
-                // Match client strictly (no insertions)
+                // Match client
                 $client = $findClient($clientName, $opusId);
+                if (!$client && isset($_GET['create_clients']) && $_GET['create_clients'] == 1) {
+                    $serviceType = isset($row[$colMap['service_type']]) ? trim($row[$colMap['service_type']]) : null;
+                    $licenseBilling = isset($row[$colMap['license']]) ? trim($row[$colMap['license']]) : null;
+                    $smKam = isset($row[32]) ? trim($row[32]) : null;
+                    $teamName = isset($row[33]) ? trim($row[33]) : null;
+                    $collectionKam = isset($row[34]) ? trim($row[34]) : null;
+                    $collectionSupervisor = isset($row[35]) ? trim($row[35]) : null;
+
+                    $opusIdToSave = (empty($discId) || strtolower($discId) === 'n/a' || strtolower($opusId) === 'disc-n/a') ? null : $opusId;
+                    $newId = DB::table('client')->insertGetId([
+                        'opus_id' => $opusIdToSave,
+                        'client_name' => $clientName,
+                        'client_status' => $clientStatus,
+                        'service_type_billing' => $serviceType,
+                        'license_billing' => $licenseBilling,
+                        'sm_kam' => $smKam,
+                        'team_name' => $teamName,
+                        'collection_kam' => $collectionKam,
+                        'collection_supervisor' => $collectionSupervisor,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $client = DB::table('client')->where('client_id', $newId)->first();
+                    $existingClients->push($client);
+                }
+                
+                if ($client) {
+                    $clientNameLower = strtolower(trim($client->client_name));
+                    if (in_array($client->client_id, $ignoredStatusChangeIds) || in_array($clientNameLower, $ignoredStatusChangeNames)) {
+                        if ($client->client_status === 'Active') {
+                            continue;
+                        }
+                    }
+                }
                 
                 if ($client && isset($matchedActiveClientIds[$client->client_id])) {
                     continue;
@@ -920,6 +1002,16 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             if ($idx === null) {
                 // If not found in Phase 1 master sheet, check if name matches client table
                 $client = $findClient($clientName, null);
+                if (!$client && isset($_GET['create_clients']) && $_GET['create_clients'] == 1) {
+                    $newId = DB::table('client')->insertGetId([
+                        'client_name' => $clientName,
+                        'client_status' => 'Active',
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $client = DB::table('client')->where('client_id', $newId)->first();
+                    $existingClients->push($client);
+                }
                 if ($client) {
                     $updateClientStatusIfNeeded($client, 'Active');
                 }
@@ -1000,6 +1092,16 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             
             if ($idx === null) {
                 $client = $findClient($clientName, null);
+                if (!$client && isset($_GET['create_clients']) && $_GET['create_clients'] == 1) {
+                    $newId = DB::table('client')->insertGetId([
+                        'client_name' => $clientName,
+                        'client_status' => 'Active',
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $client = DB::table('client')->where('client_id', $newId)->first();
+                    $existingClients->push($client);
+                }
                 if ($client) {
                     $updateClientStatusIfNeeded($client, 'Active');
                 }

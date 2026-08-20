@@ -45,22 +45,30 @@ class DashboardController extends Controller
         $discontinuedCollection = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('collection_amount');
         $discontinuedOpeningOs = (float) \App\Models\MonthlySummaryDiscontinued::where('summary_month', $latestMonth)->sum('opening_os');
 
-        $barredClients = Client::where('client_status', 'Barred')
-            ->whereNotNull('barred_at')
-            ->with('latestSummary')
+        $barredClientsList = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_status', 'Barred')
+            ->whereNotNull('client_barred_at')
             ->get()
-            ->map(function ($client) {
-                $days = abs(now()->diffInDays($client->barred_at, false));
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_status', 'Barred')
+                    ->whereNotNull('client_barred_at')
+                    ->get()
+            );
+
+        $barredClients = $barredClientsList
+            ->map(function ($item) {
+                $days = $item->client_barred_at ? abs(now()->diffInDays($item->client_barred_at, false)) : 0;
                 $months = round($days / 30.4, 1);
                 
                 return [
-                    'client_id' => $client->client_id,
-                    'client_name' => $client->client_name,
-                    'barred_at_formatted' => $client->barred_at ? $client->barred_at->format('d M Y') : 'N/A',
-                    'barred_at_raw' => $client->barred_at ? $client->barred_at->format('Y-m-d') : null,
+                    'client_id' => $item->client_id,
+                    'client_name' => $item->client_name,
+                    'barred_at_formatted' => $item->client_barred_at ? $item->client_barred_at->format('d M Y') : 'N/A',
+                    'barred_at_raw' => $item->client_barred_at ? $item->client_barred_at->format('Y-m-d') : null,
                     'aging_days' => $days,
                     'aging_months' => $months,
-                    'barring_percentage' => (float) $client->barring_percentage,
+                    'barring_percentage' => (float) $item->client_barring_percentage,
                 ];
             })
             ->filter(function ($client) {
@@ -123,40 +131,56 @@ class DashboardController extends Controller
                 ];
             });
 
-        $pendingBarringRequests = Client::where('barring_workflow_status', 'pending_approval')->get();
-        $approvedBarringRequests = Client::where('barring_workflow_status', 'approved')->get();
+        $pendingBarringRequests = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_barring_workflow_status', 'pending_approval')
+            ->get()
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_barring_workflow_status', 'pending_approval')
+                    ->get()
+            );
+
+        $approvedBarringRequests = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_barring_workflow_status', 'approved')
+            ->get()
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_barring_workflow_status', 'approved')
+                    ->get()
+            );
 
         $guidanceLogs = \App\Models\ManagementGuidanceLog::with(['client', 'user'])
             ->latest()
             ->take(10)
             ->get();
 
-        return view('dashboard.dashboard', [
-            'clientCount' => Client::query()->count(),
-            'activeClientCount' => Client::where('client_status', 'Active')
-                ->whereIn('client_id', function ($query) use ($latestMonth) {
-                    $query->select('client_id')
-                        ->from('monthly_summary')
-                        ->whereDate('summary_month', $latestMonth);
-                })->count(),
-            'discontinuedClientCount' => Client::where('client_status', '!=', 'Active')->count(),
-            'discontinuedSubCount' => Client::where(function($q) {
+        $activeClientCount = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_status', 'Active')
+            ->count();
+
+        $discontinuedSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+            ->where(function($q) {
                 $q->where('client_status', 'Discontinued')
                   ->orWhere('client_status', 'like', '%discontinued%');
-            })->whereIn('client_id', function ($query) use ($latestMonth) {
-                $query->select('client_id')
-                    ->from('monthly_summary_discontinued')
-                    ->whereDate('summary_month', $latestMonth);
-            })->count(),
-            'barredSubCount' => Client::where(function($q) {
+            })
+            ->count();
+
+        $barredSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+            ->where(function($q) {
                 $q->where('client_status', 'Barred')
                   ->orWhere('client_status', 'like', '%barred%')
                   ->orWhere('client_status', 'like', '%barring%');
-            })->whereIn('client_id', function ($query) use ($latestMonth) {
-                $query->select('client_id')
-                    ->from('monthly_summary_discontinued')
-                    ->whereDate('summary_month', $latestMonth);
-            })->count(),
+            })
+            ->count();
+
+        $discontinuedClientCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->count();
+
+        return view('dashboard.dashboard', [
+            'clientCount' => $activeClientCount + $discontinuedClientCount,
+            'activeClientCount' => $activeClientCount,
+            'discontinuedClientCount' => $discontinuedClientCount,
+            'discontinuedSubCount' => $discontinuedSubCount,
+            'barredSubCount' => $barredSubCount,
             'billedMrcTotal' => $billedMrcTotal,
             'collectionTotal' => $collectionTotal,
             'currentMonthOs' => max($billedMrcTotal - $collectionMrcTotal, 0),

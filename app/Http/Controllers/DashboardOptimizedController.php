@@ -56,22 +56,50 @@ class DashboardOptimizedController extends Controller
 
         $currentMonthLabel = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('F Y') : 'Current Month';
 
-        $barredClients = Client::where('client_status', 'Barred')
-            ->whereNotNull('barred_at')
-            ->with('latestSummary')
+        $barredClientsList = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_status', 'Barred')
+            ->whereNotNull('client_barred_at')
             ->get()
-            ->map(function ($client) {
-                $days = abs(now()->diffInDays($client->barred_at, false));
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_status', 'Barred')
+                    ->whereNotNull('client_barred_at')
+                    ->get()
+            );
+
+        $combinedShortfallsList = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where(function ($q) {
+                $q->where('mrc_shortfall', '>', 0)
+                  ->orWhere('backlog_shortfall', '>', 0);
+            })
+            ->with('client')
+            ->orderByDesc('total_latest_os')
+            ->get();
+
+        $allClientIds = $barredClientsList->pluck('client_id')
+            ->merge($combinedShortfallsList->pluck('client_id'))
+            ->unique()
+            ->toArray();
+
+        $latestGuidanceMap = \App\Models\ManagementGuidanceLog::whereIn('client_id', $allClientIds)
+            ->orderBy('id', 'asc')
+            ->pluck('guidance_text', 'client_id')
+            ->toArray();
+
+        $barredClients = $barredClientsList
+            ->map(function ($item) use ($latestGuidanceMap) {
+                $days = $item->client_barred_at ? abs(now()->diffInDays($item->client_barred_at, false)) : 0;
                 $months = round($days / 30.4, 1);
                 
                 return [
-                    'client_id' => $client->client_id,
-                    'client_name' => $client->client_name,
-                    'barred_at_formatted' => $client->barred_at ? $client->barred_at->format('d M Y') : 'N/A',
-                    'barred_at_raw' => $client->barred_at ? $client->barred_at->format('Y-m-d') : null,
+                    'client_id' => $item->client_id,
+                    'client_name' => $item->client_name,
+                    'barred_at_formatted' => $item->client_barred_at ? $item->client_barred_at->format('d M Y') : 'N/A',
+                    'barred_at_raw' => $item->client_barred_at ? $item->client_barred_at->format('Y-m-d') : null,
                     'aging_days' => $days,
                     'aging_months' => $months,
-                    'barring_percentage' => (float) $client->barring_percentage,
+                    'barring_percentage' => (float) $item->client_barring_percentage,
+                    'latest_guidance' => $latestGuidanceMap[$item->client_id] ?? '',
                 ];
             })
             ->filter(function ($client) {
@@ -90,15 +118,8 @@ class DashboardOptimizedController extends Controller
         ];
         $monthParam = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('Y-m') : now()->format('Y-m');
 
-        $combinedShortfalls = MonthlySummary::whereDate('summary_month', $latestMonth)
-            ->where(function ($q) {
-                $q->where('mrc_shortfall', '>', 0)
-                  ->orWhere('backlog_shortfall', '>', 0);
-            })
-            ->with('client')
-            ->orderByDesc('total_latest_os')
-            ->get()
-            ->map(function ($item) use ($ranges, $monthParam) {
+        $combinedShortfalls = $combinedShortfallsList
+            ->map(function ($item) use ($ranges, $monthParam, $latestGuidanceMap) {
                 $cr = (float)$item->latest_cr;
                 $rangeLabel = '0.00 - 1.50';
                 foreach ($ranges as $r) {
@@ -126,16 +147,33 @@ class DashboardOptimizedController extends Controller
                     'mrc' => (float)$item->total_mrc,
                     'mrc_shortfall' => (float)$item->mrc_shortfall,
                     'backlog_shortfall' => (float)$item->backlog_shortfall,
+                    'shortfall_from_target' => max(0.0, (float)$item->total_target_maturity_commitment - (float)$item->total_collection),
                     'cr' => $cr,
                     'rating' => $item->latest_rating_category,
                     'segment' => $segment,
                     'range' => $rangeLabel,
                     'month_param' => $monthParam,
+                    'latest_guidance' => $latestGuidanceMap[$item->client_id] ?? '',
                 ];
             });
 
-        $pendingBarringRequests = Client::where('barring_workflow_status', 'pending_approval')->get();
-        $approvedBarringRequests = Client::where('barring_workflow_status', 'approved')->get();
+        $pendingBarringRequests = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_barring_workflow_status', 'pending_approval')
+            ->get()
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_barring_workflow_status', 'pending_approval')
+                    ->get()
+            );
+
+        $approvedBarringRequests = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_barring_workflow_status', 'approved')
+            ->get()
+            ->merge(
+                \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+                    ->where('client_barring_workflow_status', 'approved')
+                    ->get()
+            );
 
         $guidanceLogs = \App\Models\ManagementGuidanceLog::with(['client', 'user'])
             ->latest()
@@ -144,32 +182,33 @@ class DashboardOptimizedController extends Controller
 
         $comparisonData = $this->getHistoricalMetricsData();
 
-        return view('dashboard.dashboard_optimized', [
-            'clientCount' => Client::query()->count(),
-            'activeClientCount' => Client::where('client_status', 'Active')
-                ->whereIn('client_id', function ($query) use ($latestMonth) {
-                    $query->select('client_id')
-                        ->from('monthly_summary')
-                        ->whereDate('summary_month', $latestMonth);
-                })->count(),
-            'discontinuedClientCount' => Client::where('client_status', '!=', 'Active')->count(),
-            'discontinuedSubCount' => Client::where(function($q) {
+        $activeClientCount = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where('client_status', 'Active')
+            ->count();
+
+        $discontinuedSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+            ->where(function($q) {
                 $q->where('client_status', 'Discontinued')
                   ->orWhere('client_status', 'like', '%discontinued%');
-            })->whereIn('client_id', function ($query) use ($latestMonth) {
-                $query->select('client_id')
-                    ->from('monthly_summary_discontinued')
-                    ->whereDate('summary_month', $latestMonth);
-            })->count(),
-            'barredSubCount' => Client::where(function($q) {
+            })
+            ->count();
+
+        $barredSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+            ->where(function($q) {
                 $q->where('client_status', 'Barred')
                   ->orWhere('client_status', 'like', '%barred%')
                   ->orWhere('client_status', 'like', '%barring%');
-            })->whereIn('client_id', function ($query) use ($latestMonth) {
-                $query->select('client_id')
-                    ->from('monthly_summary_discontinued')
-                    ->whereDate('summary_month', $latestMonth);
-            })->count(),
+            })
+            ->count();
+
+        $discontinuedClientCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->count();
+
+        return view('dashboard.dashboard_optimized', [
+            'clientCount' => $activeClientCount + $discontinuedClientCount,
+            'activeClientCount' => $activeClientCount,
+            'discontinuedClientCount' => $discontinuedClientCount,
+            'discontinuedSubCount' => $discontinuedSubCount,
+            'barredSubCount' => $barredSubCount,
             'billedMrcTotal' => $billedMrcTotal,
             'collectionTotal' => $collectionTotal,
             'currentMonthOs' => max($billedMrcTotal - $collectionMrcTotal, 0),
@@ -745,44 +784,48 @@ class DashboardOptimizedController extends Controller
             return [];
         }
 
-        // Map monthly_summary field to client table field
-        $clientField = match($dbField) {
-            'client_team_name' => 'team_name',
-            'client_collection_kam' => 'collection_kam',
-            'client_collection_supervisor' => 'collection_supervisor',
-            'client_sm_kam' => 'sm_kam',
-            default => $dbField
-        };
-
         $date = \Carbon\Carbon::parse($latestMonth);
+
+        // Subquery combining snapshotted client attributes for the selected month
+        $snapshotsSub = \Illuminate\Support\Facades\DB::table('monthly_summary')
+            ->select('client_id', 'client_collection_kam', 'client_collection_supervisor', 'client_sm_kam', 'client_team_name', 'client_status')
+            ->whereDate('summary_month', $latestMonth)
+            ->unionAll(
+                \Illuminate\Support\Facades\DB::table('monthly_summary_discontinued')
+                    ->select('client_id', 'client_collection_kam', 'client_collection_supervisor', 'client_sm_kam', 'client_team_name', 'client_status')
+                    ->whereDate('summary_month', $latestMonth)
+            );
+
         $lateEntriesQuery = \Illuminate\Support\Facades\DB::table('collection')
-            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->joinSub($snapshotsSub, 'snap', 'collection.client_id', '=', 'snap.client_id')
+            ->leftJoin('client', 'collection.client_id', '=', 'client.client_id')
             ->whereMonth('collection.collection_datetime', $date->month)
             ->whereYear('collection.collection_datetime', $date->year)
             ->whereRaw("DATEDIFF(collection.created_at, collection.collection_datetime) > 2");
 
         if ($excludeDiscontinued) {
-            $lateEntriesQuery->where('client.client_status', '!=', 'Discontinued');
+            $lateEntriesQuery->where('snap.client_status', '!=', 'Discontinued');
         }
 
         $lateEntries = $lateEntriesQuery
-            ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as late_count")
+            ->selectRaw("COALESCE(snap.{$dbField}, 'Unassigned') as name, COUNT(*) as late_count")
             ->groupBy('name')
             ->pluck('late_count', 'name')
             ->toArray();
 
         // Query total entries count
         $totalEntriesQuery = \Illuminate\Support\Facades\DB::table('collection')
-            ->join('client', 'collection.client_id', '=', 'client.client_id')
+            ->joinSub($snapshotsSub, 'snap', 'collection.client_id', '=', 'snap.client_id')
+            ->leftJoin('client', 'collection.client_id', '=', 'client.client_id')
             ->whereMonth('collection.collection_datetime', $date->month)
             ->whereYear('collection.collection_datetime', $date->year);
 
         if ($excludeDiscontinued) {
-            $totalEntriesQuery->where('client.client_status', '!=', 'Discontinued');
+            $totalEntriesQuery->where('snap.client_status', '!=', 'Discontinued');
         }
 
         $totalEntries = $totalEntriesQuery
-            ->selectRaw("COALESCE(client.{$clientField}, 'Unassigned') as name, COUNT(*) as total_count")
+            ->selectRaw("COALESCE(snap.{$dbField}, 'Unassigned') as name, COUNT(*) as total_count")
             ->groupBy('name')
             ->pluck('total_count', 'name')
             ->toArray();

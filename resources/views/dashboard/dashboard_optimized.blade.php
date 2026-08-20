@@ -4,6 +4,18 @@
 
 @section('content')
 
+<script>
+    window.escapeHtml = function(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+</script>
+
 @php
     $currentMonthLabel = optional($latestSummary?->summary_month)->format('M Y') ?? 'No data';
 
@@ -2308,7 +2320,8 @@
 
             <script>
                 (function() {
-                    const barredList = @json($barredClients);
+                    window.barredList = @json($barredClients);
+                    const barredList = window.barredList;
                     let filtered = [...barredList];
                     let currentPage = 1;
                     let pageSize = 10;
@@ -2388,8 +2401,9 @@
                                 </td>
                                 <td>
                                     <div style="display:flex; gap:6px; align-items:center;">
-                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
-                                        <button class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;" value="${escapeHtml(item.latest_guidance || '')}" oninput="onGuidanceInput(${item.client_id}, this, 'barred')">
+                                        <button id="save-btn-${item.client_id}" class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id}, 'barred')" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px; ${item.latest_guidance ? 'display: none;' : ''}">Save</button>
+                                        <span id="tick-${item.client_id}" style="color: #10b981; font-weight: bold; font-size: 16px; padding: 0 4px; ${item.latest_guidance ? '' : 'display: none;'}">✔</span>
                                     </div>
                                 </td>
                             `;
@@ -2565,6 +2579,7 @@
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC Shortfall</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Backlog Shortfall</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Shortfall from Target</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month CR</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month Rating</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Management Guidance</th>
@@ -2589,7 +2604,8 @@
 
             <script>
                 (function() {
-                    const shortfalls = @json($combinedShortfalls);
+                    window.shortfalls = @json($combinedShortfalls);
+                    const shortfalls = window.shortfalls;
                     let filtered = [...shortfalls];
                     let currentPage = 1;
                     let pageSize = 10;
@@ -2610,7 +2626,8 @@
                                    (item.os && (item.os / 1000000).toFixed(2).includes(query)) ||
                                    (item.mrc && (item.mrc / 1000000).toFixed(2).includes(query)) ||
                                    (item.mrc_shortfall && (item.mrc_shortfall / 1000000).toFixed(2).includes(query)) ||
-                                   (item.backlog_shortfall && (item.backlog_shortfall / 1000000).toFixed(2).includes(query));
+                                   (item.backlog_shortfall && (item.backlog_shortfall / 1000000).toFixed(2).includes(query)) ||
+                                   (item.shortfall_from_target && (item.shortfall_from_target / 1000000).toFixed(2).includes(query));
                         });
 
                         // 2. Paginate
@@ -2626,7 +2643,7 @@
                         if (totalEntries === 0) {
                             tableBody.innerHTML = `
                                 <tr>
-                                    <td colspan="8" style="text-align: center; color: var(--muted); padding: 30px;">
+                                    <td colspan="9" style="text-align: center; color: var(--muted); padding: 30px;">
                                         No shortfall accounts match your search criteria.
                                     </td>
                                 </tr>
@@ -2666,12 +2683,14 @@
                                 <td class="amount">${formatM(item.mrc)}</td>
                                 <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.mrc_shortfall)}</td>
                                 <td class="amount" style="color: #ea580c; font-weight: 800;">${formatM(item.backlog_shortfall)}</td>
+                                <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.shortfall_from_target || 0)}</td>
                                 <td>${(item.cr || 0).toFixed(2)}</td>
                                 <td>${ratingHtml}</td>
                                 <td>
                                     <div style="display:flex; gap:6px; align-items:center;">
-                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;">
-                                        <button class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id})" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px;">Save</button>
+                                        <input type="text" id="guidance-${item.client_id}" placeholder="Write guidance..." style="width: 100%; min-width: 160px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size:12px;" value="${escapeHtml(item.latest_guidance || '')}" oninput="onGuidanceInput(${item.client_id}, this, 'shortfall')">
+                                        <button id="save-btn-${item.client_id}" class="button primary btn-small" onclick="submitInlineGuidance(${item.client_id}, 'shortfall')" style="padding: 6px 10px; min-height: unset; height: 28px; font-size: 11px; ${item.latest_guidance ? 'display: none;' : ''}">Save</button>
+                                        <span id="tick-${item.client_id}" style="color: #10b981; font-weight: bold; font-size: 16px; padding: 0 4px; ${item.latest_guidance ? '' : 'display: none;'}">✔</span>
                                     </div>
                                 </td>
                             `;
@@ -2861,15 +2880,7 @@
         }
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
+
 
     function loadGuidanceLogs(page = 1) {
         guidanceLogCurrentPage = page;
@@ -2967,7 +2978,27 @@
         .catch(err => console.error(err));
     }
 
-    function submitInlineGuidance(clientId) {
+    function onGuidanceInput(clientId, inputEl, type) {
+        const list = type === 'barred' ? (window.barredList || []) : (window.shortfalls || []);
+        const item = list.find(x => x.client_id == clientId);
+        const originalVal = (item && item.latest_guidance) ? item.latest_guidance.trim() : '';
+        const currentVal = inputEl.value.trim();
+
+        const saveBtn = document.getElementById('save-btn-' + clientId);
+        const tickSpan = document.getElementById('tick-' + clientId);
+
+        if (saveBtn && tickSpan) {
+            if (currentVal === originalVal) {
+                saveBtn.style.display = 'none';
+                tickSpan.style.display = 'inline-block';
+            } else {
+                saveBtn.style.display = 'inline-block';
+                tickSpan.style.display = 'none';
+            }
+        }
+    }
+
+    function submitInlineGuidance(clientId, type) {
         const textEl = document.getElementById('guidance-' + clientId);
         if (!textEl) return;
         const text = textEl.value;
@@ -2976,6 +3007,11 @@
             alert('Please enter guidance text.');
             return;
         }
+
+        const saveBtn = document.getElementById('save-btn-' + clientId);
+        const tickSpan = document.getElementById('tick-' + clientId);
+
+        if (saveBtn) saveBtn.disabled = true;
 
         fetch('{{ route("dashboard.guidance.log") }}', {
             method: 'POST',
@@ -2991,14 +3027,31 @@
         })
         .then(res => res.json())
         .then(data => {
+            if (saveBtn) saveBtn.disabled = false;
             if (data.success) {
-                alert('Guidance logged successfully.');
-                location.reload();
+                // Update local state
+                const list = type === 'barred' ? (window.barredList || []) : (window.shortfalls || []);
+                const item = list.find(x => x.client_id == clientId);
+                if (item) {
+                    item.latest_guidance = text;
+                }
+                
+                // Toggle view components
+                if (saveBtn) saveBtn.style.display = 'none';
+                if (tickSpan) tickSpan.style.display = 'inline-block';
+
+                // Refresh audit logs in the background if function is available
+                if (typeof loadGuidanceLogs === 'function') {
+                    loadGuidanceLogs(1);
+                }
             } else {
                 alert('Error logging guidance.');
             }
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+            if (saveBtn) saveBtn.disabled = false;
+            console.error(err);
+        });
     }
 
     const trendChart = @json($trendChart);
