@@ -2596,7 +2596,7 @@
                             <thead>
                                 <tr>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Client Name</th>
-                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">OS Balance</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Total Latest OS</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC Shortfall</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Backlog Shortfall</th>
