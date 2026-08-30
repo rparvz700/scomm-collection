@@ -58,12 +58,10 @@ class DashboardOptimizedController extends Controller
 
         $barredClientsList = MonthlySummary::whereDate('summary_month', $latestMonth)
             ->where('client_status', 'Barred')
-            ->whereNotNull('client_barred_at')
             ->get()
             ->merge(
                 \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
                     ->where('client_status', 'Barred')
-                    ->whereNotNull('client_barred_at')
                     ->get()
             );
 
@@ -86,19 +84,25 @@ class DashboardOptimizedController extends Controller
             ->pluck('guidance_text', 'client_id')
             ->toArray();
 
+        $realClientsMap = \App\Models\Client::whereIn('client_id', $allClientIds)
+            ->get()
+            ->keyBy('client_id');
+
         $barredClients = $barredClientsList
-            ->map(function ($item) use ($latestGuidanceMap) {
-                $days = $item->client_barred_at ? abs(now()->diffInDays($item->client_barred_at, false)) : 0;
+            ->map(function ($item) use ($latestGuidanceMap, $realClientsMap) {
+                $realClient = $realClientsMap->get($item->client_id);
+                $barredAt = $item->client_barred_at ?? $realClient?->barred_at;
+                $days = $barredAt ? abs(now()->diffInDays($barredAt, false)) : 0;
                 $months = round($days / 30.4, 1);
                 
                 return [
                     'client_id' => $item->client_id,
                     'client_name' => $item->client_name,
-                    'barred_at_formatted' => $item->client_barred_at ? $item->client_barred_at->format('d M Y') : 'N/A',
-                    'barred_at_raw' => $item->client_barred_at ? $item->client_barred_at->format('Y-m-d') : null,
+                    'barred_at_formatted' => $barredAt ? $barredAt->format('d M Y') : 'N/A',
+                    'barred_at_raw' => $barredAt ? $barredAt->format('Y-m-d') : null,
                     'aging_days' => $days,
                     'aging_months' => $months,
-                    'barring_percentage' => (float) $item->client_barring_percentage,
+                    'barring_percentage' => (float) ($item->client_barring_percentage ?: ($realClient?->barring_percentage ?? 0)),
                     'latest_guidance' => $latestGuidanceMap[$item->client_id] ?? '',
                 ];
             })
