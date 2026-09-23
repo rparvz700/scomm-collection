@@ -3,12 +3,10 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CollectionEntryController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardOptimizedController;
 use App\Http\Controllers\MonthlySummaryController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\DashboardOptimizedController;
 use App\Http\Controllers\ReportController;
 
 Route::get('/', function () {
@@ -23,7 +21,7 @@ Route::get('/', function () {
         
         // Fallbacks based on permission checks
         if ($user->can('view dashboard')) {
-            return redirect()->route('dashboard.optimized');
+            return redirect()->route('dashboard');
         } elseif ($user->can('view collections')) {
             return redirect()->route('collection-entry.index');
         } elseif ($user->can('view monthly summaries')) {
@@ -41,7 +39,7 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', DashboardController::class)
+    Route::get('/dashboard', DashboardOptimizedController::class)
         ->middleware('permission:view dashboard')
         ->name('dashboard');
 
@@ -86,20 +84,20 @@ Route::middleware('auth')->group(function () {
             ->name('system-access');
     });
     
-    Route::get('/dashboard/clients/drilldown', [DashboardController::class, 'clientDrilldown']);
-    Route::get('/dashboard/clients', [DashboardController::class, 'clientsIndex'])
+    Route::get('/dashboard/clients/drilldown', [DashboardOptimizedController::class, 'clientDrilldown']);
+    Route::get('/dashboard/clients', [DashboardOptimizedController::class, 'clientsIndex'])
         ->name('dashboard.clients.index');
-    Route::get('/dashboard/discontinued-clients', [DashboardController::class, 'discontinuedClientsIndex'])
+    Route::get('/dashboard/discontinued-clients', [DashboardOptimizedController::class, 'discontinuedClientsIndex'])
         ->name('dashboard.discontinued-clients.index');
     
-    Route::get('/dashboard/client-trend/{client}',[DashboardController::class, 'clientTrend'])
+    Route::get('/dashboard/client-trend/{client}', [ClientController::class, 'clientTrend'])
         ->name('dashboard.client.trend');
-    Route::get('/dashboard/client-trend-discontinued/{client}', [DashboardController::class, 'discontinuedClientTrend'])
+    Route::get('/dashboard/client-trend-discontinued/{client}', [ClientController::class, 'discontinuedClientTrend'])
         ->name('dashboard.client.trend.discontinued');
-    Route::post('/dashboard/workflow/update', [DashboardController::class, 'updateWorkflowStatus'])
+    Route::post('/dashboard/workflow/update', [DashboardOptimizedController::class, 'updateWorkflowStatus'])
         ->middleware('permission:update workflow status')
         ->name('dashboard.workflow.update');
-    Route::post('/dashboard/guidance/log', [DashboardController::class, 'logGuidance'])
+    Route::post('/dashboard/guidance/log', [DashboardOptimizedController::class, 'logGuidance'])
         ->name('dashboard.guidance.log');
     Route::get('/collection-entry', [CollectionEntryController::class, 'index'])
         ->middleware('permission:view collections')
@@ -128,6 +126,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/clients/{client}/logs', [ClientController::class, 'logs'])
         ->middleware('permission:view clients')
         ->name('clients.logs');
+
+    Route::get('/dashboard/clients/{client}/outstanding-summary', [ClientController::class, 'outstandingSummary'])
+        ->name('clients.outstanding-summary');
 
     Route::get('/clients/create', [ClientController::class, 'create'])
         ->middleware('permission:create clients')
@@ -216,5 +217,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::get('/api/month-opening/rollover', [\App\Http\Controllers\Api\MonthRolloverController::class, 'rollover'])->name('web.api.month-opening.rollover');
-Route::get('/api/guidance-logs', [\App\Http\Controllers\DashboardController::class, 'getGuidanceLogs'])->name('web.api.guidance-logs');
+Route::get('/api/guidance-logs', [\App\Http\Controllers\DashboardOptimizedController::class, 'getGuidanceLogs'])->name('web.api.guidance-logs');
+
+
 

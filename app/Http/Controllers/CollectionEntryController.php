@@ -15,13 +15,14 @@ class CollectionEntryController extends Controller
 {
     public function index(): View
     {
+        $this->ensureNullableClientId();
+
         $latestSummary = MonthlySummary::query()->max('summary_month');
         $defaultMonthDate = $latestSummary ? Carbon::parse($latestSummary) : null;
         $defaultMonthString = $defaultMonthDate ? $defaultMonthDate->format('Y-m') : '';
         $defaultMonthFullDate = $defaultMonthDate ? $defaultMonthDate->format('Y-m-d') : '';
 
         $collectionsQuery = Collection::query()
-            ->whereHas('client')
             ->with('client')
             ->latest('collection_datetime');
 
@@ -56,13 +57,19 @@ class CollectionEntryController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->ensureNullableClientId();
+
         if ($request->has('batch_data')) {
             $batch = json_decode($request->input('batch_data'), true);
             if (is_array($batch) && !empty($batch)) {
                 \DB::transaction(function() use ($batch, $request) {
                     foreach ($batch as $entry) {
-                        $validated = validator($entry, [
-                            'client_id' => ['required', 'exists:client,client_id'],
+                        $rawClientId = $entry['client_id'] ?? null;
+                        $cId = ($rawClientId === 'untraced' || empty($rawClientId)) ? null : $rawClientId;
+                        $entryData = array_merge($entry, ['client_id' => $cId]);
+
+                        $validated = validator($entryData, [
+                            'client_id' => ['nullable', 'exists:client,client_id'],
                             'collection_datetime' => ['required', 'date'],
                             'collection_month' => ['required', 'date'],
                             'collection_type' => ['required', 'string'],
@@ -81,14 +88,18 @@ class CollectionEntryController extends Controller
             }
         }
 
-        $data = $request->validate([
-            'client_id' => ['required', 'exists:client,client_id'],
+        $rawClientId = $request->input('client_id');
+        $cId = ($rawClientId === 'untraced' || empty($rawClientId)) ? null : $rawClientId;
+        $requestData = array_merge($request->all(), ['client_id' => $cId]);
+
+        $data = validator($requestData, [
+            'client_id' => ['nullable', 'exists:client,client_id'],
             'collection_datetime' => ['required', 'date'],
             'collection_month' => ['required', 'date'],
             'collection_type' => ['required', 'string'],
             'collection_amount' => ['required', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
-        ]);
+        ])->validate();
 
         $data['created_by'] = $request->user()?->email;
 
@@ -104,7 +115,7 @@ class CollectionEntryController extends Controller
         $clientId = $request->client_id;
         $monthString = $request->month;
 
-        if (!$clientId || !$monthString) {
+        if (!$clientId || $clientId === 'untraced' || !$monthString) {
             return response()->json([
                 'total_latest_os' => 0,
                 'total_mrc' => 0
@@ -137,7 +148,6 @@ class CollectionEntryController extends Controller
         $clientId = $request->query('client_id');
 
         $query = Collection::query()
-            ->whereHas('client')
             ->with('client')
             ->latest('collection_datetime');
 
@@ -151,12 +161,16 @@ class CollectionEntryController extends Controller
         $query->take(15);
 
         if ($clientId) {
-            $query->where('client_id', $clientId);
+            if ($clientId === 'untraced') {
+                $query->whereNull('client_id');
+            } else {
+                $query->where('client_id', $clientId);
+            }
         }
 
         $collections = $query->get()->map(function ($collection) {
             return [
-                'client_name' => $collection->client->client_name ?? 'Unknown client',
+                'client_name' => $collection->client->client_name ?? 'Untraced Collection',
                 'collection_type' => str_replace('_', ' ', $collection->collection_type),
                 'collection_amount' => number_format((float) $collection->collection_amount, 2),
                 'collection_date' => $collection->collection_datetime ? $collection->collection_datetime->format('d M Y') : 'N/A',
@@ -186,13 +200,16 @@ class CollectionEntryController extends Controller
         }
 
         $query = Collection::query()
-            ->whereHas('client')
             ->with('client')
             ->latest('collection_datetime');
 
         // Apply filters
         if ($request->filled('client_id')) {
-            $query->where('client_id', $request->client_id);
+            if ($request->client_id === 'untraced') {
+                $query->whereNull('client_id');
+            } else {
+                $query->where('client_id', $request->client_id);
+            }
         }
         if ($request->filled('collection_type')) {
             $query->where('collection_type', $request->collection_type);
@@ -214,6 +231,9 @@ class CollectionEntryController extends Controller
                   ->orWhereHas('client', function($cq) use ($search) {
                       $cq->where('client_name', 'like', "%{$search}%");
                   });
+                if (stripos('untraced collection', $search) !== false) {
+                    $q->orWhereNull('client_id');
+                }
             });
         }
 
@@ -247,5 +267,14 @@ class CollectionEntryController extends Controller
             'searchText' => $request->search,
             'perPage' => $perPage,
         ]);
+    }
+
+    private function ensureNullableClientId(): void
+    {
+        try {
+            \Illuminate\Support\Facades\DB::statement('ALTER TABLE collection MODIFY client_id BIGINT UNSIGNED NULL');
+        } catch (\Throwable $e) {
+            // Ignore if already nullable or no permission
+        }
     }
 }

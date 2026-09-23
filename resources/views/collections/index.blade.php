@@ -19,6 +19,7 @@
                 <label style="display: block; font-size: 11.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px; white-space: nowrap;">Client Name</label>
                 <select name="client_id" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 12.5px; outline: none; cursor: pointer; height: 34px;">
                     <option value="">All Clients</option>
+                    <option value="untraced" {{ $selectedClientId === 'untraced' ? 'selected' : '' }}>Untraced Collection</option>
                     @foreach($clients as $c)
                         <option value="{{ $c->client_id }}" {{ $selectedClientId == $c->client_id ? 'selected' : '' }}>
                             {{ $c->client_name }}
@@ -136,7 +137,7 @@
                                 {{ $c->collection_datetime ? \Carbon\Carbon::parse($c->collection_datetime)->format('d M Y, h:i A') : 'N/A' }}
                             </td>
                             <td class="client-name-cell" style="padding: 12px 16px; font-weight: 700; color: var(--ink);">
-                                {{ $c->client->client_name ?? 'N/A' }}
+                                {{ $c->client->client_name ?? 'Untraced Collection' }}
                             </td>
                             <td style="padding: 12px 16px; color: var(--ink); font-size: 13px;">
                                 {{ $c->collection_month ? \Carbon\Carbon::parse($c->collection_month)->format('F Y') : 'N/A' }}

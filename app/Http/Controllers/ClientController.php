@@ -11,7 +11,10 @@ class ClientController extends Controller
 {
     public function index(): View
     {
-        $clients = Client::query()->orderBy('client_name')->get();
+        $clients = Client::query()
+            ->with('growthTrend')
+            ->orderBy('client_name')
+            ->get();
 
         $latestMonth = \App\Models\MonthlySummary::max('summary_month');
         $summaries = collect();
@@ -32,6 +35,9 @@ class ClientController extends Controller
             ['label' => '3.00 - 3.49', 'min' => 3.00, 'max' => 3.49, 'category' => 'High Risky'],
             ['label' => '>= 3.50', 'min' => 3.50, 'max' => null, 'category' => 'Most Risky'],
         ];
+
+        $improvingCount = 0;
+        $decliningCount = 0;
 
         foreach ($clients as $client) {
             $summary = $summaries->get($client->client_id);
@@ -66,9 +72,27 @@ class ClientController extends Controller
             $client->risk_segment = $categoryLabel;
             $client->cr_range = $rangeLabel;
             $client->summary_month = $latestMonthStr;
+
+            // Growth Trend attributes from pre-calculated model
+            $trend = $client->growthTrend;
+            $trendStatus = $trend?->trend_status ?? 'stable';
+            $mrcChangePct = (float) ($trend?->mrc_change_pct ?? 0.0);
+            $crChangeVal = (float) ($trend?->cr_change_val ?? 0.0);
+
+            $client->unsetRelation('growthTrend');
+            $client->growth_trend = $trendStatus;
+            $client->growth_trend_status = $trendStatus;
+            $client->mrc_change_pct = $mrcChangePct;
+            $client->cr_change_val = $crChangeVal;
+
+            if ($trendStatus === 'improving') {
+                $improvingCount++;
+            } elseif ($trendStatus === 'declining') {
+                $decliningCount++;
+            }
         }
 
-        return view('clients.index', compact('clients'));
+        return view('clients.index', compact('clients', 'improvingCount', 'decliningCount'));
     }
 
     public function create(): View
@@ -212,5 +236,239 @@ class ClientController extends Controller
             });
 
         return response()->json($logs);
+    }
+
+    private function getCombinedMonthlySummaryRows(Client $client)
+    {
+        $msRows = \App\Models\MonthlySummary::query()
+            ->where('client_id', $client->client_id)
+            ->get();
+
+        $msdRows = \App\Models\MonthlySummaryDiscontinued::query()
+            ->where('client_id', $client->client_id)
+            ->get();
+
+        $allRows = $msRows->concat($msdRows);
+
+        $grouped = $allRows->groupBy(function ($row) {
+            return $row->summary_month ? $row->summary_month->format('Y-m') : '';
+        });
+
+        $merged = collect();
+
+        foreach ($grouped as $monthKey => $rowsInMonth) {
+            if (empty($monthKey)) continue;
+
+            if ($rowsInMonth->count() === 1) {
+                $merged->push($rowsInMonth->first());
+            } else {
+                $selected = $rowsInMonth->sortByDesc(function ($r) {
+                    $status = strtolower((string) ($r->client_status ?? ''));
+                    $isDiscontinued = $status === 'discontinued' || $r instanceof \App\Models\MonthlySummaryDiscontinued;
+                    $updatedAt = $r->updated_at ? $r->updated_at->timestamp : 0;
+                    return ($isDiscontinued ? 10000000000 : 0) + $updatedAt;
+                })->first();
+
+                $merged->push($selected);
+            }
+        }
+
+        return $merged->sortByDesc(function ($row) {
+            return $row->summary_month ? $row->summary_month->format('Y-m-d') : '';
+        })->take(12)->sortBy(function ($row) {
+            return $row->summary_month ? $row->summary_month->format('Y-m-d') : '';
+        })->values();
+    }
+
+    public function outstandingSummary(Client $client): \Illuminate\Http\JsonResponse
+    {
+        $rows = $this->getCombinedMonthlySummaryRows($client);
+
+        $monthlySummaryRows = $rows->map(function ($row) use ($client) {
+            $maturedMrc = (float) ($row->total_maturity ?? 0);
+            $backlogCommitment = (float) ($row->total_payment_plan ?? 0);
+            $totalCommitment = $maturedMrc + $backlogCommitment;
+            $totalCollection = (float) ($row->total_collection ?? $row->collection_amount ?? 0);
+
+            $shortfallMaturedMrc = $totalCollection - $maturedMrc;
+            $shortfallTotalCommitment = $totalCollection - $totalCommitment;
+
+            $openingOs = (float) ($row->total_opening_os ?? $row->opening_os ?? 0);
+            $closingOs = (float) ($row->total_latest_os ?? $row->latest_os ?? 0);
+
+            return [
+                'client_status' => $row->client_status ?? $client->client_status ?? 'Active',
+                'payment_month' => $row->summary_month ? $row->summary_month->format('M-y') : 'N/A',
+                'summary_month_raw' => $row->summary_month ? $row->summary_month->format('Y-m-d') : null,
+                'opening_outstanding' => $openingOs,
+                'opening_outstanding_formatted' => number_format($openingOs),
+                'opening_cr' => (float) ($row->opening_cr ?? 0),
+                'opening_cr_formatted' => number_format((float) ($row->opening_cr ?? 0), 1),
+                
+                'matured_mrc' => $maturedMrc,
+                'matured_mrc_formatted' => number_format($maturedMrc),
+                
+                'backlog_commitment' => $backlogCommitment,
+                'backlog_commitment_formatted' => number_format($backlogCommitment),
+                
+                'total_commitment' => $totalCommitment,
+                'total_commitment_formatted' => number_format($totalCommitment),
+                
+                'total_collection' => $totalCollection,
+                'total_collection_formatted' => number_format($totalCollection),
+                
+                'shortfall_matured_mrc' => $shortfallMaturedMrc,
+                'shortfall_matured_mrc_formatted' => $this->formatCurrencyWithParentheses($shortfallMaturedMrc),
+                'shortfall_matured_mrc_is_negative' => $shortfallMaturedMrc < 0,
+                
+                'shortfall_total_commitment' => $shortfallTotalCommitment,
+                'shortfall_total_commitment_formatted' => $this->formatCurrencyWithParentheses($shortfallTotalCommitment),
+                'shortfall_total_commitment_is_negative' => $shortfallTotalCommitment < 0,
+                
+                'closing_outstanding' => $closingOs,
+                'closing_outstanding_formatted' => number_format($closingOs),
+                
+                'closing_cr' => (float) ($row->latest_cr ?? 0),
+                'closing_cr_formatted' => number_format((float) ($row->latest_cr ?? 0), 1),
+                
+                'remarks' => $row->current_month_remarks ?? $row->sales_review_remarks ?? $row->visit_remarks ?? '',
+            ];
+        })->values();
+
+        $securityCoverage = $client->security_coverage ?? 'N/A';
+        $creditPeriod = $client->billing_modality_kpi ?? 'N/A';
+        $serviceType = strtolower((string) $client->service_type_billing);
+        $modality = str_contains($serviceType, 'prepaid') ? 'Pre-paid' : 'Post-paid';
+
+        return response()->json([
+            'client_id' => $client->client_id,
+            'client_name' => $client->client_name,
+            'modality' => $modality,
+            'header_title' => "Outstanding Summary of {$client->client_name}-{$modality}",
+            'credit_period_note' => $creditPeriod ? "*{$creditPeriod}" : '*Standard Credit Period Client',
+            'security_coverage' => $securityCoverage,
+            'rows' => $monthlySummaryRows,
+        ]);
+    }
+
+    private function formatCurrencyWithParentheses(float $val): string
+    {
+        if ($val < 0) {
+            return '(' . number_format(abs($val)) . ')';
+        }
+        return number_format($val);
+    }
+
+    public function clientTrend(Client $client): \Illuminate\Http\JsonResponse
+    {
+        $rows = $this->getCombinedMonthlySummaryRows($client);
+
+        $logs = \App\Models\ClientLog::query()
+            ->where('client_id', $client->client_id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($log) {
+                $formattedDate = 'N/A';
+                if ($log->created_at) {
+                    try {
+                        $formattedDate = \Carbon\Carbon::parse($log->created_at)->format('d M Y H:i');
+                    } catch (\Exception $e) {
+                        $formattedDate = 'N/A';
+                    }
+                }
+
+                return [
+                    'date' => $formattedDate,
+                    'field' => ucwords(str_replace('_', ' ', $log->field_name)),
+                    'old' => $log->old_value ?? 'N/A',
+                    'new' => $log->new_value ?? 'N/A',
+                    'user' => $log->updated_by ?? 'System',
+                ];
+            });
+
+        $snapshots = $rows->map(function ($row) use ($client) {
+            return [
+                'client_status' => $row->client_status ?? $client->client_status ?? 'Active',
+                'month' => $row->summary_month ? $row->summary_month->format('M Y') : 'N/A',
+                'opening_rating' => $row->opening_rating_category ?? 'N/A',
+                'latest_rating' => $row->latest_rating_category ?? 'N/A',
+                'opening_cr' => number_format((float) ($row->opening_cr ?? 0), 2),
+                'closing_cr' => number_format((float) ($row->latest_cr ?? 0), 2),
+            ];
+        })->values();
+
+        return response()->json([
+            'labels' => $rows->map(
+                fn ($row) => $row->summary_month ? $row->summary_month->format('M y') : ''
+            )->values(),
+            'opening_cr' => $rows->pluck('opening_cr')->map(fn ($v) => (float) ($v ?? 0))->values(),
+            'opening_os' => $rows->map(fn ($row) => (float) ($row->total_opening_os ?? $row->opening_os ?? 0))->values(),
+            'closing_cr' => $rows->pluck('latest_cr')->map(fn ($v) => (float) ($v ?? 0))->values(),
+            'closing_os' => $rows->map(fn ($row) => (float) ($row->total_latest_os ?? $row->latest_os ?? 0))->values(),
+            'mrc' => $rows->map(fn ($row) => (float) ($row->total_mrc ?? $row->mrc ?? 0))->values(),
+            'backlog' => $rows->map(fn ($row) => (float) ($row->net_backlog_total ?? $row->backlog ?? 0))->values(),
+            'collection' => $rows->map(fn ($row) => (float) ($row->total_collection ?? $row->collection_amount ?? 0))->values(),
+            'logs' => $logs,
+            'snapshots' => $snapshots,
+            'client_status' => $client->client_status ?? 'N/A',
+            'service_discontinuation_date' => $client->service_discontinuation_date?->format('Y-m-d') ?? 'N/A',
+            'opening_rating_category' => $rows->first()?->opening_rating_category ?? 'N/A',
+            'latest_rating_category' => $rows->last()?->latest_rating_category ?? 'N/A',
+        ]);
+    }
+
+    public function discontinuedClientTrend(Client $client): \Illuminate\Http\JsonResponse
+    {
+        $rows = $this->getCombinedMonthlySummaryRows($client);
+
+        $logs = \App\Models\ClientLog::query()
+            ->where('client_id', $client->client_id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($log) {
+                $formattedDate = 'N/A';
+                if ($log->created_at) {
+                    try {
+                        $formattedDate = \Carbon\Carbon::parse($log->created_at)->format('d M Y H:i');
+                    } catch (\Exception $e) {
+                        $formattedDate = 'N/A';
+                    }
+                }
+
+                return [
+                    'date' => $formattedDate,
+                    'field' => ucwords(str_replace('_', ' ', $log->field_name)),
+                    'old' => $log->old_value ?? 'N/A',
+                    'new' => $log->new_value ?? 'N/A',
+                    'user' => $log->updated_by ?? 'System',
+                ];
+            });
+
+        $snapshots = $rows->map(function ($row) use ($client) {
+            return [
+                'client_status' => $row->client_status ?? $client->client_status ?? 'Discontinued',
+                'month' => $row->summary_month ? $row->summary_month->format('M Y') : 'N/A',
+                'opening_os' => number_format((float) ($row->opening_os ?? $row->total_opening_os ?? 0), 2),
+                'collection' => number_format((float) ($row->collection_amount ?? $row->total_collection ?? 0), 2),
+                'latest_os' => number_format((float) ($row->latest_os ?? $row->total_latest_os ?? 0), 2),
+                'unbilled_total' => number_format((float) ($row->unbilled_total ?? 0), 2),
+            ];
+        })->values();
+
+        return response()->json([
+            'labels' => $rows->map(
+                fn ($row) => $row->summary_month ? $row->summary_month->format('M y') : ''
+            )->values(),
+            'opening_os' => $rows->map(fn ($row) => (float) ($row->opening_os ?? $row->total_opening_os ?? 0))->values(),
+            'closing_os' => $rows->map(fn ($row) => (float) ($row->latest_os ?? $row->total_latest_os ?? 0))->values(),
+            'collection' => $rows->map(fn ($row) => (float) ($row->collection_amount ?? $row->total_collection ?? 0))->values(),
+            'unbilled_total' => $rows->pluck('unbilled_total')->map(fn ($v) => (float) ($v ?? 0))->values(),
+            'logs' => $logs,
+            'snapshots' => $snapshots,
+            'client_status' => $client->client_status ?? 'N/A',
+            'service_discontinuation_date' => $client->service_discontinuation_date?->format('Y-m-d') ?? 'N/A',
+            'opening_rating_category' => 'N/A',
+            'latest_rating_category' => 'N/A',
+        ]);
     }
 }

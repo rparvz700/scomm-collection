@@ -50,7 +50,7 @@ class LoginController extends Controller
 
             // Fallback checks depending on permissions
             if ($user->can('view dashboard')) {
-                return redirect()->intended(route('dashboard.optimized'));
+                return redirect()->intended(route('dashboard'));
             } elseif ($user->can('view collections')) {
                 return redirect()->intended(route('collection-entry.index'));
             } elseif ($user->can('view monthly summaries')) {

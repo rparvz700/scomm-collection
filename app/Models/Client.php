@@ -58,6 +58,12 @@ class Client extends Model
             'barred_at' => 'datetime',
         ];
     }
+
+    public function growthTrend()
+    {
+        return $this->hasOne(ClientGrowthTrend::class, 'client_id', 'client_id');
+    }
+
     public function collections(): HasMany
     {
         return $this->hasMany(Collection::class, 'client_id', 'client_id');
@@ -114,8 +120,8 @@ class Client extends Model
             if (auth()->check()) {
                 $user = auth()->user();
                 
-                // Admin, Supervisors, and Dashboard routes bypass scoping
-                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod') || request()->routeIs('dashboard*') || request()->is('dashboard*')) {
+                // Admin, Supervisors, Dashboard, and Outstanding Summary routes bypass scoping
+                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod') || request()->routeIs('dashboard*') || request()->is('dashboard*') || request()->routeIs('clients.outstanding-summary') || request()->is('*/outstanding-summary')) {
                     return;
                 }
 

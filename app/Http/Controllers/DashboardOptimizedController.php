@@ -43,6 +43,7 @@ class DashboardOptimizedController extends Controller
         $billedMrcTotal = 0.0;
         $collectionMrcTotal = 0.0;
         $collectionTotal = 0.0;
+        $untracedCollectionTotal = 0.0;
         $discontinuedCollection = 0.0;
         $discontinuedOpeningOs = 0.0;
 
@@ -50,6 +51,7 @@ class DashboardOptimizedController extends Controller
             $billedMrcTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)->sum('total_mrc');
             $collectionMrcTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)->sum('collection_mrc');
             $collectionTotal = $this->currentMonthCollectionTotal($latestMonth);
+            $untracedCollectionTotal = $this->currentMonthUntracedCollectionTotal($latestMonth);
             $discontinuedCollection = (float) \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->sum('collection_amount');
             $discontinuedOpeningOs = (float) \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->sum('opening_os');
         }
@@ -151,7 +153,7 @@ class DashboardOptimizedController extends Controller
                     'mrc' => (float)$item->total_mrc,
                     'mrc_shortfall' => (float)$item->mrc_shortfall,
                     'backlog_shortfall' => (float)$item->backlog_shortfall,
-                    'shortfall_from_target' => max(0.0, (float)$item->total_target_maturity_commitment - (float)$item->total_collection),
+                    'shortfall_from_commitment' => max(0.0, ((float)$item->total_maturity + (float)$item->total_payment_plan) - (float)$item->total_collection),
                     'cr' => $cr,
                     'rating' => $item->latest_rating_category,
                     'segment' => $segment,
@@ -184,7 +186,7 @@ class DashboardOptimizedController extends Controller
             ->take(10)
             ->get();
 
-        $comparisonData = $this->getHistoricalMetricsData();
+        $comparisonData = $this->getHistoricalMetricsData($latestMonth);
 
         $activeClientCount = MonthlySummary::whereDate('summary_month', $latestMonth)
             ->where('client_status', 'Active')
@@ -207,6 +209,13 @@ class DashboardOptimizedController extends Controller
 
         $discontinuedClientCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->count();
 
+        $maxCollectionDate = \Illuminate\Support\Facades\DB::table('collection')->max('collection_datetime');
+        $maxCollectionCreated = \Illuminate\Support\Facades\DB::table('collection')->max('created_at');
+        $maxAuditCreated = \Illuminate\Support\Facades\DB::table('summary_audit_logs')->max('created_at');
+
+        $latestSystemUpdateDateRaw = max(array_filter([$maxCollectionDate, $maxCollectionCreated, $maxAuditCreated]));
+        $latestSystemUpdateDate = $latestSystemUpdateDateRaw ? \Carbon\Carbon::parse($latestSystemUpdateDateRaw)->format('d M Y, h:i A') : null;
+
         return view('dashboard.dashboard_optimized', [
             'clientCount' => $activeClientCount + $discontinuedClientCount,
             'activeClientCount' => $activeClientCount,
@@ -215,6 +224,7 @@ class DashboardOptimizedController extends Controller
             'barredSubCount' => $barredSubCount,
             'billedMrcTotal' => $billedMrcTotal,
             'collectionTotal' => $collectionTotal,
+            'untracedCollectionTotal' => $untracedCollectionTotal,
             'currentMonthOs' => max($billedMrcTotal - $collectionMrcTotal, 0),
             'latestOutstanding' => $latestMonth ? MonthlySummary::whereDate('summary_month', $latestMonth)->sum('total_latest_os') : 0,
             'highRiskCount' => $this->currentMonthHighRiskCount($latestMonth),
@@ -224,6 +234,7 @@ class DashboardOptimizedController extends Controller
             'segmentAnalysis' => $this->segmentAnalysisOptimized($latestMonth),
             'combinedMoMSummary' => $this->combinedMoMSummary($latestMonth),
             'combinedRiskBreakdown' => $this->combinedRiskBreakdown($latestMonth),
+            'latestSystemUpdateDate' => $latestSystemUpdateDate,
             'recentCollections' => Collection::query()
                 ->with('client')
                 ->latest('collection_datetime')
@@ -273,7 +284,7 @@ class DashboardOptimizedController extends Controller
             'dynamicInsights' => $this->dynamicInsights($latestMonth),
             'discontinuedCollection' => $discontinuedCollection,
             'discontinuedOpeningOs' => $discontinuedOpeningOs,
-            'discontinuedComparison' => $this->discontinuedMetricComparison(),
+            'discontinuedComparison' => $this->discontinuedMetricComparison($latestMonth),
             'discontinuedAnalysis' => $this->discontinuedAnalysisOptimized($latestMonth),
             'elapsedTimeMs' => round((microtime(true) - $startTime) * 1000, 2),
             
@@ -296,6 +307,18 @@ class DashboardOptimizedController extends Controller
         }
 
         return (float) Collection::query()
+            ->whereDate('collection_month', $latestMonth)
+            ->sum('collection_amount');
+    }
+
+    private function currentMonthUntracedCollectionTotal($latestMonth): float
+    {
+        if (! $latestMonth) {
+            return 0;
+        }
+
+        return (float) Collection::query()
+            ->whereNull('client_id')
             ->whereDate('collection_month', $latestMonth)
             ->sum('collection_amount');
     }
@@ -632,12 +655,42 @@ class DashboardOptimizedController extends Controller
         ];
     }
 
+    private function inCrRange(float $cr, array $range): bool
+    {
+        if ((float)$range['min'] === 0.0) {
+            return $cr <= $range['max'];
+        }
+
+        if ($cr < $range['min']) {
+            return false;
+        }
+
+        return $range['max'] === null || $cr <= $range['max'];
+    }
+
+    private function riskCategoryForRange(array $range): string
+    {
+        return $range['category'] ?? 'Unknown';
+    }
+
+    private function isIigSegment(MonthlySummary $summary): bool
+    {
+        return str_contains(strtolower((string) $summary->client?->license_billing), 'iig');
+    }
+
+    private function isAlreadyBarred(MonthlySummary $summary): bool
+    {
+        $status = strtolower((string) $summary->client?->client_status);
+
+        return str_contains($status, 'barred') || str_contains($status, 'barring');
+    }
+
     /**
      * Executes the heavy aggregate comparisons query ONCE.
      */
-    private function getHistoricalMetricsData(): EloquentCollection
+    private function getHistoricalMetricsData($targetMonth = null): EloquentCollection
     {
-        return MonthlySummary::query()
+        $query = MonthlySummary::query()
             ->selectRaw('
                 summary_month,
                 COUNT(DISTINCT client_id) as total_clients,
@@ -654,11 +707,35 @@ class DashboardOptimizedController extends Controller
                 END as current_month_os,
                 SUM(total_latest_os) as latest_os,
                 SUM(CASE WHEN latest_rating_category IN ("Risky", "High Risky", "Most Risky") THEN 1 ELSE 0 END) as high_risk
-            ')
-            ->groupBy('summary_month')
+            ');
+
+        if ($targetMonth) {
+            $query->whereDate('summary_month', '<=', $targetMonth);
+        }
+
+        $results = $query->groupBy('summary_month')
             ->orderByDesc('summary_month')
             ->take(6)
             ->get();
+
+        if ($results->isNotEmpty()) {
+            $months = $results->pluck('summary_month')->map(fn($m) => \Carbon\Carbon::parse($m)->format('Y-m-d'))->all();
+            $untracedSums = Collection::query()
+                ->whereNull('client_id')
+                ->whereIn('collection_month', $months)
+                ->selectRaw('collection_month, SUM(collection_amount) as untraced_sum')
+                ->groupBy('collection_month')
+                ->pluck('untraced_sum', 'collection_month');
+
+            foreach ($results as $row) {
+                $mKey = \Carbon\Carbon::parse($row->summary_month)->format('Y-m-d');
+                $untraced = (float) ($untracedSums[$mKey] ?? 0);
+                $row->total_collection = (float) $row->total_collection + $untraced;
+                $row->collection = (float) $row->collection + $untraced;
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -684,7 +761,9 @@ class DashboardOptimizedController extends Controller
 
         return [
             'mom' => $this->percentageChange($latestValue, $previousValue),
+            'mom_diff' => $latestValue - $previousValue,
             'qoq' => $this->percentageChange($latestQuarterValue, $previousQuarterValue),
+            'qoq_diff' => $latestQuarterValue - $previousQuarterValue,
         ];
     }
 
@@ -886,21 +965,26 @@ class DashboardOptimizedController extends Controller
             ->all();
     }
 
-    private function discontinuedMetricComparison(): array
+    private function discontinuedMetricComparison($targetMonth = null): array
     {
-        $monthly = \App\Models\MonthlySummaryDiscontinued::query()
+        $query = \App\Models\MonthlySummaryDiscontinued::query()
             ->selectRaw('
                 summary_month,
                 SUM(collection_amount) as total_collection,
                 SUM(opening_os) as total_opening_os
-            ')
-            ->groupBy('summary_month')
+            ');
+
+        if ($targetMonth) {
+            $query->whereDate('summary_month', '<=', $targetMonth);
+        }
+
+        $monthly = $query->groupBy('summary_month')
             ->orderByDesc('summary_month')
             ->take(6)
             ->get();
 
         if ($monthly->isEmpty()) {
-            return ['mom' => 0.0, 'qoq' => 0.0];
+            return ['mom' => 0.0, 'mom_diff' => 0.0, 'qoq' => 0.0, 'qoq_diff' => 0.0];
         }
 
         $ratios = $monthly->map(function ($row) {
@@ -930,7 +1014,9 @@ class DashboardOptimizedController extends Controller
 
         return [
             'mom' => $this->percentageChange($latestValue, $previousValue),
+            'mom_diff' => $latestValue - $previousValue,
             'qoq' => $this->percentageChange($latestQuarterRatio, $previousQuarterRatio),
+            'qoq_diff' => $latestQuarterRatio - $previousQuarterRatio,
         ];
     }
 
@@ -1263,5 +1349,332 @@ class DashboardOptimizedController extends Controller
         }
 
         return response()->json(['success' => false]);
+    }
+
+    public function clientDrilldown(Request $request)
+    {
+        $segment = $request->segment;
+        $range = $request->range;
+
+        $query = MonthlySummary::query()
+            ->with('client');
+
+        if ($segment === 'IIG' || $segment === 'IIG Operators') {
+            $query->whereHas('client', fn ($q) =>
+                $q->where('license_billing', 'like', '%iig%')
+            );
+        } else {
+            $query->whereHas('client', fn ($q) =>
+                $q->where('license_billing', 'not like', '%iig%')
+            );
+        }
+
+        $data = $query->get()->map(function ($row) {
+            return [
+                'client_name' => $row->client->client_name,
+                'opening_cr' => $row->opening_cr,
+                'opening_os' => $row->total_opening_os,
+                'closing_cr' => $row->latest_cr,
+                'closing_os' => $row->total_latest_os,
+                'mrc' => $row->total_mrc,
+                'backlog' => $row->net_backlog_total,
+                'collection' => $row->total_collection,
+                'payment_plan' => $row->total_payment_plan,
+                'shortfall_payment_plan' => $row->shortfall_from_payment_plan ?? 0,
+            ];
+        });
+
+        return response()->json($data);
+    }
+
+    public function clientsIndex(Request $request)
+    {
+        $segment = $request->segment ?? 'ALL';
+        $rangeLabel = $request->range ?? null;
+
+        $latestMonth = $request->month ? \Carbon\Carbon::createFromFormat('Y-m', $request->month)->endOfMonth() : MonthlySummary::query()->max('summary_month');
+
+        $selectedRange = collect($this->crRanges())
+            ->firstWhere('label', $rangeLabel);
+
+        $riskCategory = $selectedRange
+            ? $this->riskCategoryForRange($selectedRange)
+            : null;
+
+        $query = MonthlySummary::query()
+            ->with('client')
+            ->whereDate('summary_month', $latestMonth);
+
+        if ($selectedRange) {
+            if ((float)$selectedRange['min'] === 0.0) {
+                $query->where(function ($q) use ($selectedRange) {
+                    $q->where('latest_cr', '<=', $selectedRange['max'])
+                      ->orWhereNull('latest_cr');
+                });
+            } else {
+                $query->where('latest_cr', '>=', $selectedRange['min']);
+                if ($selectedRange['max'] !== null) {
+                    $query->where('latest_cr', '<=', $selectedRange['max']);
+                }
+            }
+        }
+
+        if ($segment === 'IIG' || $segment === 'IIG Operators') {
+            $query->whereHas('client', function ($q) {
+                $q->where('license_billing', 'like', '%iig%');
+            });
+        } elseif ($segment === 'ISP and Other Operators' || $segment === 'ISP & Other Operators' || $segment === 'ISP and Other Operators (High Risk)' || $segment === 'High Risk') {
+            $query->whereHas('client', function ($q) {
+                $q->where('license_billing', 'not like', '%iig%');
+            });
+        }
+
+        $clients = $query
+            ->orderByDesc('latest_cr')
+            ->get();
+
+        if ($request->has('client_id') && !$clients->contains('client_id', (int)$request->client_id)) {
+            $targetRow = MonthlySummary::with('client')
+                ->where('client_id', $request->client_id)
+                ->whereDate('summary_month', $latestMonth)
+                ->first();
+            if (!$targetRow) {
+                $targetRow = MonthlySummary::with('client')
+                    ->where('client_id', $request->client_id)
+                    ->latest('summary_month')
+                    ->first();
+            }
+            if ($targetRow) {
+                $clients->push($targetRow);
+            }
+        }
+
+        $latestMonthDate = $latestMonth instanceof \Carbon\Carbon ? $latestMonth : \Carbon\Carbon::parse($latestMonth);
+        $previousMonthDate = $latestMonthDate->copy()->startOfMonth()->subMonth()->endOfMonth();
+        $clientIds = $clients->pluck('client_id')->all();
+        $previousSummaries = MonthlySummary::whereIn('client_id', $clientIds)
+            ->whereDate('summary_month', $previousMonthDate)
+            ->get()
+            ->keyBy('client_id');
+
+        $allLogs = \App\Models\ClientLog::whereIn('client_id', $clientIds)
+            ->where('created_at', '>', $previousMonthDate)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('client_id');
+
+        $realClientsMap = \App\Models\Client::whereIn('client_id', $clientIds)->get()->keyBy('client_id');
+
+        $previousClientStates = [];
+        foreach ($clients as $c) {
+            $client = $realClientsMap->get($c->client_id) ?? $c->client;
+            if (!$client) continue;
+
+            $state = $client->toArray();
+            $state['legal'] = $client->legal ? 'Yes' : 'No';
+            $state['other_upstream'] = $client->other_upstream ? 'Yes' : 'No';
+            $state['btrc_license_discontinuation_date'] = $client->btrc_license_discontinuation_date?->format('Y-m-d');
+            $state['service_discontinuation_date'] = $client->service_discontinuation_date?->format('Y-m-d');
+            $state['nttn_billing_commencement_date'] = $client->nttn_billing_commencement_date?->format('Y-m-d');
+            $state['iig_itc_billing_commencement_date'] = $client->iig_itc_billing_commencement_date?->format('Y-m-d');
+
+            $clientLogs = $allLogs->get($c->client_id) ?? collect();
+            $oldestLogs = $clientLogs->groupBy('field_name')->map(fn($group) => $group->last());
+
+            foreach ($oldestLogs as $fieldName => $log) {
+                if (array_key_exists($fieldName, $state)) {
+                    $state[$fieldName] = $log->old_value;
+                }
+            }
+
+            $previousClientStates[$c->client_id] = $state;
+        }
+
+        $growthTrendsMap = \App\Models\ClientGrowthTrend::whereIn('client_id', $clientIds)
+            ->get()
+            ->keyBy('client_id');
+
+        return view('dashboard.clients.index', [
+            'segment' => $segment,
+            'range' => $rangeLabel,
+            'riskCategory' => $riskCategory,
+            'clients' => $clients,
+            'month' => $latestMonthDate,
+            'previousSummaries' => $previousSummaries,
+            'previousClientStates' => $previousClientStates,
+            'realClientsMap' => $realClientsMap,
+            'growthTrendsMap' => $growthTrendsMap,
+        ]);
+    }
+
+    public function discontinuedClientsIndex(Request $request)
+    {
+        $category = $request->category ?? 'ALL';
+        $latestMonth = $request->month ? \Carbon\Carbon::createFromFormat('Y-m', $request->month)->endOfMonth() : \App\Models\MonthlySummaryDiscontinued::query()->max('summary_month');
+
+        if (!$latestMonth) {
+            return view('dashboard.clients.discontinued', [
+                'category' => $category,
+                'clients' => collect(),
+                'month' => null,
+                'previousSummaries' => collect(),
+                'previousClientStates' => [],
+                'growthTrendsMap' => collect(),
+            ]);
+        }
+
+        $latestMonthDate = $latestMonth instanceof \Carbon\Carbon ? $latestMonth : \Carbon\Carbon::parse($latestMonth);
+
+        $query = \App\Models\MonthlySummaryDiscontinued::query()
+            ->with('client')
+            ->whereDate('summary_month', $latestMonthDate);
+
+        if ($category !== 'ALL') {
+            $cat = strtoupper($category);
+            $categories = [
+                'NTTN' => ['os_col' => 'opening_os_nttn', 'latest_col' => 'latest_os_nttn', 'col_col' => 'collection_postpaid_nttn'],
+                'IIG' => ['os_col' => 'opening_os_iig', 'latest_col' => 'latest_os_iig', 'col_col' => 'collection_postpaid_iig'],
+                'ITC' => ['os_col' => 'opening_os_itc', 'latest_col' => 'latest_os_itc', 'col_col' => 'collection_postpaid_itc'],
+                'NIX' => ['os_col' => 'opening_os_nix', 'latest_col' => 'latest_os_nix', 'col_col' => 'collection_postpaid_nix'],
+            ];
+            if (isset($categories[$cat])) {
+                $cols = $categories[$cat];
+                $query->where(function ($q) use ($cols) {
+                    $q->where($cols['os_col'], '>', 0)
+                      ->orWhere($cols['latest_col'], '>', 0)
+                      ->orWhere($cols['col_col'], '>', 0);
+                });
+            }
+        }
+
+        $clients = $query->get();
+
+        if ($request->has('client_id') && !$clients->contains('client_id', (int)$request->client_id)) {
+            $targetRow = \App\Models\MonthlySummaryDiscontinued::with('client')
+                ->where('client_id', $request->client_id)
+                ->whereDate('summary_month', $latestMonthDate)
+                ->first();
+            if (!$targetRow) {
+                $targetRow = \App\Models\MonthlySummaryDiscontinued::with('client')
+                    ->where('client_id', $request->client_id)
+                    ->latest('summary_month')
+                    ->first();
+            }
+            if ($targetRow) {
+                $clients->push($targetRow);
+            }
+        }
+
+        $previousMonthDate = $latestMonthDate->copy()->startOfMonth()->subMonth()->endOfMonth();
+        $clientIds = $clients->pluck('client_id')->all();
+        $previousSummaries = \App\Models\MonthlySummaryDiscontinued::whereIn('client_id', $clientIds)
+            ->whereDate('summary_month', $previousMonthDate)
+            ->get()
+            ->keyBy('client_id');
+
+        $allLogs = \App\Models\ClientLog::whereIn('client_id', $clientIds)
+            ->where('created_at', '>', $previousMonthDate)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('client_id');
+
+        $realClientsMap = \App\Models\Client::whereIn('client_id', $clientIds)->get()->keyBy('client_id');
+
+        $previousClientStates = [];
+        foreach ($clients as $c) {
+            $client = $realClientsMap->get($c->client_id) ?? $c->client;
+            if (!$client) continue;
+
+            $state = $client->toArray();
+            $state['legal'] = $client->legal ? 'Yes' : 'No';
+            $state['other_upstream'] = $client->other_upstream ? 'Yes' : 'No';
+            $state['btrc_license_discontinuation_date'] = $client->btrc_license_discontinuation_date?->format('Y-m-d');
+            $state['service_discontinuation_date'] = $client->service_discontinuation_date?->format('Y-m-d');
+            $state['nttn_billing_commencement_date'] = $client->nttn_billing_commencement_date?->format('Y-m-d');
+            $state['iig_itc_billing_commencement_date'] = $client->iig_itc_billing_commencement_date?->format('Y-m-d');
+
+            $clientLogs = $allLogs->get($c->client_id) ?? collect();
+            $oldestLogs = $clientLogs->groupBy('field_name')->map(fn($group) => $group->last());
+
+            foreach ($oldestLogs as $fieldName => $log) {
+                if (array_key_exists($fieldName, $state)) {
+                    $state[$fieldName] = $log->old_value;
+                }
+            }
+
+            $previousClientStates[$c->client_id] = $state;
+        }
+
+        $growthTrendsMap = \App\Models\ClientGrowthTrend::whereIn('client_id', $clientIds)
+            ->get()
+            ->keyBy('client_id');
+
+        return view('dashboard.clients.discontinued', [
+            'category' => $category,
+            'clients' => $clients,
+            'month' => $latestMonthDate,
+            'previousSummaries' => $previousSummaries,
+            'previousClientStates' => $previousClientStates,
+            'realClientsMap' => $realClientsMap,
+            'growthTrendsMap' => $growthTrendsMap,
+        ]);
+    }
+
+    public function updateWorkflowStatus(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', 'exists:client,client_id'],
+            'status' => ['required', 'string'],
+            'action_taken' => ['nullable', 'string'],
+        ]);
+
+        $client = Client::findOrFail($data['client_id']);
+
+        $client->barring_workflow_status = $data['status'];
+
+        if ($data['status'] === 'actioned') {
+            $client->client_status = 'Barred';
+            $client->barred_at = now();
+        } elseif ($data['status'] === 'discontinued_actioned') {
+            $client->client_status = 'Discontinued';
+            $client->barring_workflow_status = 'discontinued';
+        }
+
+        $client->save();
+
+        \App\Models\ManagementGuidanceLog::create([
+            'client_id' => $client->client_id,
+            'user_id' => auth()->id(),
+            'guidance_text' => "Workflow status updated to: " . ucwords(str_replace('_', ' ', $data['status'])),
+            'action_taken' => $data['action_taken'] ?? 'Status Update',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Client workflow status updated successfully.',
+            'client' => $client,
+        ]);
+    }
+
+    public function logGuidance(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', 'exists:client,client_id'],
+            'guidance_text' => ['required', 'string'],
+            'action_taken' => ['nullable', 'string'],
+        ]);
+
+        $log = \App\Models\ManagementGuidanceLog::create([
+            'client_id' => $data['client_id'],
+            'user_id' => auth()->id(),
+            'guidance_text' => $data['guidance_text'],
+            'action_taken' => $data['action_taken'] ?? 'Guidance Logged',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Guidance logged successfully.',
+            'log' => $log->load(['client', 'user']),
+        ]);
     }
 }

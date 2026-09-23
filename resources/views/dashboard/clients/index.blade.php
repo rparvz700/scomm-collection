@@ -20,6 +20,34 @@
         color: var(--muted);
     }
 
+    .top-scroll-container {
+        overflow-x: auto;
+        overflow-y: hidden;
+        width: 100%;
+        height: 16px;
+        margin-bottom: 6px;
+        background: transparent;
+        display: none;
+    }
+    .top-scroll-container::-webkit-scrollbar,
+    .panel::-webkit-scrollbar {
+        height: 10px;
+    }
+    .top-scroll-container::-webkit-scrollbar-track,
+    .panel::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+    .top-scroll-container::-webkit-scrollbar-thumb,
+    .panel::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 4px;
+    }
+    .top-scroll-container::-webkit-scrollbar-thumb:hover,
+    .panel::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+
     .panel {
         overflow-x: auto;
     }
@@ -27,7 +55,7 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 1200px;
+        min-width: max-content;
     }
 
     th, td {
@@ -368,6 +396,10 @@
         font-weight: 800;
         text-transform: uppercase;
         background: #edf2f7;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1.2;
+        white-space: nowrap;
     }
 
     .status-badge-active {
@@ -444,7 +476,11 @@
     </p>
 </div>
 
-<div class="panel">
+<div class="top-scroll-container" id="topScrollContainer">
+    <div id="topScrollInner" style="height: 1px;"></div>
+</div>
+
+<div class="panel" id="mainTablePanel">
 
     <table>
 
@@ -469,37 +505,45 @@
             @foreach ($clients as $c)
                 @php
                     $prevSummary = $previousSummaries->get($c->client_id);
+                    $realClient = isset($realClientsMap) ? $realClientsMap->get($c->client_id) : null;
+                    $actualClient = $realClient ?: $c->client;
+                    $growthTrend = isset($growthTrendsMap) ? $growthTrendsMap->get($c->client_id) : null;
                 @endphp
                 <tr id="client-row-{{ $c->client_id }}">
 
                     <td>
-                        @if ($c->client)
+                        @if ($actualClient)
                             <a href="javascript:void(0)" class="client-detail-link" data-summary="{{ json_encode([
                                 'client_id' => $c->client_id,
-                                'client_name' => $c->client->client_name,
+                                'client_name' => $actualClient->client_name,
+                                'growth_trend' => $growthTrend ? [
+                                    'trend_status' => $growthTrend->trend_status,
+                                    'mrc_change_pct' => $growthTrend->mrc_change_pct,
+                                    'cr_change_val' => $growthTrend->cr_change_val,
+                                ] : null,
                                 'current' => [
-                                    'client_name' => $c->client->client_name,
-                                    'opus_id' => $c->client->opus_id,
-                                    'client_status' => $c->client->client_status,
-                                    'agreement_status' => $c->client->agreement_status,
-                                    'barring_priority' => $c->client->barring_priority,
-                                    'btrc_license_discontinuation_date' => $c->client->btrc_license_discontinuation_date?->format('Y-m-d'),
-                                    'legal' => $c->client->legal ? 'Yes' : 'No',
-                                    'billing_modality_kpi' => $c->client->billing_modality_kpi,
-                                    'service_type_billing' => $c->client->service_type_billing,
-                                    'license_billing' => $c->client->license_billing,
-                                    'btrc_letter' => $c->client->btrc_letter,
-                                    'security_coverage' => $c->client->security_coverage,
-                                    'payment_plan' => $c->client->payment_plan,
-                                    'other_upstream' => $c->client->other_upstream ? 'Yes' : 'No',
-                                    'sm_kam' => $c->client->sm_kam,
-                                    'team_name' => $c->client->team_name,
-                                    'collection_kam' => $c->client->collection_kam,
-                                    'collection_supervisor' => $c->client->collection_supervisor,
-                                    'nttn_billing_kam' => $c->client->nttn_billing_kam,
-                                    'iig_itc_billing_kam' => $c->client->iig_itc_billing_kam,
-                                    'nttn_billing_commencement_date' => $c->client->nttn_billing_commencement_date?->format('Y-m-d'),
-                                    'iig_itc_billing_commencement_date' => $c->client->iig_itc_billing_commencement_date?->format('Y-m-d'),
+                                    'client_name' => $actualClient->client_name,
+                                    'opus_id' => $actualClient->opus_id,
+                                    'client_status' => $actualClient->client_status,
+                                    'agreement_status' => $actualClient->agreement_status,
+                                    'barring_priority' => $actualClient->barring_priority,
+                                    'btrc_license_discontinuation_date' => $actualClient->btrc_license_discontinuation_date?->format('Y-m-d'),
+                                    'legal' => $actualClient->legal ? 'Yes' : 'No',
+                                    'billing_modality_kpi' => $actualClient->billing_modality_kpi,
+                                    'service_type_billing' => $actualClient->service_type_billing,
+                                    'license_billing' => $actualClient->license_billing,
+                                    'btrc_letter' => $actualClient->btrc_letter,
+                                    'security_coverage' => $actualClient->security_coverage,
+                                    'payment_plan' => $actualClient->payment_plan,
+                                    'other_upstream' => $actualClient->other_upstream ? 'Yes' : 'No',
+                                    'sm_kam' => $actualClient->sm_kam,
+                                    'team_name' => $actualClient->team_name,
+                                    'collection_kam' => $actualClient->collection_kam,
+                                    'collection_supervisor' => $actualClient->collection_supervisor,
+                                    'nttn_billing_kam' => $actualClient->nttn_billing_kam,
+                                    'iig_itc_billing_kam' => $actualClient->iig_itc_billing_kam,
+                                    'nttn_billing_commencement_date' => $actualClient->nttn_billing_commencement_date?->format('Y-m-d'),
+                                    'iig_itc_billing_commencement_date' => $actualClient->iig_itc_billing_commencement_date?->format('Y-m-d'),
                                     
                                     'opening_cr' => number_format($c->opening_cr, 2),
                                     'opening_os' => number_format($c->total_opening_os / 1000000, 2) . 'M',
@@ -699,6 +743,7 @@
                     <table style="min-width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr style="background: #f8fafc; border-bottom: 1px solid var(--line);">
+                                <th style="padding: 8px 4px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: center; width: 30px;">St.</th>
                                 <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: left;">Month</th>
                                 <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: right;">Opening CR</th>
                                 <th style="padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); text-align: left;">Opening Rating</th>
@@ -739,16 +784,25 @@
 
 {{-- CLIENT DETAILS MODAL --}}
 <div id="clientDetailsModal" class="modal">
-    <div class="modal-content large">
+    <div class="modal-content large" style="max-width: 1250px; width: 95%;">
         <span class="close" onclick="closeClientDetails()">&times;</span>
         
-        <div class="modal-client-header">
-            <div style="display: flex; align-items: center; gap: 14px;">
+        <div class="modal-client-header" style="flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <h2 class="modal-client-title" id="m-clientName">Client Details</h2>
+                <button id="modalProfileSummaryBtn" style="padding: 6px 14px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #0f172a; color: #fff; display: inline-flex; align-items: center; gap: 6px;" type="button">📊 Outstanding Summary Profile</button>
                 <button id="modalHistoryBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #0f766e; color: #fff;" type="button">Last 12 Month Trend</button>
                 <button id="modalToggleMonthBtn" style="padding: 6px 12px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; background: #475569; color: #fff;" type="button">Last Month Data</button>
             </div>
-            <span class="modal-client-badge" id="m-clientStatus">Status</span>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="modal-client-badge" id="m-clientStatus">Status</span>
+                <span class="modal-client-badge" id="m-growthTrendBadge" style="display: none;"></span>
+            </div>
+        </div>
+
+        {{-- OUTSTANDING SUMMARY PROFILE CONTAINER --}}
+        <div id="profileSummaryContainer" style="display: none; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <!-- Populated via Javascript -->
         </div>
 
         <div id="clientDetailsModalBody">
@@ -975,6 +1029,7 @@
         trendData.snapshots.forEach(row => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td style="padding: 8px 4px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: center;">${getStatusCircleHtml(row.client_status)}</td>
                 <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">${row.month}</td>
                 <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: right;">${row.opening_cr}</td>
                 <td style="padding: 8px; font-size: 12px; border-bottom: 1px solid #edf2f7; text-align: left;">
@@ -988,7 +1043,7 @@
             snapshotsBody.appendChild(tr);
         });
     } else {
-        snapshotsBody.innerHTML = `<tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No snapshot history found.</td></tr>`;
+        snapshotsBody.innerHTML = `<tr><td colspan="6" style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No snapshot history found.</td></tr>`;
     }
 
     // Render client change logs table
@@ -1050,6 +1105,21 @@ function getRatingBadgeClass(rating) {
         return 'status-badge-other'; // grey
     }
     return 'status-badge-other';
+}
+function getStatusCircleHtml(status) {
+    const s = String(status || '').toLowerCase().trim();
+    let color = '#22c55e';
+    let title = status || 'Active';
+
+    if (s.includes('discontinued') || s.includes('discontinue')) {
+        color = '#ef4444';
+    } else if (s.includes('barred') || s.includes('barring')) {
+        color = '#f97316';
+    } else if (s.includes('active')) {
+        color = '#22c55e';
+    }
+
+    return `<span title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; vertical-align: middle; flex-shrink: 0;"></span>`;
 }
     function closeTrend() {
 
@@ -1220,15 +1290,57 @@ function getRatingBadgeClass(rating) {
         statusBadge.className = 'modal-client-badge';
         
         const statusLower = (status || '').toLowerCase();
-        if (statusLower.includes('active')) {
-            statusBadge.classList.add('status-badge-active');
-        } else if (statusLower.includes('discontinued') || statusLower.includes('barred')) {
+        if (statusLower.includes('discontinued') || statusLower.includes('discontinue')) {
             statusBadge.classList.add('status-badge-discontinued');
-        } else if (statusLower.includes('watchlist') || statusLower.includes('suspended') || statusLower.includes('proposed')) {
+        } else if (statusLower.includes('barred') || statusLower.includes('barring') || statusLower.includes('watchlist') || statusLower.includes('suspended') || statusLower.includes('proposed')) {
             statusBadge.classList.add('status-badge-watchlist');
+        } else if (statusLower.includes('active')) {
+            statusBadge.classList.add('status-badge-active');
         } else {
             statusBadge.classList.add('status-badge-other');
         }
+    }
+
+    function updateGrowthTrendBadge(growthTrend) {
+        const badge = document.getElementById('m-growthTrendBadge');
+        if (!badge) return;
+
+        if (!growthTrend) {
+            badge.style.display = 'none';
+            return;
+        }
+
+        const trend = (growthTrend.trend_status || 'stable').toLowerCase();
+        const mrcPct = parseFloat(growthTrend.mrc_change_pct || 0);
+        const crVal = parseFloat(growthTrend.cr_change_val || 0);
+
+        const mrcSign = mrcPct > 0 ? '+' : '';
+        const mrcStr = `${mrcSign}${mrcPct.toFixed(1)}%`;
+        const crSign = crVal > 0 ? '+' : '';
+        const crStr = `${crSign}${crVal.toFixed(2)}`;
+
+        const titleText = `12M MRC Change: ${mrcStr}, CR Change: ${crStr}`;
+
+        let bg = '#f1f5f9';
+        let color = '#475569';
+        let label = `— Stable (${mrcStr})`;
+
+        if (trend === 'improving') {
+            bg = '#dcfce7';
+            color = '#15803d';
+            label = `↑ Improving (${mrcStr})`;
+        } else if (trend === 'declining') {
+            bg = '#ffe4e6';
+            color = '#be123c';
+            label = `↓ Declining (${mrcStr})`;
+        }
+
+        badge.innerText = label;
+        badge.title = titleText;
+        badge.style.setProperty('background-color', bg, 'important');
+        badge.style.setProperty('color', color, 'important');
+        badge.style.textTransform = 'none';
+        badge.style.display = 'inline-flex';
     }
 
     document.querySelectorAll('.client-detail-link').forEach(link => {
@@ -1240,12 +1352,29 @@ function getRatingBadgeClass(rating) {
             
             document.getElementById('m-clientName').innerText = data.client_name || 'N/A';
             updateStatusBadge(data.current.client_status);
+            updateGrowthTrendBadge(data.growth_trend);
             
             // Set data for history button
             const historyBtn = document.getElementById('modalHistoryBtn');
             if (historyBtn) {
                 historyBtn.dataset.clientId = data.client_id || '';
                 historyBtn.dataset.clientName = data.client_name || 'N/A';
+            }
+
+            // Set data for Outstanding Summary Profile button
+            const summaryProfileBtn = document.getElementById('modalProfileSummaryBtn');
+            if (summaryProfileBtn) {
+                summaryProfileBtn.dataset.clientId = data.client_id || '';
+            }
+
+            // Reset profile summary container on opening modal
+            const profileContainer = document.getElementById('profileSummaryContainer');
+            if (profileContainer) {
+                profileContainer.style.display = 'none';
+                profileContainer.innerHTML = '';
+            }
+            if (summaryProfileBtn) {
+                summaryProfileBtn.innerText = '📊 Outstanding Summary Profile';
             }
             
             // Set toggle button visibility & state
@@ -1265,6 +1394,126 @@ function getRatingBadgeClass(rating) {
             document.getElementById('clientDetailsModal').style.display = 'block';
         });
     });
+
+    // Outstanding Summary Profile button event listener
+    const modalProfileSummaryBtn = document.getElementById('modalProfileSummaryBtn');
+    if (modalProfileSummaryBtn) {
+        modalProfileSummaryBtn.addEventListener('click', async function() {
+            const clientId = this.dataset.clientId;
+            if (!clientId) return;
+
+            const container = document.getElementById('profileSummaryContainer');
+            if (!container) return;
+
+            if (container.style.display === 'block') {
+                container.style.display = 'none';
+                this.innerText = '📊 Outstanding Summary Profile';
+                return;
+            }
+
+            container.style.display = 'block';
+            container.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: #475569; font-weight: 700;">
+                    Loading Outstanding Summary Profile...
+                </div>
+            `;
+            this.innerText = '🔼 Hide Outstanding Summary';
+
+            try {
+                const summaryUrlPattern = "{{ route('clients.outstanding-summary', ['client' => '__ID__']) }}";
+                const fetchUrl = summaryUrlPattern.replace('__ID__', clientId);
+                const response = await fetch(fetchUrl);
+                const resData = await response.json();
+                container.innerHTML = renderOutstandingSummaryTable(resData);
+            } catch (err) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #dc2626; font-weight: 700;">
+                        Failed to load outstanding summary. Please try again.
+                    </div>
+                `;
+            }
+        });
+    }
+
+    function renderOutstandingSummaryTable(data) {
+        if (!data || !data.rows || data.rows.length === 0) {
+            return `
+                <div style="padding: 10px; text-align: center; color: #64748b; font-weight: 600; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 12px;">
+                    No historical outstanding summary records found for this client.
+                </div>
+            `;
+        }
+
+        let rowsHtml = '';
+        data.rows.forEach((row, index) => {
+            const shortfallMaturedStyle = row.shortfall_matured_mrc_is_negative 
+                ? 'color: #dc2626; font-weight: 700;' 
+                : 'color: #15803d; font-weight: 600;';
+
+            const shortfallCommitmentStyle = row.shortfall_total_commitment_is_negative 
+                ? 'color: #dc2626; font-weight: 700;' 
+                : 'color: #15803d; font-weight: 600;';
+
+            rowsHtml += `
+                <tr style="border-bottom: 1px solid #cbd5e1; background: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'}; transition: background 0.1s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='${index % 2 === 0 ? '#ffffff' : '#f8fafc'}'">
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;">${getStatusCircleHtml(row.client_status)}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; font-weight: 700; text-align: center; color: #0f172a; border: 1px solid #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.payment_month}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 600; color: #334155; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.opening_outstanding_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.opening_cr_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 600; color: #334155; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.matured_mrc_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 600; color: #334155; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.backlog_commitment_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; background: rgba(241, 245, 249, 0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.total_commitment_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 700; color: #166534; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.total_collection_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; ${shortfallMaturedStyle} border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.shortfall_matured_mrc_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; ${shortfallCommitmentStyle} border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.shortfall_total_commitment_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 700; color: #0f172a; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.closing_outstanding_formatted}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.closing_cr_formatted}</td>
+                </tr>
+            `;
+        });
+
+        return `
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); margin: 0; width: 100%;">
+                <div style="width: 100%; overflow-x: auto; overflow-y: hidden; height: 12px; background: #f8fafc; border-bottom: 1px solid #cbd5e1;" onscroll="this.nextElementSibling.scrollLeft = this.scrollLeft">
+                    <div style="width: 1150px; height: 1px;"></div>
+                </div>
+                <div style="width: 100%; overflow-x: auto;" onscroll="this.previousElementSibling.scrollLeft = this.scrollLeft">
+                    <table style="width: 100%; min-width: max-content; table-layout: fixed; border-collapse: collapse; font-family: system-ui, -apple-system, sans-serif; margin: 0; border: 1px solid #cbd5e1;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #f8fafc; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">
+                                <th rowspan="2" style="width: 3%; padding: 5px 2px; border: 1px solid #475569; text-align: center; vertical-align: middle; white-space: nowrap;">St.</th>
+                                <th rowspan="2" style="width: 6%; padding: 5px 2px; border: 1px solid #475569; text-align: center; vertical-align: middle; white-space: nowrap;">Month</th>
+                                <th colspan="2" style="width: 14%; padding: 4px 2px; border: 1px solid #475569; text-align: center; background: #1e293b; white-space: nowrap;">Opening State</th>
+                                <th colspan="3" style="width: 28.5%; padding: 4px 2px; border: 1px solid #475569; text-align: center; background: #0f172a; white-space: nowrap;">Commitment</th>
+                                <th rowspan="2" style="width: 9.5%; padding: 5px 2px; border: 1px solid #475569; text-align: center; vertical-align: middle; white-space: nowrap;">Total<br>Collection</th>
+                                <th colspan="2" style="width: 18%; padding: 4px 2px; border: 1px solid #475569; text-align: center; background: #1e293b; white-space: nowrap;">Shortfall</th>
+                                <th colspan="2" style="width: 14%; padding: 4px 2px; border: 1px solid #475569; text-align: center; background: #0f172a; white-space: nowrap;">Closing State</th>
+                            </tr>
+                            <tr style="background: #1e293b; color: #f8fafc; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0;">
+                                <th style="width: 9%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">OS</th>
+                                <th style="width: 5%; padding: 4px 2px; border: 1px solid #475569; text-align: center; white-space: nowrap;">CR</th>
+                                <th style="width: 9.5%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">Matured (A)</th>
+                                <th style="width: 9.5%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">Backlog (B)</th>
+                                <th style="width: 9.5%; padding: 4px 2px; border: 1px solid #475569; text-align: right; background: #334155; white-space: nowrap;">Total (A+B)</th>
+                                <th style="width: 9%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">vs Matured</th>
+                                <th style="width: 9%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">vs Total</th>
+                                <th style="width: 9%; padding: 4px 2px; border: 1px solid #475569; text-align: right; white-space: nowrap;">OS</th>
+                                <th style="width: 5%; padding: 4px 2px; border: 1px solid #475569; text-align: center; white-space: nowrap;">CR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                ${data.credit_period_note ? `
+                    <div style="padding: 5px 8px; font-size: 12.5px; color: #475569; background: #f8fafc; border-top: 1px solid #e2e8f0; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+                        <span style="font-weight: 700; color: #0f172a;">ℹ️ Note:</span> ${data.credit_period_note}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
 
     // History button event listener to launch Trend view
     const modalHistoryBtn = document.getElementById('modalHistoryBtn');
@@ -1327,6 +1576,50 @@ function getRatingBadgeClass(rating) {
             }
         }, 300);
     }
+
+    function initTopScrollbar() {
+        const topContainer = document.getElementById('topScrollContainer');
+        const topInner = document.getElementById('topScrollInner');
+        const panel = document.getElementById('mainTablePanel') || document.querySelector('.panel');
+        const table = panel ? panel.querySelector('table') : null;
+
+        if (!topContainer || !topInner || !panel || !table) return;
+
+        function syncWidth() {
+            const tableWidth = table.scrollWidth;
+            const panelWidth = panel.clientWidth;
+            if (tableWidth > panelWidth) {
+                topInner.style.width = tableWidth + 'px';
+                topContainer.style.display = 'block';
+            } else {
+                topContainer.style.display = 'none';
+            }
+        }
+
+        syncWidth();
+        window.addEventListener('resize', syncWidth);
+
+        let syncingTop = false;
+        let syncingPanel = false;
+
+        topContainer.addEventListener('scroll', () => {
+            if (!syncingPanel) {
+                syncingTop = true;
+                panel.scrollLeft = topContainer.scrollLeft;
+            }
+            syncingPanel = false;
+        });
+
+        panel.addEventListener('scroll', () => {
+            if (!syncingTop) {
+                syncingPanel = true;
+                topContainer.scrollLeft = panel.scrollLeft;
+            }
+            syncingTop = false;
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', initTopScrollbar);
 
 </script>
 @endpush

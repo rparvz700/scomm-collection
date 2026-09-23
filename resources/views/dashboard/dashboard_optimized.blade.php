@@ -621,9 +621,30 @@
                 </p>
             </div>
             <div>
+                <strong style="color: var(--primary); font-size: 14px;">Commitment (Target Commitment)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The total expected collection commitment for the month, calculated as: <strong>Commitment = Maturity + Payment Plan</strong>.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Maturity Amount</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The amount of billed Monthly Recurring Charge (MRC) that has become due for collection after the designated maturity credit period.
+                </p>
+            </div>
+            <div>
+                <strong style="color: var(--primary); font-size: 14px;">Payment Plan (EMI)</strong>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                    The management-approved installment amount to be paid in a month by the customer to clear their accumulated backlog in an EMI fashion.
+                </p>
+            </div>
+            <div>
                 <strong style="color: var(--primary); font-size: 14px;">Shortfall Tagging</strong>
                 <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
-                    Clients are dynamically analyzed for shortfall. If current month's collection is less than MRC, they have an MRC Shortfall. If it is less than MRC + Backlog, they have a Backlog Shortfall.
+                    Clients are dynamically analyzed for collection shortfalls against targets:
+                    <br>&bull; <strong>Maturity Shortfall</strong>: Occurs when the current month's collection is less than the Maturity amount.
+                    <br>&bull; <strong>Commitment Shortfall</strong>: Occurs when the current month's collection is less than total Commitment (Maturity + Payment Plan).
+                    <br>&bull; <strong>Backlog Shortfall</strong>: Occurs when current month's collection is less than total opening outstanding (MRC + Backlog).
                 </p>
             </div>
         </div>
@@ -714,10 +735,18 @@
 
         </section>
 
-        {{-- SLIDE 2 --}}
+                {{-- SLIDE 2 --}}
         <section class="dashboard-slide">
 
-            <h3>{{ $currentMonthLabel }}</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+                <h3 style="margin: 0;">{{ $currentMonthLabel }}</h3>
+                @if (!empty($latestSystemUpdateDate))
+                    <div style="font-size: 12px; font-weight: 700; color: #334155; background: #f8fafc; padding: 6px 14px; border-radius: 999px; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);" title="Latest update timestamp from Collection or Summary Audit Logs">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);"></span>
+                        <span>Latest System Update: <strong>{{ $latestSystemUpdateDate }}</strong></span>
+                    </div>
+                @endif
+            </div>
 
             <section class="grid four" aria-label="Collection metrics">
 
@@ -727,6 +756,7 @@
                             'title' => 'Active clients',
                             'value' => '<a href="' . route('clients.index', ['status' => 'Active']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #166534;">' . number_format($activeClientCount) . '</a>',
                             'is_html' => true,
+                            'is_count' => true,
                             'comparison' => $metricComparisons['active_clients'],
                             'positive' => 'green',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -736,7 +766,8 @@
                         [
                             'title' => 'Discont./Barred Clients',
                             'value' => '<div style="display:flex; justify-content:space-between; width:100%;">
-                                            <div>
+
+                                             <div>
                                                 <a href="' . route('clients.index', ['status' => 'Barred']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #991b1b; display:block;">
                                                     <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
                                                         ' . number_format($barredSubCount) . '
@@ -745,8 +776,9 @@
                                                         Barred
                                                     </span>
                                                 </a>
-                                            </div>
-                                            <div>
+                                             </div>
+
+                                             <div>
                                                 <a href="' . route('clients.index', ['status' => 'Discontinued']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #991b1b; display:block;">
                                                     <span style="font-size: clamp(20px, 2.5vw, 26px); font-weight:800;">
                                                         ' . number_format($discontinuedSubCount) . '
@@ -755,18 +787,22 @@
                                                         Discont.
                                                     </span>
                                                 </a>
-                                            </div>
-                                        </div>',
+                                             </div>
+
+                                         </div>',
                             'is_html' => true,
+                            'is_count' => true,
                             'comparison' => $metricComparisons['discontinued_clients'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #fef2f2 !important; border-color: #fecaca !important;',
                             'text_style' => 'color: #991b1b !important;',
                             'muted_style' => 'color: #b91c1c !important;',
                         ],
+
                         [
                             'title' => 'Total Billed MRC',
                             'value' => $formatMil($billedMrcTotal),
+                            'is_monetary' => true,
                             'comparison' => $metricComparisons['mrc'],
                             'positive' => 'green',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -776,6 +812,8 @@
                         [
                             'title' => 'Total collection',
                             'value' => $formatMil($collectionTotal),
+                            'untraced' => $untracedCollectionTotal > 0 ? $formatMil($untracedCollectionTotal) : null,
+                            'is_monetary' => true,
                             'comparison' => $metricComparisons['collection'],
                             'positive' => 'green',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -785,6 +823,7 @@
                         [
                             'title' => 'OS against only MRC',
                             'value' => $formatMil($currentMonthOs),
+                            'is_monetary' => true,
                             'comparison' => $metricComparisons['current_month_os'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -794,6 +833,7 @@
                         [
                             'title' => 'Latest total OS',
                             'value' => $formatMil($latestOutstanding),
+                            'is_monetary' => true,
                             'comparison' => $metricComparisons['os'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -804,6 +844,7 @@
                             'title' => 'High risk clients',
                             'value' => '<a href="' . route('clients.index', ['risk' => 'High Risk']) . '" target="_blank" style="text-decoration:none; color:inherit; border-bottom:1px dashed #166534;">' . number_format($highRiskCount) . '</a>',
                             'is_html' => true,
+                            'is_count' => true,
                             'comparison' => $metricComparisons['risk'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
@@ -831,6 +872,7 @@
                                             </div>
                                         </div>',
                             'is_html' => true,
+                            'is_ratio' => true,
                             'comparison' => $discontinuedComparison,
                             'positive' => 'green',
                             'bg_style' => 'background-color: #fef2f2 !important; border-color: #fecaca !important;',
@@ -852,16 +894,30 @@
                             <strong style="{{ $card['text_style'] ?? '' }}">{{ $card['value'] }}</strong>
                         @endif
 
+                        @if (!empty($card['untraced']))
+                            <div style="font-size: 11px; font-weight: 700; margin-top: 2px; color: #15803d; opacity: 0.9;">
+                                (Untraced: {{ $card['untraced'] }})
+                            </div>
+                        @endif
+
                         @if ($card['comparison'])
 
                             <div class="metric-insights" style="{{ isset($card['bg_style']) ? 'border-top-color: rgba(0,0,0,0.06) !important;' : '' }}">
 
                                 @foreach ([
-                                    'MoM' => $card['comparison']['mom'],
-                                    'QoQ' => $card['comparison']['qoq'],
-                                ] as $label => $change)
+                                    'MoM' => [
+                                        'change' => $card['comparison']['mom'],
+                                        'diff' => $card['comparison']['mom_diff'] ?? null,
+                                    ],
+                                    'QoQ' => [
+                                        'change' => $card['comparison']['qoq'],
+                                        'diff' => $card['comparison']['qoq_diff'] ?? null,
+                                    ],
+                                ] as $label => $compData)
 
                                     @php
+                                        $change = $compData['change'];
+                                        $diff = $compData['diff'];
                                         $hasChange = $change !== null;
                                         $isIncrease = $hasChange && $change >= 0;
 
@@ -873,6 +929,21 @@
                                                         ? ($isIncrease ? 'good' : 'bad')
                                                         : ($isIncrease ? 'bad' : 'good')
                                                 );
+
+                                        $formattedDiff = '';
+                                        if ($diff !== null && $diff != 0) {
+                                            $absDiff = abs($diff);
+                                            $sign = $diff >= 0 ? '+' : '-';
+                                            if (!empty($card['is_monetary'])) {
+                                                $formattedDiff = $sign . $formatMil($absDiff);
+                                            } elseif (!empty($card['is_count'])) {
+                                                $formattedDiff = $sign . number_format($absDiff);
+                                            } elseif (!empty($card['is_ratio'])) {
+                                                $formattedDiff = $sign . number_format($absDiff, 1) . '%';
+                                            } else {
+                                                $formattedDiff = $sign . ($absDiff >= 1000 ? $formatMil($absDiff) : number_format($absDiff));
+                                            }
+                                        }
                                     @endphp
 
                                     <div class="metric-change {{ $class }}" style="{{ $label === 'QoQ' ? 'align-items: flex-end; text-align: right;' : '' }}">
@@ -880,6 +951,9 @@
                                             @if ($hasChange)
                                                 {{ number_format(abs($change), 2) }}%
                                                 {{ $isIncrease ? '↑' : '↓' }}
+                                                @if ($formattedDiff !== '')
+                                                    <span style="font-weight: 600; font-size: 0.85em; opacity: 0.88; margin-left: 2px;">({{ $formattedDiff }})</span>
+                                                @endif
                                             @else
                                                 N/A
                                             @endif
@@ -920,7 +994,7 @@
                 $renderProgressBar = function($percent, $color = null, $isPositive = true) {
                     $val = max(0, min(100, (float) $percent));
                     if ($color === null || $color === '' || $color === '#ffffff') {
-                        $hue = $isPositive ? (100 - $val) * 1.2 : $val * 1.2;
+                        $hue = $isPositive ? ($val * 1.2) : ((100 - $val) * 1.2);
                         $color = "hsl(" . round($hue) . ", 85%, 45%)";
                     }
                     return '
@@ -1036,6 +1110,7 @@
                                     $bgStyle = '';
                                     $textStyle = '';
                                     $barColor = '#3b82f6';
+                                    $isLowRiskCategory = in_array($row['category'], ['Best', 'Good', 'Moderate']);
                                     if ($row['category'] === 'Best') {
                                         $bgStyle = 'background-color: #e0fef1 !important;';
                                         $barColor = '#10b981';
@@ -1065,12 +1140,12 @@
                                     <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['mrc_sum']) }}</td>
                                     <td class="amount" style="{{ $textStyle }}">
                                         {{ number_format($row['mrc_percentage'], 0) }}%
-                                        {!! $renderProgressBar($row['mrc_percentage'], null, true) !!}
+                                        {!! $renderProgressBar($row['mrc_percentage'], null, $isLowRiskCategory) !!}
                                     </td>
                                     <td class="amount" style="{{ $textStyle }}">{{ $formatMil($row['backlog_sum']) }}</td>
                                     <td class="amount" style="{{ $textStyle }}">
                                         {{ number_format($row['backlog_percentage'], 0) }}%
-                                        {!! $renderProgressBar($row['backlog_percentage'], null, true) !!}
+                                        {!! $renderProgressBar($row['backlog_percentage'], null, $isLowRiskCategory) !!}
                                     </td>
                                 </tr>
                             @endforeach
@@ -1173,7 +1248,7 @@
                     <!-- Best, Good, Moderate Card -->
                     <article class="panel" style="margin-bottom: 24px;">
                         <div class="panel-header">
-                            <h2>Best, Good & Moderate Client's MRC & Backlog Breakdown</h2>
+                            <h2>Best, Good & Moderate Client's {{ $nextMonthLabel }} MRC & Backlog Breakdown</h2>
                             <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                         </div>
                         <table class="segment-table risk-segment-table">
@@ -1198,12 +1273,12 @@
                                     <td class="amount">{{ $formatMil($bgmIsp['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIspMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIspMrcPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmIspMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmIsp['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIspBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIspBacklogPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmIspBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                                 <tr>
@@ -1214,28 +1289,28 @@
                                     <td class="amount">{{ $formatMil($bgmIig['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIigMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIigMrcPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmIigMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmIig['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmIigBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmIigBacklogPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmIigBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                                 <tr style="font-weight: 800; background-color: #e6f4ea !important;">
                                     <td><strong>Sub Total:</strong></td>
                                     <td class="amount">{{ number_format($bgmTotalClients) }}</td>
-                                    <td class="amount">0.00 &le; 2.50</td>
+                                    <td class="amount" style="background-color: #e0f2fe !important; font-weight: bold; color: #1e3a8a !important;">0.00 &le; 2.50</td>
                                     <td class="amount">{{ $formatMil($bgmTotalOpeningOs) }}</td>
                                     <td class="amount">{{ $formatMil($bgmTotalMrc) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmTotalMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmTotalMrcPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmTotalMrcPercent, null, true) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($bgmTotalBacklog) }}</td>
                                     <td class="amount">
                                         {{ number_format($bgmTotalBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($bgmTotalBacklogPercent, null, false) !!}
+                                        {!! $renderProgressBar($bgmTotalBacklogPercent, null, true) !!}
                                     </td>
                                 </tr>
                             </tbody>
@@ -1245,7 +1320,7 @@
                     <!-- Risky, High Risky, Most Risky Card -->
                     <article class="panel" style="margin-bottom: 24px;">
                         <div class="panel-header">
-                            <h2>Risky, High Risky & Most Risky Client's MRC & Backlog Breakdown</h2>
+                            <h2>Risky, High Risky & Most Risky Client's {{ $nextMonthLabel }} MRC & Backlog Breakdown</h2>
                             <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                         </div>
                         <table class="segment-table risk-segment-table">
@@ -1270,12 +1345,12 @@
                                     <td class="amount">{{ $formatMil($rhmIsp['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIspMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIspMrcPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmIspMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmIsp['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIspBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIspBacklogPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmIspBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                                 <tr>
@@ -1286,28 +1361,28 @@
                                     <td class="amount">{{ $formatMil($rhmIig['mrc']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIigMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIigMrcPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmIigMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmIig['backlog']) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmIigBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmIigBacklogPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmIigBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                                 <tr style="font-weight: 800; background-color: #fdf2f2 !important;">
                                     <td><strong>Sub Total:</strong></td>
                                     <td class="amount">{{ number_format($rhmTotalClients) }}</td>
-                                    <td class="amount">&ge; 2.51</td>
+                                    <td class="amount" style="background-color: #ffedd5 !important; font-weight: bold; color: #7c2d12 !important;">2.51 &le; 3.50</td>
                                     <td class="amount">{{ $formatMil($rhmTotalOpeningOs) }}</td>
                                     <td class="amount">{{ $formatMil($rhmTotalMrc) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmTotalMrcPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmTotalMrcPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmTotalMrcPercent, null, false) !!}
                                     </td>
                                     <td class="amount">{{ $formatMil($rhmTotalBacklog) }}</td>
                                     <td class="amount">
                                         {{ number_format($rhmTotalBacklogPercent, 0) }}%
-                                        {!! $renderProgressBar($rhmTotalBacklogPercent, null, true) !!}
+                                        {!! $renderProgressBar($rhmTotalBacklogPercent, null, false) !!}
                                     </td>
                                 </tr>
                             </tbody>
@@ -1997,7 +2072,7 @@
                 <article class="panel" style="margin-bottom: 24px;">
 
                     <div class="panel-header">
-                        <h2>Discontinued Clients - Month-on-Month Summary</h2>
+                        <h2>Discontinued/Barred Clients - Month-on-Month Summary</h2>
                     </div>
 
                     <table class="segment-table">
@@ -2061,7 +2136,7 @@
                 <article class="panel">
 
                     <div class="panel-header">
-                        <h2>Discontinued Clients - Service Category Breakdown</h2>
+                        <h2>Discontinued/Barred Clients - Service Category Breakdown</h2>
                         <span>{{ $currentMonthLabel }} · Latest monthly summary</span>
                     </div>
                     <table class="segment-table">
@@ -2600,7 +2675,7 @@
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">MRC Shortfall</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Backlog Shortfall</th>
-                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Shortfall from Target</th>
+                                    <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Shortfall from Commitment</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month CR</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Current Month Rating</th>
                                     <th style="position: sticky; top: 0; background: #f8fafc; z-index: 11; border-bottom: 2px solid var(--line);">Management Guidance</th>
@@ -2648,7 +2723,7 @@
                                    (item.mrc && (item.mrc / 1000000).toFixed(2).includes(query)) ||
                                    (item.mrc_shortfall && (item.mrc_shortfall / 1000000).toFixed(2).includes(query)) ||
                                    (item.backlog_shortfall && (item.backlog_shortfall / 1000000).toFixed(2).includes(query)) ||
-                                   (item.shortfall_from_target && (item.shortfall_from_target / 1000000).toFixed(2).includes(query));
+                                   (item.shortfall_from_commitment && (item.shortfall_from_commitment / 1000000).toFixed(2).includes(query));
                         });
 
                         // 2. Paginate
@@ -2704,7 +2779,7 @@
                                 <td class="amount">${formatM(item.mrc)}</td>
                                 <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.mrc_shortfall)}</td>
                                 <td class="amount" style="color: #ea580c; font-weight: 800;">${formatM(item.backlog_shortfall)}</td>
-                                <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.shortfall_from_target || 0)}</td>
+                                <td class="amount" style="color: #ef4444; font-weight: 800;">${formatM(item.shortfall_from_commitment || 0)}</td>
                                 <td>${(item.cr || 0).toFixed(2)}</td>
                                 <td>${ratingHtml}</td>
                                 <td>

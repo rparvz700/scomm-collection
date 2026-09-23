@@ -274,6 +274,14 @@
             <div style="font-size: 11px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px;">High Risk</div>
             <div id="sumHighRiskCount" style="font-size: 22px; font-weight: 800; color: #9a3412; margin-top: 4px;">0</div>
         </div>
+        <div class="summary-card" id="cardDeclining" style="flex: 1; min-width: 140px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+            <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Declining</div>
+            <div id="sumDecliningCount" style="font-size: 22px; font-weight: 800; color: #be123c; margin-top: 4px;">{{ $decliningCount ?? 0 }}</div>
+        </div>
+        <div class="summary-card" id="cardImproving" style="flex: 1; min-width: 140px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+            <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Improving</div>
+            <div id="sumImprovingCount" style="font-size: 22px; font-weight: 800; color: #047857; margin-top: 4px;">{{ $improvingCount ?? 0 }}</div>
+        </div>
     </section>
 
     <section class="filter-bar">
@@ -311,6 +319,15 @@
                     @foreach($riskCategories as $cat)
                         <option value="{{ $cat }}">{{ $cat }}</option>
                     @endforeach
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Trend:</span>
+                <select id="growthTrendFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Trends</option>
+                    <option value="improving">Improving</option>
+                    <option value="declining">Declining</option>
+                    <option value="stable">Stable</option>
                 </select>
             </div>
         </div>
@@ -493,6 +510,7 @@
             const canUpdateClients = @json(auth()->user()->can('update clients'));
             const editRouteTemplate = "{{ route('clients.edit', ':id') }}";
             const drilldownBaseUrl = "{{ route('dashboard.clients.index') }}";
+            const discontinuedDrilldownBaseUrl = "{{ route('dashboard.discontinued-clients.index') }}";
             
             let filteredClients = [...clients];
             let currentPage = 1;
@@ -505,6 +523,57 @@
             const clientTableBody = document.getElementById('clientTableBody');
             const tableInfo = document.getElementById('tableInfo');
             const paginationContainer = document.getElementById('paginationContainer');
+
+            function getClientTrendStatus(client) {
+                if (typeof client.growth_trend === 'string') {
+                    return client.growth_trend;
+                }
+                if (client.growth_trend && typeof client.growth_trend === 'object' && client.growth_trend.trend_status) {
+                    return client.growth_trend.trend_status;
+                }
+                if (client.growth_trend_status && typeof client.growth_trend_status === 'string') {
+                    return client.growth_trend_status;
+                }
+                return 'stable';
+            }
+
+            function getGrowthTrendBadge(client) {
+                const trend = getClientTrendStatus(client).toLowerCase();
+                let mrcPct = 0;
+                if (client.mrc_change_pct !== undefined && client.mrc_change_pct !== null) {
+                    mrcPct = parseFloat(client.mrc_change_pct);
+                } else if (client.growth_trend && typeof client.growth_trend === 'object' && client.growth_trend.mrc_change_pct !== undefined) {
+                    mrcPct = parseFloat(client.growth_trend.mrc_change_pct);
+                }
+
+                let crVal = 0;
+                if (client.cr_change_val !== undefined && client.cr_change_val !== null) {
+                    crVal = parseFloat(client.cr_change_val);
+                } else if (client.growth_trend && typeof client.growth_trend === 'object' && client.growth_trend.cr_change_val !== undefined) {
+                    crVal = parseFloat(client.growth_trend.cr_change_val);
+                }
+
+                const mrcSign = mrcPct > 0 ? '+' : '';
+                const mrcStr = `${mrcSign}${mrcPct.toFixed(1)}%`;
+                const crSign = crVal > 0 ? '+' : '';
+                const crStr = `${crSign}${crVal.toFixed(2)}`;
+
+                const titleText = `12M MRC Change: ${mrcStr}, CR Change: ${crStr}`;
+
+                if (trend === 'improving') {
+                    return `<span class="status-badge" style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; white-space: nowrap;" title="${titleText}">
+                        ↑ Improving (${mrcStr})
+                    </span>`;
+                } else if (trend === 'declining') {
+                    return `<span class="status-badge" style="background: #ffe4e6; color: #be123c; font-size: 11px; font-weight: 700; white-space: nowrap;" title="${titleText}">
+                        ↓ Declining (${mrcStr})
+                    </span>`;
+                } else {
+                    return `<span class="status-badge" style="background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 700; white-space: nowrap;" title="${titleText}">
+                        — Stable (${mrcStr})
+                    </span>`;
+                }
+            }
 
             let lastRenderedStatus = null;
 
@@ -525,6 +594,7 @@
                             <th class="sortable ${sortField === 'barred_at' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="barred_at">Barring Aging</th>
                             <th class="sortable ${sortField === 'collection_kam' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="collection_kam">Collection KAM</th>
                             <th class="sortable ${sortField === 'current_month_cr' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="current_month_cr">Current Month CR</th>
+                            <th class="sortable ${sortField === 'growth_trend' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="growth_trend">Growth Trend</th>
                             <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
                             <th style="width: 150px;">Actions</th>
                         </tr>
@@ -539,6 +609,7 @@
                             <th class="sortable ${sortField === 'service_discontinuation_date' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="service_discontinuation_date">Discontinued Date</th>
                             <th class="sortable ${sortField === 'btrc_license_discontinuation_date' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="btrc_license_discontinuation_date">BTRC License Discont.</th>
                             <th class="sortable ${sortField === 'btrc_letter' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="btrc_letter">BTRC Letter</th>
+                            <th class="sortable ${sortField === 'growth_trend' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="growth_trend">Growth Trend</th>
                             <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
                             <th style="width: 150px;">Actions</th>
                         </tr>
@@ -553,6 +624,7 @@
                             <th class="sortable ${sortField === 'team_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="team_name">Team Name</th>
                             <th class="sortable ${sortField === 'collection_kam' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="collection_kam">Collection KAM</th>
                             <th class="sortable ${sortField === 'current_month_cr' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="current_month_cr">Current Month CR</th>
+                            <th class="sortable ${sortField === 'growth_trend' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="growth_trend">Growth Trend</th>
                             <th class="sortable ${sortField === 'risk_segment' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="risk_segment">Risk Segment</th>
                             <th style="width: 150px;">Actions</th>
                         </tr>
@@ -589,27 +661,31 @@
                 const query = searchInput.value.toLowerCase().trim();
                 const selectedStatus = document.getElementById('statusFilter').value;
                 const selectedRisk = document.getElementById('riskFilter').value;
+                const selectedTrend = document.getElementById('growthTrendFilter').value;
 
                 updateTableHeader(selectedStatus);
 
                 filteredClients = clients.filter(client => {
+                    const clientTrend = getClientTrendStatus(client);
+
                     // Check search query
                     if (query) {
                         const matchesSearch = 
-                               (client.client_name && client.client_name.toLowerCase().includes(query)) ||
-                               (client.opus_id && client.opus_id.toLowerCase().includes(query)) ||
-                               (client.client_status && client.client_status.toLowerCase().includes(query)) ||
-                               (client.license_billing && client.license_billing.toLowerCase().includes(query)) ||
-                               (client.team_name && client.team_name.toLowerCase().includes(query)) ||
-                               (client.collection_kam && client.collection_kam.toLowerCase().includes(query)) ||
-                               (client.current_month_cr && client.current_month_cr.toLowerCase().includes(query)) ||
-                               (client.risk_segment && client.risk_segment.toLowerCase().includes(query));
+                               (client.client_name && String(client.client_name).toLowerCase().includes(query)) ||
+                               (client.opus_id && String(client.opus_id).toLowerCase().includes(query)) ||
+                               (client.client_status && String(client.client_status).toLowerCase().includes(query)) ||
+                               (client.license_billing && String(client.license_billing).toLowerCase().includes(query)) ||
+                               (client.team_name && String(client.team_name).toLowerCase().includes(query)) ||
+                               (client.collection_kam && String(client.collection_kam).toLowerCase().includes(query)) ||
+                               (client.current_month_cr && String(client.current_month_cr).toLowerCase().includes(query)) ||
+                               (clientTrend && clientTrend.toLowerCase().includes(query)) ||
+                               (client.risk_segment && String(client.risk_segment).toLowerCase().includes(query));
                         if (!matchesSearch) return false;
                     }
 
                     // Check status
                     if (selectedStatus && selectedStatus !== 'All') {
-                        const statusMatch = client.client_status && client.client_status.toLowerCase() === selectedStatus.toLowerCase();
+                        const statusMatch = client.client_status && String(client.client_status).toLowerCase() === selectedStatus.toLowerCase();
                         if (!statusMatch) return false;
                     }
 
@@ -619,9 +695,15 @@
                             const riskMatch = client.risk_segment && ['Risky', 'High Risky', 'Most Risky'].includes(client.risk_segment);
                             if (!riskMatch) return false;
                         } else {
-                            const riskMatch = client.risk_segment && client.risk_segment.toLowerCase() === selectedRisk.toLowerCase();
+                            const riskMatch = client.risk_segment && String(client.risk_segment).toLowerCase() === selectedRisk.toLowerCase();
                             if (!riskMatch) return false;
                         }
+                    }
+
+                    // Check growth trend
+                    if (selectedTrend && selectedTrend !== 'All') {
+                        const trendMatch = clientTrend && clientTrend.toLowerCase() === selectedTrend.toLowerCase();
+                        if (!trendMatch) return false;
                     }
 
                     return true;
@@ -632,6 +714,8 @@
                 let discontinuedCount = 0;
                 let barredCount = 0;
                 let highRiskCount = 0;
+                let decliningCount = 0;
+                let improvingCount = 0;
 
                 filteredClients.forEach(client => {
                     const status = (client.client_status || '').toLowerCase();
@@ -642,6 +726,10 @@
                     if (client.risk_segment && ['Risky', 'High Risky', 'Most Risky'].includes(client.risk_segment)) {
                         highRiskCount++;
                     }
+
+                    const trend = getClientTrendStatus(client).toLowerCase();
+                    if (trend === 'declining') decliningCount++;
+                    else if (trend === 'improving') improvingCount++;
                 });
 
                 document.getElementById('sumTotalCount').textContent = filteredClients.length;
@@ -649,8 +737,10 @@
                 document.getElementById('sumDiscontinuedCount').textContent = discontinuedCount;
                 document.getElementById('sumBarredCount').textContent = barredCount;
                 document.getElementById('sumHighRiskCount').textContent = highRiskCount;
+                document.getElementById('sumDecliningCount').textContent = decliningCount;
+                document.getElementById('sumImprovingCount').textContent = improvingCount;
 
-                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedRisk && selectedRisk !== 'All')) {
+                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedRisk && selectedRisk !== 'All') || (selectedTrend && selectedTrend !== 'All')) {
                     clearBtn.style.display = 'inline-block';
                 } else {
                     clearBtn.style.display = 'none';
@@ -709,7 +799,7 @@
                 if (totalEntries === 0) {
                     clientTableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" style="text-align: center; color: var(--muted); padding: 30px;">
+                            <td colspan="10" style="text-align: center; color: var(--muted); padding: 30px;">
                                 No clients match your search criteria.
                             </td>
                         </tr>
@@ -760,11 +850,17 @@
 
                     // Build drilldown URL
                     let drilldownLink = '';
+                    const statusLowerVal = String(client.client_status || '').toLowerCase();
+                    const isDiscOrBarred = statusLowerVal.includes('discontinued') || statusLowerVal.includes('barred');
+                    const targetBaseUrl = isDiscOrBarred ? discontinuedDrilldownBaseUrl : drilldownBaseUrl;
+
                     if (client.summary_month) {
-                        drilldownLink = `${drilldownBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&range=${encodeURIComponent(client.cr_range)}&month=${encodeURIComponent(client.summary_month)}&client_id=${client.client_id}`;
+                        drilldownLink = `${targetBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&range=${encodeURIComponent(client.cr_range)}&month=${encodeURIComponent(client.summary_month)}&client_id=${client.client_id}`;
                     } else {
-                        drilldownLink = `${drilldownBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&client_id=${client.client_id}`;
+                        drilldownLink = `${targetBaseUrl}?segment=${encodeURIComponent(client.segment_name)}&client_id=${client.client_id}`;
                     }
+
+                    const trendBadge = getGrowthTrendBadge(client);
 
                     if (selectedStatus === 'Barred') {
                         const barPercent = client.barring_percentage !== null && client.barring_percentage !== undefined ? parseFloat(client.barring_percentage).toFixed(2) + '%' : '0.00%';
@@ -789,7 +885,11 @@
                         }
 
                         tr.innerHTML = `
-                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td style="font-weight: 700;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.client_name || 'N/A'}
+                                </a>
+                            </td>
                             <td>${client.opus_id || 'N/A'}</td>
                             <td>
                                 <span class="status-badge ${statusClass}">
@@ -804,11 +904,8 @@
                             </td>
                             <td>${client.collection_kam || 'N/A'}</td>
                             <td>${client.current_month_cr || 'N/A'}</td>
-                            <td>
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
-                                    ${client.risk_segment || 'N/A'}
-                                </a>
-                            </td>
+                            <td>${trendBadge}</td>
+                            <td>${client.risk_segment || 'N/A'}</td>
                             <td>${actionsHtml}</td>
                         `;
                     } else if (selectedStatus === 'Discontinued') {
@@ -830,7 +927,11 @@
                         const btrcLetterText = client.btrc_letter || 'N/A';
 
                         tr.innerHTML = `
-                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td style="font-weight: 700;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.client_name || 'N/A'}
+                                </a>
+                            </td>
                             <td>${client.opus_id || 'N/A'}</td>
                             <td>
                                 <span class="status-badge ${statusClass}">
@@ -841,16 +942,17 @@
                             <td style="font-weight: 700; color: #b91c1c;">${discontDate}</td>
                             <td>${btrcLicenseDate}</td>
                             <td>${btrcLetterText}</td>
-                            <td>
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
-                                    ${client.risk_segment || 'N/A'}
-                                </a>
-                            </td>
+                            <td>${trendBadge}</td>
+                            <td>${client.risk_segment || 'N/A'}</td>
                             <td>${actionsHtml}</td>
                         `;
                     } else {
                         tr.innerHTML = `
-                            <td style="font-weight: 700;">${client.client_name || 'N/A'}</td>
+                            <td style="font-weight: 700;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.client_name || 'N/A'}
+                                </a>
+                            </td>
                             <td>${client.opus_id || 'N/A'}</td>
                             <td>
                                 <span class="status-badge ${statusClass}">
@@ -861,11 +963,8 @@
                             <td>${client.team_name || 'N/A'}</td>
                             <td>${client.collection_kam || 'N/A'}</td>
                             <td>${client.current_month_cr || 'N/A'}</td>
-                            <td>
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
-                                    ${client.risk_segment || 'N/A'}
-                                </a>
-                            </td>
+                            <td>${trendBadge}</td>
+                            <td>${client.risk_segment || 'N/A'}</td>
                             <td>${actionsHtml}</td>
                         `;
                     }
@@ -1055,6 +1154,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const statusParam = urlParams.get('status');
             const riskParam = urlParams.get('risk');
+            const trendParam = urlParams.get('trend');
 
             if (statusParam) {
                 document.getElementById('statusFilter').value = statusParam;
@@ -1062,9 +1162,25 @@
             if (riskParam) {
                 document.getElementById('riskFilter').value = riskParam;
             }
+            if (trendParam) {
+                document.getElementById('growthTrendFilter').value = trendParam;
+            }
 
             // Bind change events
-            $('#statusFilter, #riskFilter').on('change', () => {
+            $('#statusFilter, #riskFilter, #growthTrendFilter').on('change', () => {
+                currentPage = 1;
+                render();
+            });
+
+            // Card click events
+            $('#cardDeclining').on('click', () => {
+                document.getElementById('growthTrendFilter').value = 'declining';
+                currentPage = 1;
+                render();
+            });
+
+            $('#cardImproving').on('click', () => {
+                document.getElementById('growthTrendFilter').value = 'improving';
                 currentPage = 1;
                 render();
             });
@@ -1080,6 +1196,7 @@
                 searchInput.value = '';
                 document.getElementById('statusFilter').value = 'All';
                 document.getElementById('riskFilter').value = 'All';
+                document.getElementById('growthTrendFilter').value = 'All';
                 currentPage = 1;
                 render();
             });

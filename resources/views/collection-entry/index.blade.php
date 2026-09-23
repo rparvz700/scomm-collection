@@ -212,6 +212,7 @@
                     <label for="client_id">Client</label>
                     <select id="client_id" name="client_id" required>
                         <option value="">Select client</option>
+                        <option value="untraced" @selected(old('client_id') === 'untraced')>Untraced Collection</option>
                         @foreach ($clients as $client)
                             <option value="{{ $client->client_id }}" @selected(old('client_id') == $client->client_id)>
                                 {{ $client->client_name }} - {{ $client->opus_id }}
@@ -326,7 +327,7 @@
                         <tbody>
                             @foreach ($collections as $collection)
                                 <tr>
-                                    <td>{{ $collection->client->client_name ?? 'Unknown client' }}</td>
+                                    <td>{{ $collection->client->client_name ?? 'Untraced Collection' }}</td>
                                     <td><span class="pill">{{ str_replace('_', ' ', $collection->collection_type) }}</span></td>
                                     <td class="amount">{{ number_format((float) $collection->collection_amount, 2) }}</td>
                                     <td>{{ optional($collection->collection_datetime)->format('d M Y') }}</td>
@@ -386,7 +387,7 @@
 
                 console.log('updateMetrics triggered. Client ID:', clientId, 'Month:', month);
 
-                if (!clientId || !month) {
+                if (!clientId || clientId === 'untraced' || !month) {
                     $('#metrics_visualizer').hide();
                     currentMetrics = { total_latest_os: 0, total_mrc: 0 };
                     return;
@@ -484,8 +485,10 @@
                 const container = $('#recent_entries_container');
                 const subtitle = $('#recent_entries_subtitle');
 
-                if (clientId) {
+                if (clientId && clientId !== 'untraced') {
                     subtitle.text('Selected Client');
+                } else if (clientId === 'untraced') {
+                    subtitle.text('Untraced Collections');
                 } else {
                     subtitle.text('Latest 15');
                 }
