@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('agreement_status', 100)->nullable()
                 ->comment('Agreement status of the client');
 
-            $table->enum('barring_priority', ['P1', 'P2'])->nullable()
+            $table->enum('barring_priority', ['P1', 'P2', 'None'])->nullable()
                 ->comment('Default operational barring priority');
 
             $table->date('btrc_license_discontinuation_date')->nullable()

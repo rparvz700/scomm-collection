@@ -135,7 +135,12 @@ class MonthRolloverController extends Controller
             $latestOsBalancePrepaid = $totalOpeningOsPrepaid;
             $totalLatestOs = $totalOpeningOs;
 
-            $openingCr = $totalMrc > 0 ? round($totalOpeningOs / $totalMrc, 2) : 0.00;
+            // Calculate total_maturity and Maturity CR based on client's deferred_period
+            $deferredMetrics = MonthlySummary::getDeferredMetrics($client, $targetMonthDate, $totalLatestOs, $totalMrc);
+            $deferredOsAmount = $deferredMetrics['deferred_os'];
+            $totalMaturity = $deferredMetrics['maturity_mrc'];
+
+            $openingCr = $totalMaturity > 0 ? round($deferredOsAmount / $totalMaturity, 2) : 0.00;
             $openingRating = Collection::getRatingCategory($openingCr);
             $latestCr = $openingCr;
             $latestRating = $openingRating;
@@ -149,7 +154,7 @@ class MonthRolloverController extends Controller
                 'total_mrc' => $totalMrc,
                 'total_mrc_postpaid' => $totalMrcPostpaid,
                 'total_mrc_prepaid' => $totalMrcPrepaid,
-                'total_maturity' => $totalMrc,
+                'total_maturity' => $totalMaturity,
                 'net_backlog_postpaid' => $netBacklogPostpaid,
                 'net_backlog_prepaid' => $netBacklogPrepaid,
                 'net_backlog_total' => $netBacklogTotal,
@@ -160,7 +165,7 @@ class MonthRolloverController extends Controller
                 'collection_backlog' => 0.00,
                 'mrc_shortfall' => $totalMrc,
                 'backlog_shortfall' => $netBacklogTotal,
-                'total_shortfall_maturity' => $totalMrc,
+                'total_shortfall_maturity' => $totalMaturity,
                 'latest_os_balance_postpaid' => $latestOsBalancePostpaid,
                 'latest_os_balance_prepaid' => $latestOsBalancePrepaid,
                 'total_latest_os' => $totalLatestOs,

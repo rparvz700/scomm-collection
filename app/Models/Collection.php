@@ -20,6 +20,18 @@ class Collection extends Model
         'collection_type',
         'collection_amount',
         'remarks',
+        'payment_mode',
+        'client_bank',
+        'deposit_bank',
+        'cheque_no',
+        'cheque_date',
+        'cheque_expiry_date',
+        'cheque_placement_date',
+        'trace_no',
+        'cheque_status',
+        'dishonored_date',
+        'dishonor_count',
+        'dishonor_slip',
         'created_by',
     ];
 
@@ -29,6 +41,11 @@ class Collection extends Model
             'collection_datetime' => 'datetime',
             'collection_month' => 'date',
             'collection_amount' => 'decimal:2',
+            'cheque_date' => 'date',
+            'cheque_expiry_date' => 'date',
+            'cheque_placement_date' => 'date',
+            'dishonored_date' => 'date',
+            'dishonor_count' => 'integer',
         ];
     }
 
@@ -95,15 +112,19 @@ class Collection extends Model
             $mrcShortfall = max(0.00, $totalMrc - $collectionMrc);
             $backlogShortfall = max(0.00, $netBacklogTotal - $collectionBacklog);
 
-            // Recalculate OS
+            // Recalculate OS (Actual OS preserved)
             $totalLatestOs = max(0.00, (float)$summary->total_opening_os + (float)$summary->total_maturity - $totalCollection);
 
-            // Recalculate CR & Rating Category
-            $latestCr = $totalMrc > 0 ? ($totalLatestOs / $totalMrc) : 0.00;
+            // Fetch current client and deferred metrics for Maturity CR
+            $client = \App\Models\Client::find($clientId);
+            $deferredMetrics = \App\Models\MonthlySummary::getDeferredMetrics($client ?: $clientId, $summaryMonth->toDateString(), $totalLatestOs, $totalMrc, $totalCollection);
+            $deferredOs = $deferredMetrics['deferred_closing_os'];
+            $maturityMrc = $deferredMetrics['maturity_mrc'];
+
+            // Recalculate CR & Rating Category using Maturity CR
+            $latestCr = $maturityMrc > 0 ? round($deferredOs / $maturityMrc, 2) : 0.00;
             $latestRatingCategory = self::getRatingCategory($latestCr);
 
-            // Fetch current client status/barring details to snapshot
-            $client = \App\Models\Client::find($clientId);
             $barringPct = $client ? (float) $client->barring_percentage : 0.00;
 
             $summary->update([
@@ -112,7 +133,7 @@ class Collection extends Model
                 'collection_backlog' => $collectionBacklog,
                 'mrc_shortfall' => $mrcShortfall,
                 'backlog_shortfall' => $backlogShortfall,
-                'total_shortfall_maturity' => $mrcShortfall,
+                'total_shortfall_maturity' => max(0.00, (float) $summary->total_maturity - $collectionMrc),
                 'total_latest_os' => $totalLatestOs,
                 'latest_cr' => $latestCr,
                 'latest_rating_category' => $latestRatingCategory,

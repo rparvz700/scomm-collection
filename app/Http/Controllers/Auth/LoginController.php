@@ -40,24 +40,39 @@ class LoginController extends Controller
                 'user_agent' => $request->header('User-Agent'),
             ]);
 
-            // Role landing page check
+            // Role landing page or fallback check
             $role = $user->roles()->first();
-            if ($role && $role->landing_page) {
-                if (\Route::has($role->landing_page)) {
-                    return redirect()->intended(route($role->landing_page));
+            $targetUrl = route('dashboard');
+
+            if ($role && $role->landing_page && \Route::has($role->landing_page)) {
+                $targetUrl = route($role->landing_page);
+            } elseif ($user->can('view dashboard')) {
+                $targetUrl = route('dashboard');
+            } elseif ($user->can('view collections')) {
+                $targetUrl = route('collection-entry.index');
+            } elseif ($user->can('view monthly summaries')) {
+                $targetUrl = route('monthly-summary.index');
+            } else {
+                $targetUrl = route('settings.index');
+            }
+
+            // Sanitize session url.intended so background AJAX/JSON/avatar calls don't hijack login landing page
+            $intendedUrl = session('url.intended');
+            if ($intendedUrl) {
+                $path = parse_url($intendedUrl, PHP_URL_PATH) ?? '';
+                if (
+                    str_contains($path, 'employee-avatar-json') ||
+                    str_contains($path, 'api/') ||
+                    str_contains($path, '.json') ||
+                    str_contains($path, 'drilldown') ||
+                    str_contains($path, 'preview') ||
+                    str_contains($path, 'export')
+                ) {
+                    session()->forget('url.intended');
                 }
             }
 
-            // Fallback checks depending on permissions
-            if ($user->can('view dashboard')) {
-                return redirect()->intended(route('dashboard'));
-            } elseif ($user->can('view collections')) {
-                return redirect()->intended(route('collection-entry.index'));
-            } elseif ($user->can('view monthly summaries')) {
-                return redirect()->intended(route('monthly-summary.index'));
-            } else {
-                return redirect()->intended(route('settings.index'));
-            }
+            return redirect()->intended($targetUrl);
         }
 
         SystemAccessLog::create([

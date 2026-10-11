@@ -50,11 +50,16 @@
 
     .panel {
         overflow-x: auto;
+        overflow-y: auto;
+        max-height: calc(100vh - 210px);
+        min-height: 400px;
+        position: relative;
     }
 
     table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         min-width: 1200px;
     }
 
@@ -70,6 +75,11 @@
         font-size: 12px;
         text-transform: uppercase;
         color: var(--muted);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f8fafc;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
     }
 
     .amount {
@@ -493,18 +503,21 @@
                                     'agreement_status' => $actualClient->agreement_status,
                                     'barring_priority' => $actualClient->barring_priority,
                                     'btrc_license_discontinuation_date' => $actualClient->btrc_license_discontinuation_date?->format('Y-m-d'),
-                                    'legal' => $actualClient->legal ? 'Yes' : 'No',
+                                    'legal' => $actualClient->legal ?: 'N/A',
                                     'billing_modality_kpi' => $actualClient->billing_modality_kpi,
                                     'service_type_billing' => $actualClient->service_type_billing,
                                     'license_billing' => $actualClient->license_billing,
                                     'btrc_letter' => $actualClient->btrc_letter,
-                                    'security_coverage' => $actualClient->security_coverage,
+                                    'security_coverage' => $actualClient->formatted_security_coverage ?: 'N/A',
                                     'payment_plan' => $actualClient->payment_plan,
+                                    'deferred_period' => ((int) ($actualClient->deferred_period ?? 0)) . ' Days',
                                     'other_upstream' => $actualClient->other_upstream ? 'Yes' : 'No',
-                                    'sm_kam' => $actualClient->sm_kam,
-                                    'team_name' => $actualClient->team_name,
+                                    'collection_team_name' => $actualClient->collection_team_name,
                                     'collection_kam' => $actualClient->collection_kam,
                                     'collection_supervisor' => $actualClient->collection_supervisor,
+                                    'team_name' => $actualClient->team_name,
+                                    'sm_supervisor' => $actualClient->sm_supervisor,
+                                    'sm_kam' => $actualClient->sm_kam,
                                     'nttn_billing_kam' => $actualClient->nttn_billing_kam,
                                     'iig_itc_billing_kam' => $actualClient->iig_itc_billing_kam,
                                     'nttn_billing_commencement_date' => $actualClient->nttn_billing_commencement_date?->format('Y-m-d'),
@@ -537,11 +550,14 @@
                                     'btrc_letter' => $previousClientStates[$c->client_id]['btrc_letter'] ?? 'N/A',
                                     'security_coverage' => $previousClientStates[$c->client_id]['security_coverage'] ?? 'N/A',
                                     'payment_plan' => $previousClientStates[$c->client_id]['payment_plan'] ?? 'N/A',
+                                    'deferred_period' => isset($previousClientStates[$c->client_id]['deferred_period']) ? ((int) $previousClientStates[$c->client_id]['deferred_period']) . ' Days' : '0 Days',
                                     'other_upstream' => $previousClientStates[$c->client_id]['other_upstream'] ?? 'No',
-                                    'sm_kam' => $previousClientStates[$c->client_id]['sm_kam'] ?? 'N/A',
-                                    'team_name' => $previousClientStates[$c->client_id]['team_name'] ?? 'N/A',
+                                    'collection_team_name' => $previousClientStates[$c->client_id]['collection_team_name'] ?? 'N/A',
                                     'collection_kam' => $previousClientStates[$c->client_id]['collection_kam'] ?? 'N/A',
                                     'collection_supervisor' => $previousClientStates[$c->client_id]['collection_supervisor'] ?? 'N/A',
+                                    'team_name' => $previousClientStates[$c->client_id]['team_name'] ?? 'N/A',
+                                    'sm_supervisor' => $previousClientStates[$c->client_id]['sm_supervisor'] ?? 'N/A',
+                                    'sm_kam' => $previousClientStates[$c->client_id]['sm_kam'] ?? 'N/A',
                                     'nttn_billing_kam' => $previousClientStates[$c->client_id]['nttn_billing_kam'] ?? 'N/A',
                                     'iig_itc_billing_kam' => $previousClientStates[$c->client_id]['iig_itc_billing_kam'] ?? 'N/A',
                                     'nttn_billing_commencement_date' => $previousClientStates[$c->client_id]['nttn_billing_commencement_date'] ?? 'N/A',
@@ -684,6 +700,14 @@
                 <span style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">Latest Rating Category</span>
                 <span id="statLatestRating" class="modal-client-badge" style="font-size: 13px; padding: 4px 12px; font-weight: 800; text-transform: uppercase; display: inline-block;">N/A</span>
             </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--line); text-align: center;">
+                <span style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">Deferred Period</span>
+                <strong id="statDeferredDays" style="font-size: 14px; color: #0f766e; font-weight: 800;">0 Days</strong>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--line); text-align: center;">
+                <span style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">Payment Plan Summary</span>
+                <strong id="statPaymentPlan" style="font-size: 13px; color: var(--ink); font-weight: 700; word-break: break-word;">N/A</strong>
+            </div>
         </div>
                 <div class="metric-selector">
             <input type="checkbox" id="metric-opening-os" value="opening_os" checked hidden>
@@ -776,6 +800,31 @@
         return html || '<span style="color: var(--muted);">No remarks provided.</span>';
     }
 
+    function formatAgreementStatus(ag) {
+        if (!ag) return 'N/A';
+        if (typeof ag === 'string') {
+            try { ag = JSON.parse(ag); } catch(e) {}
+        }
+        if (typeof ag === 'string') {
+            try { ag = JSON.parse(ag); } catch(e) {}
+        }
+        if (!ag) return 'N/A';
+        if (typeof ag === 'string') return escapeHtml(ag);
+        if (typeof ag === 'object' && !Array.isArray(ag)) {
+            ag = Object.values(ag);
+        }
+        if (Array.isArray(ag) && ag.length > 0) {
+            return ag.map(item => {
+                if (typeof item === 'string') return escapeHtml(item);
+                const name = escapeHtml(item.license_name || item.name || '');
+                const status = escapeHtml(item.status || item.ref_status || item.ref_no || '');
+                const exp = item.expiry_date ? ` (Exp: ${escapeHtml(item.expiry_date)})` : '';
+                return `<span style="display:inline-block; padding:2px 8px; margin:2px 0; background:#e0f2fe; color:#0369a1; border-radius:4px; font-size:11px; font-weight:700;">${name}: ${status}${exp}</span>`;
+            }).join(' ');
+        }
+        return 'N/A';
+    }
+
     let activeClientDetail = null;
     let displayingPreviousMonth = false;
 
@@ -835,16 +884,16 @@
                         <span class="details-value">${monthData.opus_id || 'N/A'}</span>
                     </div>
                     <div class="details-row">
-                        <span class="details-label">Agreement Status:</span>
-                        <span class="details-value">${monthData.agreement_status || 'N/A'}</span>
+                        <span class="details-label">Agreement Information:</span>
+                        <span class="details-value">${formatAgreementStatus(monthData.agreement_status)}</span>
                     </div>
                     <div class="details-row">
                         <span class="details-label">Service Type:</span>
                         <span class="details-value">${monthData.service_type_billing || 'N/A'}</span>
                     </div>
                     <div class="details-row">
-                        <span class="details-label">Team:</span>
-                        <span class="details-value">${monthData.team_name || 'N/A'}</span>
+                        <span class="details-label">Collection Team Name:</span>
+                        <span class="details-value">${monthData.collection_team_name || 'N/A'}</span>
                     </div>
                     <div class="details-row">
                         <span class="details-label">Collection KAM:</span>
@@ -853,6 +902,14 @@
                     <div class="details-row">
                         <span class="details-label">Collection Supervisor:</span>
                         <span class="details-value">${monthData.collection_supervisor || 'N/A'}</span>
+                    </div>
+                    <div class="details-row">
+                        <span class="details-label">SM Team:</span>
+                        <span class="details-value">${monthData.team_name || 'N/A'}</span>
+                    </div>
+                    <div class="details-row">
+                        <span class="details-label">SM Supervisor:</span>
+                        <span class="details-value">${monthData.sm_supervisor || 'N/A'}</span>
                     </div>
                     <div class="details-row">
                         <span class="details-label">SM KAM:</span>
@@ -872,12 +929,20 @@
                 <div class="details-section">
                     <h3>Compliance & Dates</h3>
                     <div class="details-row">
+                        <span class="details-label">Deferred Period:</span>
+                        <span class="details-value" style="color: #0f766e; font-weight: 800;">${monthData.deferred_period || '0 Days'}</span>
+                    </div>
+                    <div class="details-row">
+                        <span class="details-label">Payment Plan Summary:</span>
+                        <span class="details-value">${monthData.payment_plan || 'N/A'}</span>
+                    </div>
+                    <div class="details-row">
                         <span class="details-label">Barring Priority:</span>
                         <span class="details-value">${monthData.barring_priority || 'N/A'}</span>
                     </div>
                     <div class="details-row">
-                        <span class="details-label">Legal Status:</span>
-                        <span class="details-value">${monthData.legal}</span>
+                        <span class="details-label">Legal Status / Notes:</span>
+                        <span class="details-value">${monthData.legal || 'N/A'}</span>
                     </div>
                     <div class="details-row">
                         <span class="details-label">Security Coverage:</span>
@@ -1076,6 +1141,11 @@
 
         let rowsHtml = '';
         data.rows.forEach((row, index) => {
+            const rowMonthKey = row.summary_month_raw ? row.summary_month_raw.substring(0, 7) : '';
+            const rowWaivers = (data.waivers || []).filter(w => w.applicable_month_key === rowMonthKey);
+            const hasRowWaiver = rowWaivers.length > 0;
+            const rowWaiversJsonStr = hasRowWaiver ? encodeURIComponent(JSON.stringify(rowWaivers)) : '';
+
             const shortfallMaturedStyle = row.shortfall_matured_mrc_is_negative 
                 ? 'color: #dc2626; font-weight: 700;' 
                 : 'color: #15803d; font-weight: 600;';
@@ -1086,7 +1156,7 @@
 
             rowsHtml += `
                 <tr style="border-bottom: 1px solid #cbd5e1; background: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'}; transition: background 0.1s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='${index % 2 === 0 ? '#ffffff' : '#f8fafc'}'">
-                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;">${getStatusCircleHtml(row.client_status)}</td>
+                    <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;">${getStatusCircleHtml(row.client_status, hasRowWaiver, rowWaiversJsonStr)}</td>
                     <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; font-weight: 700; text-align: center; color: #0f172a; border: 1px solid #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.payment_month}</td>
                     <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: right; font-weight: 600; color: #334155; border: 1px solid #cbd5e1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.opening_outstanding_formatted}</td>
                     <td style="padding: 5px 3px; font-size: 12.5px; line-height: 1.2; text-align: center; font-weight: 600; color: #475569; border: 1px solid #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${row.opening_cr_formatted}</td>
@@ -1383,6 +1453,16 @@
             statLatest.innerText = latestVal;
             statLatest.className = 'modal-client-badge ' + getRatingBadgeClass(latestVal);
         }
+
+        const statDeferred = document.getElementById('statDeferredDays');
+        if (statDeferred) {
+            statDeferred.innerText = trendData.deferred_days || '0 Days';
+        }
+
+        const statPaymentPlan = document.getElementById('statPaymentPlan');
+        if (statPaymentPlan) {
+            statPaymentPlan.innerText = trendData.payment_plan_summary || 'N/A';
+        }
     }
 
     function getRatingBadgeClass(rating) {
@@ -1400,7 +1480,7 @@
         return 'status-badge-other';
     }
 
-    function getStatusCircleHtml(status) {
+    function getStatusCircleHtml(status, hasWaiver, clientWaiversJson) {
         const s = String(status || '').toLowerCase().trim();
         let color = '#22c55e';
         let title = status || 'Active';
@@ -1413,7 +1493,87 @@
             color = '#22c55e';
         }
 
-        return `<span title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; vertical-align: middle; flex-shrink: 0;"></span>`;
+        let html = `<span title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; vertical-align: middle; flex-shrink: 0;"></span>`;
+
+        if (hasWaiver && clientWaiversJson) {
+            html += ` <span onclick="event.stopPropagation(); showWaiverPopover(event, '${clientWaiversJson}')" title="Click to view Waiver Details" style="display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: #0284c7; color: #ffffff; font-size: 9.5px; font-weight: 900; vertical-align: middle; cursor: pointer; border: 1px solid #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">W</span>`;
+        }
+
+        return html;
+    }
+
+    function showWaiverPopover(e, waiversJsonStr) {
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+
+        const waivers = JSON.parse(decodeURIComponent(waiversJsonStr));
+        if (!waivers || waivers.length === 0) return;
+
+        const existing = document.getElementById('waiverPopoverCard');
+        if (existing) existing.remove();
+
+        let listHtml = '';
+        waivers.forEach((w, idx) => {
+            listHtml += `
+                <div style="padding: 10px 12px; border-bottom: ${idx < waivers.length - 1 ? '1px solid #e2e8f0' : 'none'}; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; border-radius: 6px; margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-size: 11.5px; font-weight: 800; color: #64748b;">Applicable Date: <span style="color: #0f172a;">${w.applicable_from_date}</span></span>
+                        <span style="font-size: 13px; font-weight: 900; color: #0284c7; background: #e0f2fe; padding: 2px 8px; border-radius: 4px;">${w.waiver_amount_formatted}</span>
+                    </div>
+                    <div style="font-size: 12px; color: #334155; margin-bottom: 6px; line-height: 1.4; word-break: break-word;">
+                        <strong>Description:</strong> ${w.description}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b;">
+                        <span>Created By: <strong>${w.created_by}</strong></span>
+                        ${w.has_attachment ? `
+                            <a href="${w.attachment_url}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #0284c7; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: 700; font-size: 11px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                📎 View Attachment
+                            </a>
+                        ` : '<span style="color: #94a3b8; font-style: italic;">No Attachment</span>'}
+                    </div>
+                </div>
+            `;
+        });
+
+        const popover = document.createElement('div');
+        popover.id = 'waiverPopoverCard';
+        popover.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 480px;
+            max-height: 80vh;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+            z-index: 100000;
+            padding: 16px;
+            font-family: system-ui, -apple-system, sans-serif;
+        `;
+
+        popover.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #0284c7; color: #ffffff; font-weight: 900; font-size: 12px;">W</span>
+                    <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: #0f172a;">Client Waiver Details</h4>
+                </div>
+                <button onclick="document.getElementById('waiverPopoverCard').remove()" style="background: none; border: none; font-size: 20px; font-weight: bold; cursor: pointer; color: #64748b; line-height: 1;">&times;</button>
+            </div>
+            <div>
+                ${listHtml}
+            </div>
+            <div style="margin-top: 12px; text-align: right;">
+                <button onclick="document.getElementById('waiverPopoverCard').remove()" style="padding: 6px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; color: #475569; font-weight: 700; font-size: 12px; cursor: pointer;">Close</button>
+            </div>
+        `;
+
+        document.body.appendChild(popover);
     }
 
     function closeTrend() {

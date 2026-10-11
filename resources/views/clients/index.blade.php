@@ -36,6 +36,22 @@
             box-shadow: 0 0 0 4px rgba(15, 118, 110, .14);
         }
 
+        .summary-card {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            user-select: none;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            filter: brightness(0.97);
+        }
+
+        .summary-card:active {
+            transform: translateY(0);
+        }
+
         .client-table-wrap {
             border: 1px solid var(--line);
             border-radius: 8px;
@@ -244,45 +260,184 @@
 
 @section('content')
     <section class="page-heading">
-        <div>
-            <h1>Clients</h1>
-            <p>Manage customer master profiles, assignments, and service operational status.</p>
+        <div style="width: 100%;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                    <h1 style="margin: 0;">Clients</h1>
+
+                    @if($isTeamScoped)
+                        <!-- Scope Toggle Pill Button Group -->
+                        <div class="scope-toggle-group" style="display: inline-flex; background: #e2e8f0; border-radius: 999px; padding: 3px; border: 1px solid #cbd5e1; box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);">
+                            <a href="{{ route('clients.index', ['view_scope' => 'my']) }}" 
+                               class="toggle-btn {{ ($viewScope ?? 'team') === 'my' ? 'active' : '' }}" 
+                               style="padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 800; text-decoration: none; transition: all 0.2s ease; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; {{ ($viewScope ?? 'team') === 'my' ? 'background: var(--primary); color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.15);' : 'color: var(--muted); background: transparent;' }}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                My Clients
+                            </a>
+                            <a href="{{ route('clients.index', ['view_scope' => 'team']) }}" 
+                               class="toggle-btn {{ ($viewScope ?? 'team') === 'team' ? 'active' : '' }}" 
+                               style="padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 800; text-decoration: none; transition: all 0.2s ease; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; {{ ($viewScope ?? 'team') === 'team' ? 'background: var(--primary); color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.15);' : 'color: var(--muted); background: transparent;' }}">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                My Team's Clients
+                            </a>
+                        </div>
+                    @endif
+                </div>
+
+                @can('create clients')
+                    <a href="{{ route('clients.create') }}" class="button primary">Add client</a>
+                @endcan
+            </div>
+
+            @if($isTeamScoped)
+                @if(($viewScope ?? 'team') === 'my')
+                    <p style="margin-top: 8px;">Viewing customer master profiles, assignments, and service operational status assigned directly to you (My Clients).</p>
+                @else
+                    <p style="margin-top: 8px;">Viewing customer master profiles, assignments, and service operational status for your team (My Team's Clients).</p>
+                @endif
+            @else
+                <p style="margin-top: 8px;">Manage customer master profiles, assignments, and service operational status across all company clients.</p>
+            @endif
         </div>
-        @can('create clients')
-            <a href="{{ route('clients.create') }}" class="button primary">Add client</a>
-        @endcan
     </section>
 
-    <section class="summary-cards" style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
-        <div class="summary-card" style="flex: 1; min-width: 140px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
-            <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Clients</div>
-            <div id="sumTotalCount" style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 4px;">0</div>
+    @if($isTeamScoped)
+        <!-- Company-Wide Summary Cards Section -->
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6;"></span>
+                    Company-Wide Client Summary (All Clients)
+                </h3>
+                <span style="font-size: 11px; font-weight: 700; background: #eff6ff; color: #1d4ed8; padding: 3px 10px; border-radius: 999px; border: 1px solid #bfdbfe;">
+                    Company-Wide Metrics
+                </span>
+            </div>
+            <section class="summary-cards" style="display: flex; gap: 14px; flex-wrap: wrap;">
+                <div class="summary-card" data-filter-type="total" style="flex: 1; min-width: 130px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">All Clients (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 4px;">{{ $companyMetrics['total'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="active" style="flex: 1; min-width: 130px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Active (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #166534; margin-top: 4px;">{{ $companyMetrics['active'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="discontinued" style="flex: 1; min-width: 130px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Discontinued (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #991b1b; margin-top: 4px;">{{ $companyMetrics['discontinued'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="barred" style="flex: 1; min-width: 130px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">Barred (<100%) (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">{{ $companyMetrics['barred'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="highRisk" style="flex: 1; min-width: 130px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px;">High Risk (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #9a3412; margin-top: 4px;">{{ $companyMetrics['highRisk'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="declining" style="flex: 1; min-width: 130px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Declining (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #be123c; margin-top: 4px;">{{ $companyMetrics['declining'] ?? 0 }}</div>
+                </div>
+                <div class="summary-card" data-filter-type="improving" style="flex: 1; min-width: 130px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                    <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Improving (Company)</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #047857; margin-top: 4px;">{{ $companyMetrics['improving'] ?? 0 }}</div>
+                </div>
+            </section>
         </div>
-        <div class="summary-card" style="flex: 1; min-width: 140px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
-            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Active</div>
-            <div id="sumActiveCount" style="font-size: 22px; font-weight: 800; color: #166534; margin-top: 4px;">0</div>
+    @endif
+
+    <!-- Scoped Cards Section -->
+    <div style="margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <h3 style="font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                @if($isTeamScoped)
+                    {{ ($viewScope ?? 'team') === 'my' ? 'My Client Summary (Assigned to Me)' : 'My Team Client Summary (Team Access)' }}
+                @else
+                    Company-Wide Client Summary
+                @endif
+            </h3>
+            <span style="font-size: 11px; font-weight: 700; background: #ecfdf5; color: #047857; padding: 3px 10px; border-radius: 999px; border: 1px solid #a7f3d0;">
+                @if($isTeamScoped)
+                    {{ ($viewScope ?? 'team') === 'my' ? 'Direct KAM Assignments' : 'Your Team Assigned Access' }}
+                @else
+                    All Company Clients
+                @endif
+            </span>
         </div>
-        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
-            <div style="font-size: 11px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Discontinued</div>
-            <div id="sumDiscontinuedCount" style="font-size: 22px; font-weight: 800; color: #991b1b; margin-top: 4px;">0</div>
-        </div>
-        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
-            <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">Barred</div>
-            <div id="sumBarredCount" style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">0</div>
-        </div>
-        <div class="summary-card" style="flex: 1; min-width: 140px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow);">
-            <div style="font-size: 11px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px;">High Risk</div>
-            <div id="sumHighRiskCount" style="font-size: 22px; font-weight: 800; color: #9a3412; margin-top: 4px;">0</div>
-        </div>
-        <div class="summary-card" id="cardDeclining" style="flex: 1; min-width: 140px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
-            <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">Declining</div>
-            <div id="sumDecliningCount" style="font-size: 22px; font-weight: 800; color: #be123c; margin-top: 4px;">{{ $decliningCount ?? 0 }}</div>
-        </div>
-        <div class="summary-card" id="cardImproving" style="flex: 1; min-width: 140px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
-            <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">Improving</div>
-            <div id="sumImprovingCount" style="font-size: 22px; font-weight: 800; color: #047857; margin-top: 4px;">{{ $improvingCount ?? 0 }}</div>
-        </div>
-    </section>
+        <section class="summary-cards" style="display: flex; gap: 14px; flex-wrap: wrap;">
+            <div class="summary-card" data-filter-type="total" style="flex: 1; min-width: 130px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Total Clients' : 'My Team Total Clients' }}
+                    @else
+                        Total Clients
+                    @endif
+                </div>
+                <div id="sumTotalCount" style="font-size: 22px; font-weight: 800; color: var(--ink); margin-top: 4px;">0</div>
+            </div>
+            <div class="summary-card" data-filter-type="active" style="flex: 1; min-width: 130px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Active' : 'My Team Active' }}
+                    @else
+                        Active
+                    @endif
+                </div>
+                <div id="sumActiveCount" style="font-size: 22px; font-weight: 800; color: #166534; margin-top: 4px;">0</div>
+            </div>
+            <div class="summary-card" data-filter-type="discontinued" style="flex: 1; min-width: 130px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Discontinued' : 'My Team Discontinued' }}
+                    @else
+                        Discontinued
+                    @endif
+                </div>
+                <div id="sumDiscontinuedCount" style="font-size: 22px; font-weight: 800; color: #991b1b; margin-top: 4px;">0</div>
+            </div>
+            <div class="summary-card" data-filter-type="barred" style="flex: 1; min-width: 130px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Barred (<100%)' : 'My Team Barred (<100%)' }}
+                    @else
+                        Barred (<100%)
+                    @endif
+                </div>
+                <div id="sumBarredCount" style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">0</div>
+            </div>
+            <div class="summary-card" data-filter-type="highRisk" style="flex: 1; min-width: 130px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #9a3412; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My High Risk' : 'My Team High Risk' }}
+                    @else
+                        High Risk
+                    @endif
+                </div>
+                <div id="sumHighRiskCount" style="font-size: 22px; font-weight: 800; color: #9a3412; margin-top: 4px;">0</div>
+            </div>
+            <div class="summary-card" id="cardDeclining" data-filter-type="declining" style="flex: 1; min-width: 130px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #be123c; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Declining' : 'My Team Declining' }}
+                    @else
+                        Declining
+                    @endif
+                </div>
+                <div id="sumDecliningCount" style="font-size: 22px; font-weight: 800; color: #be123c; margin-top: 4px;">{{ $decliningCount ?? 0 }}</div>
+            </div>
+            <div class="summary-card" id="cardImproving" data-filter-type="improving" style="flex: 1; min-width: 130px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
+                <div style="font-size: 11px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.5px;">
+                    @if($isTeamScoped)
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Improving' : 'My Team Improving' }}
+                    @else
+                        Improving
+                    @endif
+                </div>
+                <div id="sumImprovingCount" style="font-size: 22px; font-weight: 800; color: #047857; margin-top: 4px;">{{ $improvingCount ?? 0 }}</div>
+            </div>
+        </section>
+    </div>
 
     <section class="filter-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -304,7 +459,14 @@
                     <option value="All">All Statuses</option>
                     <option value="Active">Active</option>
                     <option value="Discontinued">Discontinued</option>
-                    <option value="Barred">Barred</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Barring:</span>
+                <select id="barringFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Barring</option>
+                    <option value="Barred">Barred (<100%)</option>
+                    <option value="Unbarred">Unbarred (0%)</option>
                 </select>
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -660,6 +822,7 @@
                 // 1. Filter
                 const query = searchInput.value.toLowerCase().trim();
                 const selectedStatus = document.getElementById('statusFilter').value;
+                const selectedBarring = document.getElementById('barringFilter').value;
                 const selectedRisk = document.getElementById('riskFilter').value;
                 const selectedTrend = document.getElementById('growthTrendFilter').value;
 
@@ -667,6 +830,7 @@
 
                 filteredClients = clients.filter(client => {
                     const clientTrend = getClientTrendStatus(client);
+                    const barringPct = parseFloat(client.barring_percentage) || 0;
 
                     // Check search query
                     if (query) {
@@ -687,6 +851,15 @@
                     if (selectedStatus && selectedStatus !== 'All') {
                         const statusMatch = client.client_status && String(client.client_status).toLowerCase() === selectedStatus.toLowerCase();
                         if (!statusMatch) return false;
+                    }
+
+                    // Check barring status filter
+                    if (selectedBarring && selectedBarring !== 'All') {
+                        if (selectedBarring === 'Barred') {
+                            if (!(barringPct > 0 && barringPct < 100)) return false;
+                        } else if (selectedBarring === 'Unbarred') {
+                            if (barringPct !== 0) return false;
+                        }
                     }
 
                     // Check risk
@@ -719,9 +892,17 @@
 
                 filteredClients.forEach(client => {
                     const status = (client.client_status || '').toLowerCase();
-                    if (status === 'active') activeCount++;
-                    else if (status === 'discontinued') discontinuedCount++;
-                    else if (status === 'barred') barredCount++;
+                    const barringPct = parseFloat(client.barring_percentage) || 0;
+
+                    if (status === 'discontinued' || barringPct >= 100) {
+                        discontinuedCount++;
+                    } else {
+                        activeCount++;
+                    }
+
+                    if (barringPct > 0 && barringPct < 100) {
+                        barredCount++;
+                    }
 
                     if (client.risk_segment && ['Risky', 'High Risky', 'Most Risky'].includes(client.risk_segment)) {
                         highRiskCount++;
@@ -740,7 +921,7 @@
                 document.getElementById('sumDecliningCount').textContent = decliningCount;
                 document.getElementById('sumImprovingCount').textContent = improvingCount;
 
-                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedRisk && selectedRisk !== 'All') || (selectedTrend && selectedTrend !== 'All')) {
+                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedBarring && selectedBarring !== 'All') || (selectedRisk && selectedRisk !== 'All') || (selectedTrend && selectedTrend !== 'All')) {
                     clearBtn.style.display = 'inline-block';
                 } else {
                     clearBtn.style.display = 'none';
@@ -816,13 +997,17 @@
                     tr.style.opacity = '0';
                     tr.style.transition = 'opacity 0.2s ease-in-out';
 
-                    // Determine status class
+                    // Determine status class and badge HTML
+                    const barringPct = parseFloat(client.barring_percentage) || 0;
                     const statusLower = (client.client_status || '').toLowerCase();
-                    let statusClass = 'status-other';
-                    if (statusLower.includes('active')) {
-                        statusClass = 'status-active';
-                    } else if (statusLower.includes('discontinued') || statusLower.includes('barred')) {
-                        statusClass = 'status-discontinued';
+                    let statusHtml = '';
+                    if (statusLower.includes('discontinued') || barringPct >= 100) {
+                        statusHtml = `<span class="status-badge status-discontinued">Discontinued</span>`;
+                    } else {
+                        statusHtml = `<span class="status-badge status-active">Active</span>`;
+                        if (barringPct > 0) {
+                            statusHtml += `<span style="font-size: 11px; font-weight: 700; color: #b91c1c; background: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca; margin-left: 4px;" title="Partially Barred ${barringPct}%">(${barringPct}%)</span>`;
+                        }
                     }
 
                     // Build actions HTML
@@ -862,53 +1047,7 @@
 
                     const trendBadge = getGrowthTrendBadge(client);
 
-                    if (selectedStatus === 'Barred') {
-                        const barPercent = client.barring_percentage !== null && client.barring_percentage !== undefined ? parseFloat(client.barring_percentage).toFixed(2) + '%' : '0.00%';
-                        let agingStr = 'N/A';
-                        let agingStyle = '';
-                        if (client.barred_at) {
-                            const barredDate = new Date(client.barred_at);
-                            const today = new Date();
-                            const diffTime = Math.abs(today - barredDate);
-                            const diffDays = diffTime / (1000 * 60 * 60 * 24);
-                            
-                            const agingMonthsNum = parseFloat((diffDays / 30.4375).toFixed(1));
-                            agingStr = agingMonthsNum.toFixed(1) + 'm';
-
-                            if (agingMonthsNum >= 3.0) {
-                                agingStyle = 'color: #ef4444; font-weight: 800; background: #fee2e2; padding: 4px 10px; border-radius: 6px; border: 1px solid #fca5a5;';
-                            } else if (agingMonthsNum >= 2.0) {
-                                agingStyle = 'color: #f97316; font-weight: 800; background: #fff7ed; padding: 4px 10px; border-radius: 6px; border: 1px solid #ffedd5;';
-                            } else {
-                                agingStyle = 'color: #1e293b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px;';
-                            }
-                        }
-
-                        tr.innerHTML = `
-                            <td style="font-weight: 700;">
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
-                                    ${client.client_name || 'N/A'}
-                                </a>
-                            </td>
-                            <td>${client.opus_id || 'N/A'}</td>
-                            <td>
-                                <span class="status-badge ${statusClass}">
-                                    ${client.client_status || 'N/A'}
-                                </span>
-                            </td>
-                            <td style="font-weight: 700; color: var(--primary-dark);">${barPercent}</td>
-                            <td>
-                                <span style="${agingStyle}">
-                                    ${agingStr}
-                                </span>
-                            </td>
-                            <td>${client.collection_kam || 'N/A'}</td>
-                            <td>${client.current_month_cr || 'N/A'}</td>
-                            <td>${trendBadge}</td>
-                            <td>${client.risk_segment || 'N/A'}</td>
-                            <td>${actionsHtml}</td>
-                        `;
-                    } else if (selectedStatus === 'Discontinued') {
+                    if (selectedStatus === 'Discontinued') {
                         const legalText = client.legal ? '<span style="color: #ef4444; font-weight: 800; background: #fee2e2; padding: 2px 8px; border-radius: 999px; font-size: 11px; text-transform: uppercase;">Yes</span>' : '<span style="color: #64748b; font-weight: 700; background: #f1f5f9; padding: 2px 8px; border-radius: 999px; font-size: 11px; text-transform: uppercase;">No</span>';
                         
                         const formatJsDate = (dateStr) => {
@@ -933,11 +1072,7 @@
                                 </a>
                             </td>
                             <td>${client.opus_id || 'N/A'}</td>
-                            <td>
-                                <span class="status-badge ${statusClass}">
-                                    ${client.client_status || 'N/A'}
-                                </span>
-                            </td>
+                            <td>${statusHtml}</td>
                             <td>${legalText}</td>
                             <td style="font-weight: 700; color: #b91c1c;">${discontDate}</td>
                             <td>${btrcLicenseDate}</td>
@@ -954,11 +1089,7 @@
                                 </a>
                             </td>
                             <td>${client.opus_id || 'N/A'}</td>
-                            <td>
-                                <span class="status-badge ${statusClass}">
-                                    ${client.client_status || 'N/A'}
-                                </span>
-                            </td>
+                            <td>${statusHtml}</td>
                             <td>${client.license_billing || 'N/A'}</td>
                             <td>${client.team_name || 'N/A'}</td>
                             <td>${client.collection_kam || 'N/A'}</td>
@@ -1153,11 +1284,15 @@
             // Parse URL search parameters on load
             const urlParams = new URLSearchParams(window.location.search);
             const statusParam = urlParams.get('status');
+            const barringParam = urlParams.get('barring');
             const riskParam = urlParams.get('risk');
             const trendParam = urlParams.get('trend');
 
             if (statusParam) {
                 document.getElementById('statusFilter').value = statusParam;
+            }
+            if (barringParam) {
+                document.getElementById('barringFilter').value = barringParam;
             }
             if (riskParam) {
                 document.getElementById('riskFilter').value = riskParam;
@@ -1167,20 +1302,37 @@
             }
 
             // Bind change events
-            $('#statusFilter, #riskFilter, #growthTrendFilter').on('change', () => {
+            $('#statusFilter, #barringFilter, #riskFilter, #growthTrendFilter').on('change', () => {
                 currentPage = 1;
                 render();
             });
 
-            // Card click events
-            $('#cardDeclining').on('click', () => {
-                document.getElementById('growthTrendFilter').value = 'declining';
-                currentPage = 1;
-                render();
-            });
+            // Universal Card Click Event for all summary cards
+            $(document).on('click', '.summary-card[data-filter-type]', function() {
+                const type = $(this).data('filter-type');
 
-            $('#cardImproving').on('click', () => {
-                document.getElementById('growthTrendFilter').value = 'improving';
+                // 1. First clear all search inputs and filter dropdowns
+                searchInput.value = '';
+                document.getElementById('statusFilter').value = 'All';
+                document.getElementById('barringFilter').value = 'All';
+                document.getElementById('riskFilter').value = 'All';
+                document.getElementById('growthTrendFilter').value = 'All';
+
+                // 2. Apply the specific filter corresponding to the clicked card
+                if (type === 'active') {
+                    document.getElementById('statusFilter').value = 'Active';
+                } else if (type === 'discontinued') {
+                    document.getElementById('statusFilter').value = 'Discontinued';
+                } else if (type === 'barred') {
+                    document.getElementById('barringFilter').value = 'Barred';
+                } else if (type === 'highRisk') {
+                    document.getElementById('riskFilter').value = 'High Risk';
+                } else if (type === 'declining') {
+                    document.getElementById('growthTrendFilter').value = 'declining';
+                } else if (type === 'improving') {
+                    document.getElementById('growthTrendFilter').value = 'improving';
+                }
+
                 currentPage = 1;
                 render();
             });
@@ -1195,6 +1347,7 @@
             clearBtn.addEventListener('click', () => {
                 searchInput.value = '';
                 document.getElementById('statusFilter').value = 'All';
+                document.getElementById('barringFilter').value = 'All';
                 document.getElementById('riskFilter').value = 'All';
                 document.getElementById('growthTrendFilter').value = 'All';
                 currentPage = 1;

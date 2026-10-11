@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Client extends Model
 {
+    use \App\Traits\HasTeamScope;
+
     protected $table = 'client';
 
     protected $primaryKey = 'client_id';
@@ -30,14 +32,18 @@ class Client extends Model
         'btrc_letter',
         'security_coverage',
         'payment_plan',
+        'deferred_period',
         'other_upstream',
         'sm_kam',
         'sm_kam_id',
         'team_name',
+        'sm_supervisor',
+        'sm_supervisor_id',
         'collection_kam',
         'collection_kam_id',
         'collection_supervisor',
         'collection_supervisor_id',
+        'collection_team_name',
         'nttn_billing_kam',
         'nttn_billing_kam_id',
         'iig_itc_billing_kam',
@@ -49,14 +55,130 @@ class Client extends Model
     protected function casts(): array
     {
         return [
-            'legal' => 'boolean',
+            'agreement_status' => 'array',
             'other_upstream' => 'boolean',
+            'deferred_period' => 'integer',
+            'barring_percentage' => 'float',
             'btrc_license_discontinuation_date' => 'date',
             'service_discontinuation_date' => 'date',
             'nttn_billing_commencement_date' => 'date',
             'iig_itc_billing_commencement_date' => 'date',
             'barred_at' => 'datetime',
         ];
+    }
+
+    public function getAgreementStatusAttribute($value)
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (is_string($value) && !empty($value)) {
+            $decoded = json_decode($value, true);
+            if (is_string($decoded)) {
+                $decoded = json_decode($decoded, true);
+            }
+            return is_array($decoded) ? $decoded : $value;
+        }
+        return $value;
+    }
+
+    public function getFormattedSecurityCoverageAttribute(): string
+    {
+        $val = $this->attributes['security_coverage'] ?? null;
+        if ($val === null || $val === '' || $val === '#DIV/0!') {
+            return (string) ($val ?? '');
+        }
+        $clean = trim((string) $val);
+        if (str_ends_with($clean, '%')) {
+            return $clean;
+        }
+        if (is_numeric($clean)) {
+            $num = (float) $clean;
+            if ($num >= 0 && $num <= 1) {
+                $pct = round($num * 100, 2);
+                return ($pct == (int)$pct ? (int)$pct : $pct) . '%';
+            }
+            return (round($num, 2) == (int)round($num, 2) ? (int)round($num, 2) : round($num, 2)) . '%';
+        }
+        return $clean;
+    }
+
+    /**
+     * Dynamically evaluate status per license entry on-the-fly (zero stale state)
+     */
+    public function getEvaluatedAgreementsAttribute(): array
+    {
+        $items = $this->agreement_status;
+        if (is_string($items)) {
+            $items = json_decode($items, true);
+        }
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        $today = \Carbon\Carbon::today();
+
+        return array_values(array_filter(array_map(function ($item) use ($today) {
+            if (!is_array($item) || empty($item['license_name'])) {
+                return null;
+            }
+
+            $expiry = !empty($item['expiry_date']) ? \Carbon\Carbon::parse($item['expiry_date']) : null;
+            
+            if (!$expiry) {
+                $status = 'unknown';
+                $badge = 'gray';
+                $daysLeft = null;
+                $label = 'No Expiry Set';
+            } elseif ($expiry->isPast()) {
+                $status = 'expired';
+                $badge = 'danger';
+                $daysLeft = -$today->diffInDays($expiry);
+                $label = 'Expired (' . abs($daysLeft) . 'd ago)';
+            } else {
+                $daysLeft = $today->diffInDays($expiry);
+                if ($daysLeft <= 30) {
+                    $status = 'urgent_renewal';
+                    $badge = 'danger';
+                    $label = 'Renewal Due (' . $daysLeft . 'd left)';
+                } elseif ($daysLeft <= 60) {
+                    $status = 'upcoming_renewal';
+                    $badge = 'warning';
+                    $label = 'Renewal Upcoming (' . $daysLeft . 'd left)';
+                } else {
+                    $status = 'valid';
+                    $badge = 'success';
+                    $label = 'Valid (' . $daysLeft . 'd left)';
+                }
+            }
+
+            return [
+                'license_name' => $item['license_name'],
+                'signing_date' => $item['signing_date'] ?? null,
+                'expiry_date' => $item['expiry_date'] ?? null,
+                'status' => $status,
+                'badge' => $badge,
+                'days_remaining' => $daysLeft,
+                'label' => $label,
+                'ref_status' => $item['status'] ?? $item['ref_no'] ?? null,
+            ];
+        }, $items)));
+    }
+
+    /**
+     * Overall calculated agreement status
+     */
+    public function getOverallAgreementHealthAttribute(): string
+    {
+        $evaluated = $this->evaluated_agreements;
+        if (empty($evaluated)) return 'No Record';
+
+        $statuses = array_column($evaluated, 'status');
+        if (in_array('expired', $statuses)) return 'Expired';
+        if (in_array('urgent_renewal', $statuses)) return 'Renewal Due (30 Days)';
+        if (in_array('upcoming_renewal', $statuses)) return 'Renewal Upcoming (60 Days)';
+
+        return 'Valid';
     }
 
     public function growthTrend()
@@ -116,45 +238,18 @@ class Client extends Model
     {
         parent::boot();
 
-        static::addGlobalScope('role_based_clients', function (\Illuminate\Database\Eloquent\Builder $builder) {
-            if (auth()->check()) {
-                $user = auth()->user();
-                
-                // Admin, Supervisors, Dashboard, and Outstanding Summary routes bypass scoping
-                if ($user->hasRole('admin') || $user->hasRole('collection_supervisor') || $user->hasRole('collection_hod') || request()->routeIs('dashboard*') || request()->is('dashboard*') || request()->routeIs('clients.outstanding-summary') || request()->is('*/outstanding-summary')) {
-                    return;
-                }
-
-                $builder->where(function ($query) use ($user) {
-                    // Condition 1: Completely untagged (visible to everyone)
-                    $query->whereNull('collection_kam_id')
-                          ->whereNull('nttn_billing_kam_id')
-                          ->whereNull('iig_itc_billing_kam_id')
-                          ->whereNull('sm_kam_id');
-
-                    // Condition 2: Assigned specifically to the user's role
-                    if ($user->hasRole('collection_kam')) {
-                        $query->orWhere('collection_kam_id', $user->id);
-                    }
-                    if ($user->hasRole('nttn_billing_kam')) {
-                        $query->orWhere('nttn_billing_kam_id', $user->id);
-                    }
-                    if ($user->hasRole('iig_itc_billing_kam')) {
-                        $query->orWhere('iig_itc_billing_kam_id', $user->id);
-                    }
-                    if ($user->hasRole('sm_kam')) {
-                        $query->orWhere('sm_kam_id', $user->id);
-                    }
-                });
-            }
-        });
-
         static::saving(function ($client) {
-            if ($client->isDirty('client_status')) {
-                if ($client->client_status === 'Barred') {
+            if ($client->isDirty('barring_percentage') || $client->isDirty('client_status')) {
+                if ($client->barring_percentage > 0) {
                     $client->barred_at = $client->barred_at ?: now();
                 } else {
                     $client->barred_at = null;
+                }
+
+                if ($client->barring_percentage >= 100) {
+                    $client->client_status = 'Discontinued';
+                } elseif ($client->client_status === 'Barred' || strtolower($client->client_status ?? '') === 'inactive') {
+                    $client->client_status = 'Active';
                 }
             }
         });
@@ -165,6 +260,12 @@ class Client extends Model
 
                 $oldValue = $client->getOriginal($key);
 
+                if (is_array($oldValue)) {
+                    $oldValue = json_encode($oldValue);
+                }
+                if (is_array($newValue)) {
+                    $newValue = json_encode($newValue);
+                }
                 if (is_bool($oldValue)) {
                     $oldValue = $oldValue ? 'Yes' : 'No';
                 }

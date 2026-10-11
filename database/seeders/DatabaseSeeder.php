@@ -17,7 +17,9 @@ class DatabaseSeeder extends Seeder
             CollectionSeeder::class,
             RiskSeeder::class,
             DataDictionarySeeder::class,
+            ClientDeferredPeriodSeeder::class,
             ClientLogSeeder::class,
+            RecalculateDeferredCrSeeder::class,
         ]);
     }
 }

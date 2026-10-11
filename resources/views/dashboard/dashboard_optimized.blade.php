@@ -718,6 +718,14 @@
                             </span>
                         </div>
 
+                        <div class="insight-statement">
+                            <strong>Collection efficiency (Matured):</strong>
+
+                            <span class="insight-change up">
+                                {{ number_format($collectionEfficiencyMatured, 2) }}%
+                            </span>
+                        </div>
+
                         @foreach ($dynamicInsights as $insight)
                             <div class="insight-statement">
                                 <strong>Insight:</strong>
@@ -748,7 +756,7 @@
                 @endif
             </div>
 
-            <section class="grid four" aria-label="Collection metrics">
+            <section class="grid five" aria-label="Collection metrics">
 
                 @php
                     $cards = [
@@ -800,10 +808,20 @@
                         ],
 
                         [
-                            'title' => 'Total Billed MRC',
+                            'title' => 'Total MRC',
                             'value' => $formatMil($billedMrcTotal),
                             'is_monetary' => true,
                             'comparison' => $metricComparisons['mrc'],
+                            'positive' => 'green',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
+                        ],
+                        [
+                            'title' => 'Total Maturity',
+                            'value' => $formatMil($maturityTotal),
+                            'is_monetary' => true,
+                            'comparison' => $metricComparisons['maturity'],
                             'positive' => 'green',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
                             'text_style' => 'color: #166534 !important;',
@@ -825,6 +843,16 @@
                             'value' => $formatMil($currentMonthOs),
                             'is_monetary' => true,
                             'comparison' => $metricComparisons['current_month_os'],
+                            'positive' => 'red',
+                            'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
+                            'text_style' => 'color: #166534 !important;',
+                            'muted_style' => 'color: #15803d !important;',
+                        ],
+                        [
+                            'title' => 'OS against Maturity',
+                            'value' => $formatMil($currentMonthOsMaturity),
+                            'is_monetary' => true,
+                            'comparison' => $metricComparisons['current_month_os_maturity'],
                             'positive' => 'red',
                             'bg_style' => 'background-color: #f0fdf4 !important; border-color: #bbf7d0 !important;',
                             'text_style' => 'color: #166534 !important;',
@@ -919,10 +947,11 @@
                                         $change = $compData['change'];
                                         $diff = $compData['diff'];
                                         $hasChange = $change !== null;
-                                        $isIncrease = $hasChange && $change >= 0;
+                                        $hasDiff = $diff !== null && $diff != 0;
+                                        $isIncrease = $hasChange ? ($change >= 0) : ($hasDiff && $diff >= 0);
 
                                         $class =
-                                            ! $hasChange
+                                            (! $hasChange && ! $hasDiff)
                                                 ? 'neutral'
                                                 : (
                                                     $card['positive'] === 'green'
@@ -931,7 +960,7 @@
                                                 );
 
                                         $formattedDiff = '';
-                                        if ($diff !== null && $diff != 0) {
+                                        if ($hasDiff) {
                                             $absDiff = abs($diff);
                                             $sign = $diff >= 0 ? '+' : '-';
                                             if (!empty($card['is_monetary'])) {
@@ -954,6 +983,8 @@
                                                 @if ($formattedDiff !== '')
                                                     <span style="font-weight: 600; font-size: 0.85em; opacity: 0.88; margin-left: 2px;">({{ $formattedDiff }})</span>
                                                 @endif
+                                            @elseif ($hasDiff)
+                                                {{ $formattedDiff }} {{ $isIncrease ? '↑' : '↓' }}
                                             @else
                                                 N/A
                                             @endif

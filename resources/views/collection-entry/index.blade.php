@@ -95,7 +95,7 @@
             border: 1px solid var(--line);
             transition: all 0.2s ease;
         }
-        /* Glowing animation for the bar fill */
+
         @keyframes glowing-bar-primary {
             0% { box-shadow: 0 0 3px rgba(15, 118, 110, 0.4); }
             50% { box-shadow: 0 0 10px rgba(15, 118, 110, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.2); }
@@ -165,41 +165,43 @@
         </div>
     </section>
 
-        <!-- Pending Batch Panel (Visible only when batch has items) -->
-        <article class="panel" id="batch_panel" style="display: none; margin-bottom: 22px; width: 100%;">
-            <div class="panel-header" style="background: rgba(15, 118, 110, 0.05); border-bottom-color: rgba(15, 118, 110, 0.2); display: flex; justify-content: space-between; align-items: center; padding: 12px 18px;">
-                <h2 style="color: var(--primary-dark); display: flex; align-items: center; gap: 8px; margin: 0;">📦 Pending Batch <span id="batch_count_badge" class="pill" style="background: var(--primary); color: #fff; font-size: 11px; padding: 4px 8px;">0 entries</span></h2>
-                <form id="batch_submit_form" method="POST" action="{{ route('collection-entry.store') }}" style="margin: 0; display: flex; align-items: center;">
-                    @csrf
-                    <input type="hidden" id="batch_data_input" name="batch_data" value="">
-                    <button class="button success" type="submit" style="min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #166534; color: #fff; font-weight: 800; border: 0; border-radius: 8px; cursor: pointer; padding: 0 16px;">
-                        💾 Save Batch (<span id="batch_submit_count">0</span> items)
-                    </button>
-                </form>
+    <!-- Pending Batch Panel (Visible only when batch has items) -->
+    <article class="panel" id="batch_panel" style="display: none; margin-bottom: 22px; width: 100%;">
+        <div class="panel-header" style="background: rgba(15, 118, 110, 0.05); border-bottom-color: rgba(15, 118, 110, 0.2); display: flex; justify-content: space-between; align-items: center; padding: 12px 18px;">
+            <h2 style="color: var(--primary-dark); display: flex; align-items: center; gap: 8px; margin: 0;">📦 Pending Batch <span id="batch_count_badge" class="pill" style="background: var(--primary); color: #fff; font-size: 11px; padding: 4px 8px;">0 entries</span></h2>
+            <form id="batch_submit_form" method="POST" action="{{ route('collection-entry.store') }}" style="margin: 0; display: flex; align-items: center;">
+                @csrf
+                <input type="hidden" id="batch_data_input" name="batch_data" value="">
+                <button class="button success" type="submit" style="min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #166534; color: #fff; font-weight: 800; border: 0; border-radius: 8px; cursor: pointer; padding: 0 16px;">
+                    💾 Save Batch (<span id="batch_submit_count">0</span> items)
+                </button>
+            </form>
+        </div>
+        <div class="panel-body" style="padding: 0;">
+            <div style="max-height: 300px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--line); background: #f8fafc;">
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Client</th>
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Actual Datetime</th>
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">For Month</th>
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Type</th>
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Mode</th>
+                            <th style="text-align: right; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Amount</th>
+                            <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Remarks</th>
+                            <th style="text-align: center; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc; width: 100px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch_tbody">
+                        <!-- Dynamic batch rows -->
+                    </tbody>
+                </table>
             </div>
-            <div class="panel-body" style="padding: 0;">
-                <div style="max-height: 300px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse; margin: 0;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid var(--line); background: #f8fafc;">
-                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Client</th>
-                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Actual Datetime</th>
-                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">For Month</th>
-                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Type</th>
-                                <th style="text-align: right; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Amount</th>
-                                <th style="text-align: left; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc;">Remarks</th>
-                                <th style="text-align: center; padding: 12px; font-size: 12px; color: var(--muted); position: sticky; top: 0; background: #f8fafc; width: 100px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="batch_tbody">
-                            <!-- Dynamic batch rows -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </article>
+        </div>
+    </article>
 
     <section class="grid two">
+        <!-- LEFT PANEL: Entry Form -->
         <article class="panel">
             <div class="panel-header">
                 <h2>New collection</h2>
@@ -289,7 +291,96 @@
                     </div>
                 </div>
 
-                <div class="field">
+                <!-- Banking & Instrument Details (Collapsible Section) -->
+                <details open style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 14px; background: #f8fafc;">
+                    <summary style="font-weight: 700; color: var(--primary-dark); cursor: pointer; user-select: none;">
+                        🏦 Banking & Instrument Tracking
+                    </summary>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="payment_mode" style="font-size: 11.5px;">Payment Mode</label>
+                            <select id="payment_mode" name="payment_mode">
+                                <option value="">Select Mode</option>
+                                <option value="cash" @selected(old('payment_mode') === 'cash')>Cash</option>
+                                <option value="cheque" @selected(old('payment_mode') === 'cheque')>Cheque</option>
+                                <option value="pay_order" @selected(old('payment_mode') === 'pay_order')>Pay Order</option>
+                                <option value="bank_transfer" @selected(old('payment_mode') === 'bank_transfer')>Bank Transfer</option>
+                                <option value="eft" @selected(old('payment_mode') === 'eft')>EFT</option>
+                                <option value="other" @selected(old('payment_mode') === 'other')>Other</option>
+                            </select>
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="trace_no" style="font-size: 11.5px;">Trace / Ref No</label>
+                            <input id="trace_no" name="trace_no" type="text" value="{{ old('trace_no') }}" placeholder="Trace / Ref No">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="client_bank" style="font-size: 11.5px;">Client Bank Name (From Bank)</label>
+                            <select id="client_bank" name="client_bank">
+                                <option value="">Select From Bank</option>
+                                @foreach($clientBanks as $cb)
+                                    <option value="{{ $cb }}" @selected(old('client_bank') === $cb)>{{ $cb }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="deposit_bank" style="font-size: 11.5px;">Deposited Bank Name</label>
+                            <select id="deposit_bank" name="deposit_bank">
+                                <option value="">Select Deposited Bank</option>
+                                @foreach($depositBanks as $db)
+                                    <option value="{{ $db }}" @selected(old('deposit_bank') === $db)>{{ $db }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="cheque_no" style="font-size: 11.5px;">Cheque No</label>
+                            <input id="cheque_no" name="cheque_no" type="text" value="{{ old('cheque_no') }}" placeholder="Cheque No">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="cheque_date" style="font-size: 11.5px;">Cheque Date</label>
+                            <input id="cheque_date" name="cheque_date" type="date" value="{{ old('cheque_date') }}">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="cheque_expiry_date" style="font-size: 11.5px;">Cheque Expired Date</label>
+                            <input id="cheque_expiry_date" name="cheque_expiry_date" type="date" value="{{ old('cheque_expiry_date') }}">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="cheque_placement_date" style="font-size: 11.5px;">Cheque Placement Date</label>
+                            <input id="cheque_placement_date" name="cheque_placement_date" type="date" value="{{ old('cheque_placement_date') }}">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Dishonored Cheque Details (Collapsible Section) -->
+                <details style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 10px; background: #fff5f5;">
+                    <summary style="font-weight: 700; color: #991b1b; cursor: pointer; user-select: none;">
+                        ⚠️ Dishonored Cheque Management
+                    </summary>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="cheque_status" style="font-size: 11.5px;">Cheque Honor Status</label>
+                            <select id="cheque_status" name="cheque_status">
+                                <option value="">Select Status</option>
+                                <option value="pending" @selected(old('cheque_status') === 'pending')>Pending</option>
+                                <option value="honored" @selected(old('cheque_status') === 'honored')>Honored</option>
+                                <option value="dishonored" @selected(old('cheque_status') === 'dishonored')>Dishonored</option>
+                            </select>
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="dishonored_date" style="font-size: 11.5px;">Honored / Dishonored Date</label>
+                            <input id="dishonored_date" name="dishonored_date" type="date" value="{{ old('dishonored_date') }}">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="dishonor_count" style="font-size: 11.5px;">No. of Dishonor</label>
+                            <input id="dishonor_count" name="dishonor_count" type="number" min="0" value="{{ old('dishonor_count', 0) }}">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="dishonor_slip" style="font-size: 11.5px;">Dishonor Slip / Ref</label>
+                            <input id="dishonor_slip" name="dishonor_slip" type="text" value="{{ old('dishonor_slip') }}" placeholder="Slip No / Ref">
+                        </div>
+                    </div>
+                </details>
+
+                <div class="field" style="margin-top: 14px;">
                     <label for="remarks">Remarks</label>
                     <textarea id="remarks" name="remarks">{{ old('remarks') }}</textarea>
                     @error('remarks')<div class="error">{{ $message }}</div>@enderror
@@ -307,39 +398,90 @@
         </article>
 
 
-        <article class="panel">
-            <div class="panel-header">
-                <h2>Recent entries</h2>
-                <span id="recent_entries_subtitle">Latest 15</span>
-            </div>
+        <!-- RIGHT PANEL: Export Card & Recent Entries -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Export Feature Panel -->
+            <article class="panel">
+                <div class="panel-header" style="background: rgba(15, 118, 110, 0.04); padding: 12px 18px;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: var(--primary-dark);">
+                            📊 Export Collections
+                        </h2>
+                        <span style="font-size: 11.5px; color: var(--muted);">Month-wise collection records download</span>
+                    </div>
+                </div>
+                <form class="panel-body" method="GET" action="{{ route('collection-entry.export') }}" target="_blank" style="padding: 16px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="export_month" style="font-size: 11.5px; font-weight: 700;">Target Month</label>
+                            <input id="export_month" name="collection_month" type="month" value="{{ $defaultMonthString }}" style="width: 100%; height: 36px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);">
+                        </div>
+                        <div class="field" style="margin-bottom: 0;">
+                            <label for="export_payment_mode" style="font-size: 11.5px; font-weight: 700;">Payment Mode</label>
+                            <select id="export_payment_mode" name="payment_mode" style="width: 100%; height: 36px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);">
+                                <option value="">All Modes</option>
+                                <option value="cash">Cash</option>
+                                <option value="cheque">Cheque</option>
+                                <option value="pay_order">Pay Order</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="eft">EFT</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="field" style="grid-column: span 2; margin-bottom: 0;">
+                            <label for="export_client_id" style="font-size: 11.5px; font-weight: 700;">Client Filter</label>
+                            <select id="export_client_id" name="client_id" style="width: 100%; height: 36px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line);">
+                                <option value="">All Clients</option>
+                                <option value="untraced">Untraced Collections</option>
+                                @foreach ($clients as $client)
+                                    <option value="{{ $client->client_id }}">{{ $client->client_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <button class="button primary" type="submit" style="width: 100%; margin-top: 14px; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; background: var(--primary); border: none; border-radius: 8px; cursor: pointer;">
+                        📥 Download Collections (CSV / Excel)
+                    </button>
+                </form>
+            </article>
 
-            <div id="recent_entries_container">
-                @if ($collections->isNotEmpty())
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Client</th>
-                                <th>Type</th>
-                                <th>Amount</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($collections as $collection)
+            <!-- Recent Entries Panel -->
+            <article class="panel">
+                <div class="panel-header">
+                    <h2>Recent entries</h2>
+                    <span id="recent_entries_subtitle">Latest 15</span>
+                </div>
+
+                <div id="recent_entries_container">
+                    @if ($collections->isNotEmpty())
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td>{{ $collection->client->client_name ?? 'Untraced Collection' }}</td>
-                                    <td><span class="pill">{{ str_replace('_', ' ', $collection->collection_type) }}</span></td>
-                                    <td class="amount">{{ number_format((float) $collection->collection_amount, 2) }}</td>
-                                    <td>{{ optional($collection->collection_datetime)->format('d M Y') }}</td>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Mode</th>
+                                    <th>Amount</th>
+                                    <th>Date</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                @else
-                    <div class="empty">No collection entries found.</div>
-                @endif
-            </div>
-        </article>
+                            </thead>
+                            <tbody>
+                                @foreach ($collections as $collection)
+                                    <tr>
+                                        <td>{{ $collection->client->client_name ?? 'Untraced Collection' }}</td>
+                                        <td><span class="pill">{{ str_replace('_', ' ', $collection->collection_type) }}</span></td>
+                                        <td><span class="pill" style="background: #e2e8f0; color: #334155;">{{ $collection->payment_mode ? str_replace('_', ' ', strtoupper($collection->payment_mode)) : '—' }}</span></td>
+                                        <td class="amount">{{ number_format((float) $collection->collection_amount, 2) }}</td>
+                                        <td>{{ optional($collection->collection_datetime)->format('d M Y') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <div class="empty">No collection entries found.</div>
+                    @endif
+                </div>
+            </article>
+        </div>
     </section>
 @endsection
 
@@ -365,7 +507,7 @@
                 updateMetrics();
             });
 
-            // Trigger update metrics and recent entries when client selection changes (Select2 triggers change event)
+            // Trigger update metrics and recent entries when client selection changes
             $('#client_id').on('change select2:select select2:clear', function() {
                 updateMetrics();
                 updateRecentEntries();
@@ -385,8 +527,6 @@
                 const clientId = $('#client_id').val();
                 const month = $('#collection_month_select').val();
 
-                console.log('updateMetrics triggered. Client ID:', clientId, 'Month:', month);
-
                 if (!clientId || clientId === 'untraced' || !month) {
                     $('#metrics_visualizer').hide();
                     currentMetrics = { total_latest_os: 0, total_mrc: 0 };
@@ -396,7 +536,6 @@
                 try {
                     const response = await fetch(`{{ route('collection-entry.client-metrics') }}?client_id=${clientId}&month=${month}`);
                     currentMetrics = await response.json();
-                    console.log('Fetched Metrics Response:', currentMetrics);
                     
                     $('#metrics_visualizer').show();
                     renderBars();
@@ -411,10 +550,7 @@
                 const os = parseFloat(currentMetrics.total_latest_os) || 0;
                 const mrc = parseFloat(currentMetrics.total_mrc) || 0;
 
-                console.log('renderBars called. Entered amount:', amount, 'OS:', os, 'MRC:', mrc);
-
-                // 1. OS Bar calculation:
-                // Red background represents unpaid outstanding, green fill represents paid/covered portion
+                // 1. OS Bar calculation
                 if (os > 0) {
                     const osPct = Math.min((amount / os) * 100, 100);
                     $('#os_bar_fill').css('width', osPct + '%');
@@ -436,7 +572,6 @@
                             .css('background-color', 'var(--primary)')
                             .removeClass('bar-glow-success')
                             .addClass('bar-glow-primary');
-                        // Light red container background representing unpaid OS
                         $('#os_bar_container').css('background-color', '#fee2e2').css('border-color', '#fecaca');
                     }
                 } else {
@@ -447,8 +582,7 @@
                     $('#os_bar_container').css('background-color', '#e2e8f0').css('border-color', 'var(--line)');
                 }
 
-                // 2. MRC Bar calculation:
-                // Filled portion (teal) shows how much of the monthly recurring charge is covered
+                // 2. MRC Bar calculation
                 if (mrc > 0) {
                     const mrcPct = Math.min((amount / mrc) * 100, 100);
                     $('#mrc_bar_fill').css('width', mrcPct + '%');
@@ -479,7 +613,7 @@
                 }
             }
 
-            // Fetch recent collection entries for selected client (or all clients) via AJAX
+            // Fetch recent collection entries
             async function updateRecentEntries() {
                 const clientId = $('#client_id').val();
                 const container = $('#recent_entries_container');
@@ -505,10 +639,12 @@
 
                     let tbodyHtml = '';
                     data.forEach(item => {
+                        const modeBadge = item.payment_mode ? `<span class="pill" style="background: #e2e8f0; color: #334155;">${escapeHtml(item.payment_mode)}</span>` : '—';
                         tbodyHtml += `
                             <tr>
                                 <td>${escapeHtml(item.client_name)}</td>
                                 <td><span class="pill">${escapeHtml(item.collection_type)}</span></td>
+                                <td>${modeBadge}</td>
                                 <td class="amount">${item.collection_amount}</td>
                                 <td>${item.collection_date}</td>
                             </tr>
@@ -521,6 +657,7 @@
                                 <tr>
                                     <th>Client</th>
                                     <th>Type</th>
+                                    <th>Mode</th>
                                     <th>Amount</th>
                                     <th>Date</th>
                                 </tr>
@@ -558,7 +695,22 @@
                 const amount = $('#collection_amount').val();
                 const remarks = $('#remarks').val();
 
-                // Validate fields manually
+                // Banking & dishonor fields
+                const paymentMode = $('#payment_mode').val();
+                const traceNo = $('#trace_no').val();
+                const clientBank = $('#client_bank').val();
+                const depositBank = $('#deposit_bank').val();
+                const chequeNo = $('#cheque_no').val();
+                const chequeDate = $('#cheque_date').val();
+                const chequeExpiryDate = $('#cheque_expiry_date').val();
+                const chequePlacementDate = $('#cheque_placement_date').val();
+
+                const chequeStatus = $('#cheque_status').val();
+                const dishonoredDate = $('#dishonored_date').val();
+                const dishonorCount = $('#dishonor_count').val();
+                const dishonorSlip = $('#dishonor_slip').val();
+
+                // Validate fields
                 if (!clientId) {
                     alert('Please select a client.');
                     return;
@@ -588,18 +740,39 @@
                     collection_month: monthHidden,
                     collection_type: colType,
                     collection_amount: parseFloat(amount),
-                    remarks: remarks
+                    remarks: remarks,
+                    payment_mode: paymentMode,
+                    trace_no: traceNo,
+                    client_bank: clientBank,
+                    deposit_bank: depositBank,
+                    cheque_no: chequeNo,
+                    cheque_date: chequeDate,
+                    cheque_expiry_date: chequeExpiryDate,
+                    cheque_placement_date: chequePlacementDate,
+                    cheque_status: chequeStatus,
+                    dishonored_date: dishonoredDate,
+                    dishonor_count: dishonorCount ? parseInt(dishonorCount) : 0,
+                    dishonor_slip: dishonorSlip
                 });
 
-                // Clear amount and remarks
+                // Clear amount, remarks, banking & dishonor inputs
                 $('#collection_amount').val('');
                 $('#remarks').val('');
-                renderBars(); // Reset metrics visualizer
+                $('#trace_no').val('');
+                $('#client_bank').val('');
+                $('#deposit_bank').val('');
+                $('#cheque_no').val('');
+                $('#cheque_date').val('');
+                $('#cheque_expiry_date').val('');
+                $('#cheque_placement_date').val('');
+                $('#dishonored_date').val('');
+                $('#dishonor_slip').val('');
+                renderBars();
 
                 // Update batch UI
                 refreshBatchUI();
 
-                // Smooth scroll back to top of page to see the new batch item
+                // Smooth scroll to top
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
 
@@ -619,8 +792,8 @@
                 let rowsHtml = '';
                 batchEntries.forEach((entry, index) => {
                     const cleanType = entry.collection_type.replace(/_/g, ' ').toUpperCase();
+                    const cleanMode = entry.payment_mode ? entry.payment_mode.replace(/_/g, ' ').toUpperCase() : '—';
                     
-                    // Format datetime nicely
                     let displayDt = entry.collection_datetime;
                     try {
                         const dt = new Date(entry.collection_datetime);
@@ -632,7 +805,6 @@
                         }
                     } catch(e) {}
 
-                    // Format month nicely (YYYY-MM to Month YYYY)
                     let displayMonth = entry.collection_month;
                     try {
                         const parts = entry.collection_month.split('-');
@@ -648,6 +820,7 @@
                             <td style="padding: 12px; color: var(--ink);">${escapeHtml(displayDt)}</td>
                             <td style="padding: 12px; color: var(--ink); font-weight: 500;">${escapeHtml(displayMonth)}</td>
                             <td style="padding: 12px;"><span class="pill">${escapeHtml(cleanType)}</span></td>
+                            <td style="padding: 12px;"><span class="pill" style="background: #e2e8f0; color: #334155;">${escapeHtml(cleanMode)}</span></td>
                             <td style="padding: 12px; text-align: right; font-weight: 700; color: var(--primary-dark);">${entry.collection_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                             <td style="padding: 12px; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(entry.remarks || '')}">${escapeHtml(entry.remarks || '—')}</td>
                             <td style="padding: 12px; text-align: center;">
@@ -666,7 +839,6 @@
                 refreshBatchUI();
             });
 
-            // Trigger initial metric fetch if client/month already filled (e.g. from old input)
             if ($('#client_id').val()) {
                 updateRecentEntries();
             }

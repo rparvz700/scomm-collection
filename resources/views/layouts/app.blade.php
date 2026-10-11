@@ -222,6 +222,7 @@
 
         .grid.two { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
         .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
         .panel,
         .metric {
@@ -382,7 +383,8 @@
             }
 
             .grid.two,
-            .grid.four {
+            .grid.four,
+            .grid.five {
                 grid-template-columns: 1fr;
             }
         }
@@ -457,6 +459,37 @@
 
             .panel { overflow-x: auto; }
         }
+        .bouncing-bell-button {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+            border-radius: 999px;
+            padding: 1px 6px;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            margin-top: 4px;
+            line-height: 1.2;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .bouncing-bell-button:hover {
+            background: #fca5a5;
+        }
+
+        .jumping-badge {
+            background: #b91c1c;
+            color: #ffffff;
+            border-radius: 999px;
+            padding: 0 4px;
+            font-size: 9.5px;
+            font-weight: 900;
+            line-height: 1.3;
+        }
     </style>
     @stack('styles')
 </head>
@@ -507,14 +540,28 @@
         </script>
     @endif
 
+    @php
+        $latestHousekeepingCount = \App\Models\HousekeepingNotification::query()->latest('id')->value('total_issues_count') ?? 0;
+    @endphp
+
     <header class="topbar">
-        <a class="brand" href="{{ route('dashboard') }}">
-            <div class="brand-badge" style="background:none;"><img src="{{ asset('image/brand_badge.png') }}" alt="Logo" style="width:100%; height:100%; object-fit:contain; border-radius:8px;"></div>
+        <div class="brand" style="display: flex; align-items: center; gap: 12px;">
+            <a href="{{ route('dashboard') }}" class="brand-badge" style="background:none; text-decoration:none;"><img src="{{ asset('image/brand_badge.png') }}" alt="Logo" style="width:100%; height:100%; object-fit:contain; border-radius:8px;"></a>
             <div>
-                <h1 class="brand-title">SCOMM Collection</h1>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <a href="{{ route('dashboard') }}" style="text-decoration: none; color: inherit;"><h1 class="brand-title" style="margin:0;">SCOMM Collection</h1></a>
+                    @if($latestHousekeepingCount > 0)
+                        <button type="button" 
+                            onclick="openHousekeepingDocModal(event)" 
+                            class="bouncing-bell-button" 
+                            title="Housekeeping Alerts Available (Click to view report)">
+                            🔔 <span class="jumping-badge">{{ $latestHousekeepingCount }}</span>
+                        </button>
+                    @endif
+                </div>
                 <p class="brand-subtitle">{{ auth()->user()->name ?? auth()->user()->email }}</p>
             </div>
-        </a>
+        </div>
 
         <nav class="nav" aria-label="Primary navigation">
             @can('view dashboard')
@@ -522,19 +569,16 @@
             @endcan
 
             @can('view collections')
-                @if(auth()->check() && (auth()->user()->hasRole('collection_hod') || auth()->user()->hasRole('admin')))
-                    <div class="nav-item-dropdown">
-                        <a class="{{ (request()->routeIs('collection-entry.*') || request()->routeIs('collections.index')) ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">
-                            Collection <span style="font-size: 10px; margin-left: 2px;">▾</span>
-                        </a>
-                        <div class="nav-dropdown-menu">
-                            <a class="{{ request()->routeIs('collection-entry.index') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Entry</a>
-                            <a class="{{ request()->routeIs('collections.index') ? 'active' : '' }}" href="{{ route('collections.index') }}">Collection Log</a>
-                        </div>
+                <div class="nav-item-dropdown">
+                    <a class="{{ (request()->routeIs('collection-entry.*') || request()->routeIs('collections.index') || request()->routeIs('waivers.*')) ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">
+                        Collection <span style="font-size: 10px; margin-left: 2px;">▾</span>
+                    </a>
+                    <div class="nav-dropdown-menu">
+                        <a class="{{ request()->routeIs('collection-entry.index') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Entry</a>
+                        <a class="{{ request()->routeIs('collections.index') ? 'active' : '' }}" href="{{ route('collections.index') }}">Collections</a>
+                        <a class="{{ request()->routeIs('waivers.*') ? 'active' : '' }}" href="{{ route('waivers.index') }}">Waivers</a>
                     </div>
-                @else
-                    <a class="{{ request()->routeIs('collection-entry.*') ? 'active' : '' }}" href="{{ route('collection-entry.index') }}">Collection</a>
-                @endif
+                </div>
             @endcan
 
             @can('view monthly summaries')
@@ -549,7 +593,7 @@
                 </div>
             @endcan
 
-            @canany(['view client logs', 'view audit logs', 'view guidance logs', 'view system access logs'])
+            @canany(['view client logs', 'view collection logs', 'view audit logs', 'view guidance logs', 'view system access logs'])
                 <div class="nav-item-dropdown">
                     <a class="{{ request()->routeIs('logs.*') ? 'active' : '' }}" href="{{ route('logs.client') }}">
                         Log <span style="font-size: 10px; margin-left: 2px;">▾</span>
@@ -558,6 +602,9 @@
                         @can('view client logs')
                             <a class="{{ request()->routeIs('logs.client') ? 'active' : '' }}" href="{{ route('logs.client') }}">Client Log</a>
                         @endcan
+                        @if(auth()->check() && (auth()->user()->can('view collection logs') || auth()->user()->hasAnyRole(['collection_hod', 'admin', 'mgt', 'manager', 'collection_supervisor'])))
+                            <a class="{{ request()->routeIs('logs.collection') ? 'active' : '' }}" href="{{ route('logs.collection') }}">Collection Change Log</a>
+                        @endif
                         @can('view audit logs')
                             <a class="{{ request()->routeIs('logs.audit') ? 'active' : '' }}" href="{{ route('logs.audit') }}">Audit Log</a>
                         @endcan
@@ -599,5 +646,93 @@
     </main>
 
     @stack('scripts')
+
+    @if($latestHousekeepingCount > 0)
+        {{-- GLOSSARY-STYLE HOUSEKEEPING & DATA INTEGRITY DOCUMENT MODAL --}}
+        <div id="housekeepingDocModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:99999; justify-content:center; align-items:center;">
+            <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; width:95%; max-width:920px; max-height:85vh; display:flex; flex-direction:column; box-shadow:var(--shadow);">
+                <!-- Modal Header -->
+                <div style="padding:16px 22px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-top-left-radius:12px; border-top-right-radius:12px;">
+                    <div>
+                        <h3 style="margin:0; font-size:17px; font-weight:800; color:var(--ink); display:flex; align-items:center; gap:8px;">
+                            🧹 Housekeeping &amp; Data Integrity Report
+                        </h3>
+                        <span id="housekeepingDocMeta" style="font-size:12px; color:var(--muted); font-weight:600;">
+                            Loading report metadata...
+                        </span>
+                    </div>
+                    <button onclick="closeHousekeepingDocModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--muted); line-height:1;">&times;</button>
+                </div>
+
+                <!-- Document Content Body -->
+                <div id="housekeepingDocContent" style="padding:22px; overflow-y:auto; font-size:13.5px; line-height:1.7; color:var(--ink); background:#ffffff; min-height: 200px;">
+                    <div style="display:flex; justify-content:center; align-items:center; height:180px; color:var(--muted); font-weight:600; gap:10px;">
+                        <div style="width:20px; height:20px; border:3px solid var(--line); border-top-color:var(--primary); border-radius:50%; animation:loader-spin 0.8s linear infinite;"></div>
+                        Fetching housekeeping report...
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div style="padding:14px 22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom-left-radius:12px; border-bottom-right-radius:12px;">
+                    <span id="housekeepingDocRecipients" style="font-size:11.5px; color:var(--muted); font-weight:600;">
+                        📧 Emailed to: {{ implode(', ', config('housekeeping.recipients', [])) }}
+                    </span>
+                    <button type="button" onclick="closeHousekeepingDocModal()" class="button primary" style="min-height:36px; padding:0 18px; font-weight:700;">Close Document</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let isHousekeepingDocLoaded = false;
+
+            function openHousekeepingDocModal(e) {
+                if (e) e.preventDefault();
+                const modal = document.getElementById('housekeepingDocModal');
+                if (!modal) return;
+                
+                modal.style.display = 'flex';
+
+                if (!isHousekeepingDocLoaded) {
+                    const contentDiv = document.getElementById('housekeepingDocContent');
+                    const metaSpan = document.getElementById('housekeepingDocMeta');
+                    const recipientsSpan = document.getElementById('housekeepingDocRecipients');
+
+                    contentDiv.innerHTML = `
+                        <div style="display:flex; justify-content:center; align-items:center; height:180px; color:var(--muted); font-weight:600; gap:10px;">
+                            <div style="width:20px; height:20px; border:3px solid var(--line); border-top-color:var(--primary); border-radius:50%; animation:loader-spin 0.8s linear infinite;"></div>
+                            Loading latest report content...
+                        </div>
+                    `;
+
+                    fetch('{{ url('/api/housekeeping/latest-document') }}')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                if (metaSpan) {
+                                    metaSpan.textContent = `Generated: ${data.created_at} | Month: ${data.report_month}`;
+                                }
+                                if (recipientsSpan && data.recipients) {
+                                    recipientsSpan.textContent = `📧 Emailed to: ${data.recipients.join(', ')}`;
+                                }
+                                contentDiv.innerHTML = data.html_content;
+                                isHousekeepingDocLoaded = true;
+                            } else {
+                                contentDiv.innerHTML = `<div style="color:var(--danger); font-weight:700; padding:20px;">Failed to load report: ${data.message || 'Unknown error'}</div>`;
+                            }
+                        })
+                        .catch(err => {
+                            contentDiv.innerHTML = `<div style="color:var(--danger); font-weight:700; padding:20px;">Error loading document. Please try again.</div>`;
+                            console.error('Housekeeping doc fetch error:', err);
+                        });
+                }
+            }
+
+            function closeHousekeepingDocModal() {
+                const modal = document.getElementById('housekeepingDocModal');
+                if (modal) modal.style.display = 'none';
+            }
+        </script>
+    @endif
+
 </body>
 </html>

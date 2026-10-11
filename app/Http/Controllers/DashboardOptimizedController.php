@@ -41,6 +41,7 @@ class DashboardOptimizedController extends Controller
             ->toArray();
 
         $billedMrcTotal = 0.0;
+        $maturityTotal = 0.0;
         $collectionMrcTotal = 0.0;
         $collectionTotal = 0.0;
         $untracedCollectionTotal = 0.0;
@@ -49,6 +50,9 @@ class DashboardOptimizedController extends Controller
 
         if ($latestMonth) {
             $billedMrcTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)->sum('total_mrc');
+            $maturityTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)
+                ->selectRaw('SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity')
+                ->value('maturity');
             $collectionMrcTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)->sum('collection_mrc');
             $collectionTotal = $this->currentMonthCollectionTotal($latestMonth);
             $untracedCollectionTotal = $this->currentMonthUntracedCollectionTotal($latestMonth);
@@ -59,11 +63,21 @@ class DashboardOptimizedController extends Controller
         $currentMonthLabel = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('F Y') : 'Current Month';
 
         $barredClientsList = MonthlySummary::whereDate('summary_month', $latestMonth)
-            ->where('client_status', 'Barred')
+            ->where(function ($q) {
+                $q->where(function ($b) {
+                    $b->where('barring_percentage', '>', 0)
+                      ->where('barring_percentage', '<', 100);
+                })->orWhere('client_status', 'Barred');
+            })
             ->get()
             ->merge(
                 \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
-                    ->where('client_status', 'Barred')
+                    ->where(function ($q) {
+                        $q->where(function ($b) {
+                            $b->where('barring_percentage', '>', 0)
+                              ->where('barring_percentage', '<', 100);
+                        })->orWhere('client_status', 'Barred');
+                    })
                     ->get()
             );
 
@@ -223,9 +237,11 @@ class DashboardOptimizedController extends Controller
             'discontinuedSubCount' => $discontinuedSubCount,
             'barredSubCount' => $barredSubCount,
             'billedMrcTotal' => $billedMrcTotal,
+            'maturityTotal' => $maturityTotal,
             'collectionTotal' => $collectionTotal,
             'untracedCollectionTotal' => $untracedCollectionTotal,
             'currentMonthOs' => max($billedMrcTotal - $collectionMrcTotal, 0),
+            'currentMonthOsMaturity' => max($maturityTotal - $collectionTotal, 0),
             'latestOutstanding' => $latestMonth ? MonthlySummary::whereDate('summary_month', $latestMonth)->sum('total_latest_os') : 0,
             'highRiskCount' => $this->currentMonthHighRiskCount($latestMonth),
             'latestSummary' => $latestSummary,
@@ -250,8 +266,10 @@ class DashboardOptimizedController extends Controller
                 'active_clients' => $this->extractMetricComparison($comparisonData, 'active_clients'),
                 'discontinued_clients' => $this->extractMetricComparison($comparisonData, 'discontinued_clients'),
                 'mrc' => $this->extractMetricComparison($comparisonData, 'total_mrc'),
+                'maturity' => $this->extractMetricComparison($comparisonData, 'total_maturity'),
                 'collection' => $this->extractMetricComparison($comparisonData, 'total_collection'),
                 'current_month_os' => $this->extractMetricComparison($comparisonData, 'current_month_os'),
+                'current_month_os_maturity' => $this->extractMetricComparison($comparisonData, 'current_month_os_maturity'),
                 'os' => $this->extractMetricComparison($comparisonData, 'latest_os'),
                 'risk' => $this->extractMetricComparison($comparisonData, 'high_risk'),
             ],
@@ -276,6 +294,7 @@ class DashboardOptimizedController extends Controller
                 })
                 ->toArray(),
             'collectionEfficiency' => $this->collectionEfficiency($latestMonth),
+            'collectionEfficiencyMatured' => $this->collectionEfficiencyMatured($latestMonth),
             'kamPerformance' => $this->kamPerformanceOptimized($latestMonth),
             'teams' => $this->teamPerformanceOptimized($latestMonth, 'client_team_name', true),
             'collectionKams' => $this->teamPerformanceOptimized($latestMonth, 'client_collection_kam', false),
@@ -697,6 +716,7 @@ class DashboardOptimizedController extends Controller
                 SUM(CASE WHEN COALESCE(client_status, "") = "Active" THEN 1 ELSE 0 END) as active_clients,
                 SUM(CASE WHEN COALESCE(client_status, "") != "Active" THEN 1 ELSE 0 END) as discontinued_clients,
                 SUM(total_mrc) as total_mrc,
+                SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as total_maturity,
                 SUM(total_collection) as total_collection,
                 SUM(net_backlog_total) as backlog,
                 SUM(total_collection) as collection,
@@ -705,6 +725,11 @@ class DashboardOptimizedController extends Controller
                     THEN SUM(total_mrc) - SUM(collection_mrc)
                     ELSE 0
                 END as current_month_os,
+                CASE
+                    WHEN SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) > SUM(total_collection)
+                    THEN SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) - SUM(total_collection)
+                    ELSE 0
+                END as current_month_os_maturity,
                 SUM(total_latest_os) as latest_os,
                 SUM(CASE WHEN latest_rating_category IN ("Risky", "High Risky", "Most Risky") THEN 1 ELSE 0 END) as high_risk
             ');
@@ -775,7 +800,28 @@ class DashboardOptimizedController extends Controller
 
         $summary = MonthlySummary::query()
             ->whereDate('summary_month', $latestMonth)
-            ->selectRaw('SUM(total_collection) as collection, SUM(total_maturity) as maturity')
+            ->selectRaw('SUM(total_collection) as collection, SUM(total_mrc) as mrc')
+            ->first();
+
+        $collection = (float) ($summary?->collection ?? 0);
+        $mrc = (float) ($summary?->mrc ?? 0);
+
+        if ($mrc <= 0) {
+            return 0;
+        }
+
+        return ($collection / $mrc) * 100;
+    }
+
+    private function collectionEfficiencyMatured($latestMonth): float
+    {
+        if (! $latestMonth) {
+            return 0;
+        }
+
+        $summary = MonthlySummary::query()
+            ->whereDate('summary_month', $latestMonth)
+            ->selectRaw('SUM(total_collection) as collection, SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity')
             ->first();
 
         $collection = (float) ($summary?->collection ?? 0);
@@ -1471,7 +1517,8 @@ class DashboardOptimizedController extends Controller
             if (!$client) continue;
 
             $state = $client->toArray();
-            $state['legal'] = $client->legal ? 'Yes' : 'No';
+            $state['legal'] = $client->legal ?? '';
+            $state['security_coverage'] = $client->formatted_security_coverage;
             $state['other_upstream'] = $client->other_upstream ? 'Yes' : 'No';
             $state['btrc_license_discontinuation_date'] = $client->btrc_license_discontinuation_date?->format('Y-m-d');
             $state['service_discontinuation_date'] = $client->service_discontinuation_date?->format('Y-m-d');
@@ -1586,7 +1633,8 @@ class DashboardOptimizedController extends Controller
             if (!$client) continue;
 
             $state = $client->toArray();
-            $state['legal'] = $client->legal ? 'Yes' : 'No';
+            $state['legal'] = $client->legal ?? '';
+            $state['security_coverage'] = $client->formatted_security_coverage;
             $state['other_upstream'] = $client->other_upstream ? 'Yes' : 'No';
             $state['btrc_license_discontinuation_date'] = $client->btrc_license_discontinuation_date?->format('Y-m-d');
             $state['service_discontinuation_date'] = $client->service_discontinuation_date?->format('Y-m-d');

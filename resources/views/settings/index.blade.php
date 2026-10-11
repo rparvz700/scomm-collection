@@ -157,11 +157,11 @@
 
                 <div class="table-responsive" style="overflow-x: auto; max-height: 600px; border: 1px solid var(--line); border-radius: 8px;">
                     <table style="width: 100%; border-collapse: collapse; min-width: 900px; position: relative;">
-                        <thead>
+                        <thead style="position: sticky; top: 0; z-index: 15;">
                             <tr style="border-bottom: 2px solid var(--line); background: #f8fafc;">
-                                <th style="text-align: left; padding: 14px 16px; color: var(--ink); font-size: 13px; font-weight: 800; position: sticky; left: 0; background: #f8fafc; z-index: 12; border-right: 1px solid var(--line); width: 260px;">Permission</th>
+                                <th style="text-align: left; padding: 14px 16px; color: var(--ink); font-size: 13px; font-weight: 800; position: sticky; top: 0; left: 0; background: #f8fafc; z-index: 20; border-right: 1px solid var(--line); border-bottom: 2px solid var(--line); width: 260px;">Permission</th>
                                 @foreach ($roles as $role)
-                                    <th style="text-align: center; padding: 14px 10px; color: var(--ink); font-size: 13px; font-weight: 800; min-width: 110px; border-right: 1px solid var(--line);">
+                                    <th style="text-align: center; padding: 14px 10px; color: var(--ink); font-size: 13px; font-weight: 800; min-width: 110px; border-right: 1px solid var(--line); position: sticky; top: 0; background: #f8fafc; z-index: 15; border-bottom: 2px solid var(--line);">
                                         <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
                                             <span>{{ ucwords(str_replace('_', ' ', $role->name)) }}</span>
                                             
@@ -242,11 +242,11 @@
 
                 <div class="table-responsive" style="overflow-x: auto; max-height: 500px; border: 1px solid var(--line); border-radius: 8px;">
                     <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
-                        <thead>
+                        <thead style="position: sticky; top: 0; z-index: 15;">
                             <tr style="border-bottom: 2px solid var(--line); background: #f8fafc;">
-                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800;">Permission Key</th>
-                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800;">Guard</th>
-                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800;">Modules impacted</th>
+                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800; position: sticky; top: 0; background: #f8fafc; z-index: 15; border-bottom: 2px solid var(--line);">Permission Key</th>
+                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800; position: sticky; top: 0; background: #f8fafc; z-index: 15; border-bottom: 2px solid var(--line);">Guard</th>
+                                <th style="text-align: left; padding: 12px 16px; color: var(--ink); font-size: 13px; font-weight: 800; position: sticky; top: 0; background: #f8fafc; z-index: 15; border-bottom: 2px solid var(--line);">Modules impacted</th>
                             </tr>
                         </thead>
                         <tbody id="permissionTableBody">

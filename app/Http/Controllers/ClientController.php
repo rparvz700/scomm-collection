@@ -9,12 +9,45 @@ use Illuminate\View\View;
 
 class ClientController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $clients = Client::query()
-            ->with('growthTrend')
-            ->orderBy('client_name')
-            ->get();
+        $user = auth()->user();
+        $isTeamScoped = false;
+        if ($user) {
+            $isTeamScoped = !$user->can('view all clients') &&
+                !$user->hasAnyRole(['admin', 'mgt', 'collection_hod', 'manager', 'Super Admin']);
+        }
+
+        // Handle view_scope toggle: 'my' (individual KAM clients) vs 'team' (team clients)
+        $viewScope = $request->query('view_scope');
+        if (!in_array($viewScope, ['my', 'team'])) {
+            $viewScope = session('client_view_scope', 'team');
+        }
+        session(['client_view_scope' => $viewScope]);
+
+        $clientsQuery = Client::query()->with('growthTrend')->orderBy('client_name');
+
+        if ($isTeamScoped && $viewScope === 'my' && $user) {
+            $userName = strtolower(trim($user->name));
+            $userId = $user->id;
+
+            $clientsQuery->where(function ($q) use ($userId, $userName) {
+                $q->where('collection_kam_id', $userId)
+                  ->orWhereRaw('LOWER(collection_kam) = ?', [$userName])
+                  ->orWhere('sm_kam_id', $userId)
+                  ->orWhereRaw('LOWER(sm_kam) = ?', [$userName])
+                  ->orWhere('nttn_billing_kam_id', $userId)
+                  ->orWhereRaw('LOWER(nttn_billing_kam) = ?', [$userName])
+                  ->orWhere('iig_itc_billing_kam_id', $userId)
+                  ->orWhereRaw('LOWER(iig_itc_billing_kam) = ?', [$userName])
+                  ->orWhere('collection_supervisor_id', $userId)
+                  ->orWhereRaw('LOWER(collection_supervisor) = ?', [$userName])
+                  ->orWhere('sm_supervisor_id', $userId)
+                  ->orWhereRaw('LOWER(sm_supervisor) = ?', [$userName]);
+            });
+        }
+
+        $clients = $clientsQuery->get();
 
         $latestMonth = \App\Models\MonthlySummary::max('summary_month');
         $summaries = collect();
@@ -92,7 +125,27 @@ class ClientController extends Controller
             }
         }
 
-        return view('clients.index', compact('clients', 'improvingCount', 'decliningCount'));
+        // Determine if user is scoped to team clients
+        $user = auth()->user();
+        $isTeamScoped = false;
+        if ($user) {
+            $isTeamScoped = !$user->can('view all clients') &&
+                !$user->hasAnyRole(['admin', 'mgt', 'collection_hod', 'manager', 'Super Admin']);
+        }
+
+        // Ultra-fast direct DB metrics calculation for company-wide overview
+        $unscopedClientQuery = Client::withoutGlobalScopes();
+        $companyMetrics = [
+            'total' => (clone $unscopedClientQuery)->count(),
+            'active' => (clone $unscopedClientQuery)->whereRaw('LOWER(client_status) = ?', ['active'])->count(),
+            'discontinued' => (clone $unscopedClientQuery)->whereRaw('LOWER(client_status) = ?', ['discontinued'])->count(),
+            'barred' => (clone $unscopedClientQuery)->where('barring_percentage', '>', 0)->where('barring_percentage', '<', 100)->count(),
+            'highRisk' => $latestMonth ? \App\Models\MonthlySummary::whereDate('summary_month', $latestMonth)->where('latest_cr', '>=', 2.51)->count() : 0,
+            'declining' => \App\Models\ClientGrowthTrend::where('trend_status', 'declining')->count(),
+            'improving' => \App\Models\ClientGrowthTrend::where('trend_status', 'improving')->count(),
+        ];
+
+        return view('clients.index', compact('clients', 'improvingCount', 'decliningCount', 'companyMetrics', 'isTeamScoped', 'viewScope'));
     }
 
     public function create(): View
@@ -107,25 +160,31 @@ class ClientController extends Controller
             'opus_id' => ['required', 'string', 'max:50', 'unique:client,opus_id'],
             'client_name' => ['required', 'string', 'max:255'],
             'client_status' => ['nullable', 'string', 'max:50'],
-            'agreement_status' => ['nullable', 'string', 'max:100'],
+            'agreement_status' => ['nullable'],
             'barring_priority' => ['nullable', 'in:P1,P2'],
+            'barring_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'barring_workflow_status' => ['nullable', 'string', 'max:255'],
             'btrc_license_discontinuation_date' => ['nullable', 'date'],
-            'legal' => ['boolean'],
+            'legal' => ['nullable', 'string', 'max:1000'],
             'service_discontinuation_date' => ['nullable', 'date'],
             'billing_modality_kpi' => ['nullable', 'string', 'max:100'],
-            'service_type_billing' => ['nullable', 'string', 'max:100'],
+            'service_type_billing' => ['nullable'],
             'license_billing' => ['nullable', 'string', 'max:100'],
             'btrc_letter' => ['nullable', 'string', 'max:255'],
             'security_coverage' => ['nullable', 'string', 'max:100'],
             'payment_plan' => ['nullable', 'string', 'max:255'],
+            'deferred_period' => ['nullable', 'integer', 'min:0', 'max:365'],
             'other_upstream' => ['boolean'],
-            'sm_kam' => ['nullable', 'string', 'max:255'],
-            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
-            'team_name' => ['nullable', 'string', 'max:255'],
+            'collection_team_name' => ['nullable', 'string', 'max:255'],
             'collection_kam' => ['nullable', 'string', 'max:255'],
             'collection_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'collection_supervisor' => ['nullable', 'string', 'max:255'],
             'collection_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'team_name' => ['nullable', 'string', 'max:255'],
+            'sm_supervisor' => ['nullable', 'string', 'max:255'],
+            'sm_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'sm_kam' => ['nullable', 'string', 'max:255'],
+            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_kam' => ['nullable', 'string', 'max:255'],
             'nttn_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'iig_itc_billing_kam' => ['nullable', 'string', 'max:255'],
@@ -134,9 +193,51 @@ class ClientController extends Controller
             'iig_itc_billing_commencement_date' => ['nullable', 'date'],
         ]);
 
-        // Default booleans if checkboxes are unchecked
-        $data['legal'] = $request->has('legal');
         $data['other_upstream'] = $request->has('other_upstream');
+
+        if ($request->has('service_type_billing')) {
+            $stb = $request->input('service_type_billing');
+            if (is_array($stb)) {
+                $data['service_type_billing'] = implode(', ', array_filter(array_map('trim', $stb)));
+            } else {
+                $data['service_type_billing'] = trim((string) $stb);
+            }
+        } else {
+            $data['service_type_billing'] = null;
+        }
+
+        $agInputs = $request->input('agreement_status', $request->input('agreements'));
+        if (is_array($agInputs)) {
+            $cleanAgreements = [];
+            foreach ($agInputs as $ag) {
+                if (is_array($ag) && !empty($ag['license_name'])) {
+                    $cleanAgreements[] = [
+                        'license_name' => trim($ag['license_name']),
+                        'signing_date' => !empty($ag['signing_date']) ? $ag['signing_date'] : null,
+                        'expiry_date' => !empty($ag['expiry_date']) ? $ag['expiry_date'] : null,
+                        'status' => !empty($ag['status']) ? trim($ag['status']) : (!empty($ag['ref_no']) ? trim($ag['ref_no']) : null),
+                    ];
+                }
+            }
+            $data['agreement_status'] = $cleanAgreements;
+        }
+
+        $kamMappings = [
+            'collection_kam_id' => 'collection_kam',
+            'collection_supervisor_id' => 'collection_supervisor',
+            'sm_supervisor_id' => 'sm_supervisor',
+            'sm_kam_id' => 'sm_kam',
+            'nttn_billing_kam_id' => 'nttn_billing_kam',
+            'iig_itc_billing_kam_id' => 'iig_itc_billing_kam',
+        ];
+        foreach ($kamMappings as $idCol => $nameCol) {
+            if (!empty($data[$idCol])) {
+                $user = \App\Models\User::find($data[$idCol]);
+                $data[$nameCol] = $user ? $user->name : null;
+            } else {
+                $data[$nameCol] = null;
+            }
+        }
 
         Client::create($data);
 
@@ -157,25 +258,31 @@ class ClientController extends Controller
             'opus_id' => ['required', 'string', 'max:50', 'unique:client,opus_id,' . $client->client_id . ',client_id'],
             'client_name' => ['required', 'string', 'max:255'],
             'client_status' => ['nullable', 'string', 'max:50'],
-            'agreement_status' => ['nullable', 'string', 'max:100'],
+            'agreement_status' => ['nullable'],
             'barring_priority' => ['nullable', 'in:P1,P2'],
+            'barring_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'barring_workflow_status' => ['nullable', 'string', 'max:255'],
             'btrc_license_discontinuation_date' => ['nullable', 'date'],
-            'legal' => ['boolean'],
+            'legal' => ['nullable', 'string', 'max:1000'],
             'service_discontinuation_date' => ['nullable', 'date'],
             'billing_modality_kpi' => ['nullable', 'string', 'max:100'],
-            'service_type_billing' => ['nullable', 'string', 'max:100'],
+            'service_type_billing' => ['nullable'],
             'license_billing' => ['nullable', 'string', 'max:100'],
             'btrc_letter' => ['nullable', 'string', 'max:255'],
             'security_coverage' => ['nullable', 'string', 'max:100'],
             'payment_plan' => ['nullable', 'string', 'max:255'],
+            'deferred_period' => ['nullable', 'integer', 'min:0', 'max:365'],
             'other_upstream' => ['boolean'],
-            'sm_kam' => ['nullable', 'string', 'max:255'],
-            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
-            'team_name' => ['nullable', 'string', 'max:255'],
+            'collection_team_name' => ['nullable', 'string', 'max:255'],
             'collection_kam' => ['nullable', 'string', 'max:255'],
             'collection_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'collection_supervisor' => ['nullable', 'string', 'max:255'],
             'collection_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'team_name' => ['nullable', 'string', 'max:255'],
+            'sm_supervisor' => ['nullable', 'string', 'max:255'],
+            'sm_supervisor_id' => ['nullable', 'integer', 'exists:users,id'],
+            'sm_kam' => ['nullable', 'string', 'max:255'],
+            'sm_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'nttn_billing_kam' => ['nullable', 'string', 'max:255'],
             'nttn_billing_kam_id' => ['nullable', 'integer', 'exists:users,id'],
             'iig_itc_billing_kam' => ['nullable', 'string', 'max:255'],
@@ -184,8 +291,51 @@ class ClientController extends Controller
             'iig_itc_billing_commencement_date' => ['nullable', 'date'],
         ]);
 
-        $data['legal'] = $request->has('legal');
         $data['other_upstream'] = $request->has('other_upstream');
+
+        if ($request->has('service_type_billing')) {
+            $stb = $request->input('service_type_billing');
+            if (is_array($stb)) {
+                $data['service_type_billing'] = implode(', ', array_filter(array_map('trim', $stb)));
+            } else {
+                $data['service_type_billing'] = trim((string) $stb);
+            }
+        } else {
+            $data['service_type_billing'] = null;
+        }
+
+        $agInputs = $request->input('agreement_status', $request->input('agreements'));
+        if (is_array($agInputs)) {
+            $cleanAgreements = [];
+            foreach ($agInputs as $ag) {
+                if (is_array($ag) && !empty($ag['license_name'])) {
+                    $cleanAgreements[] = [
+                        'license_name' => trim($ag['license_name']),
+                        'signing_date' => !empty($ag['signing_date']) ? $ag['signing_date'] : null,
+                        'expiry_date' => !empty($ag['expiry_date']) ? $ag['expiry_date'] : null,
+                        'status' => !empty($ag['status']) ? trim($ag['status']) : (!empty($ag['ref_no']) ? trim($ag['ref_no']) : null),
+                    ];
+                }
+            }
+            $data['agreement_status'] = $cleanAgreements;
+        }
+
+        $kamMappings = [
+            'collection_kam_id' => 'collection_kam',
+            'collection_supervisor_id' => 'collection_supervisor',
+            'sm_supervisor_id' => 'sm_supervisor',
+            'sm_kam_id' => 'sm_kam',
+            'nttn_billing_kam_id' => 'nttn_billing_kam',
+            'iig_itc_billing_kam_id' => 'iig_itc_billing_kam',
+        ];
+        foreach ($kamMappings as $idCol => $nameCol) {
+            if (!empty($data[$idCol])) {
+                $user = \App\Models\User::find($data[$idCol]);
+                $data[$nameCol] = $user ? $user->name : null;
+            } else {
+                $data[$nameCol] = null;
+            }
+        }
 
         $client->update($data);
 
@@ -332,21 +482,53 @@ class ClientController extends Controller
                 'closing_cr_formatted' => number_format((float) ($row->latest_cr ?? 0), 1),
                 
                 'remarks' => $row->current_month_remarks ?? $row->sales_review_remarks ?? $row->visit_remarks ?? '',
+                'billing_modality_kpi' => $row->client_billing_modality_kpi ?? $row->billing_modality_kpi ?? $client->billing_modality_kpi ?? 'N/A',
             ];
         })->values();
 
+        $latestSummaryRow = $rows->last();
+        $billingModalityKpi = $latestSummaryRow?->client_billing_modality_kpi 
+            ?? $latestSummaryRow?->billing_modality_kpi 
+            ?? $client->billing_modality_kpi 
+            ?? 'N/A';
+
         $securityCoverage = $client->security_coverage ?? 'N/A';
-        $creditPeriod = $client->billing_modality_kpi ?? 'N/A';
         $serviceType = strtolower((string) $client->service_type_billing);
         $modality = str_contains($serviceType, 'prepaid') ? 'Pre-paid' : 'Post-paid';
+
+        $userNames = \App\Models\User::query()->pluck('name', 'email')->all();
+
+        $waivers = \App\Models\Waiver::where('client_id', $client->client_id)
+            ->orderBy('applicable_from_date', 'desc')
+            ->get()
+            ->map(function ($w) use ($userNames) {
+                $creator = $w->created_by;
+                if ($creator && isset($userNames[$creator])) {
+                    $creator = $userNames[$creator];
+                }
+                return [
+                    'id' => $w->id,
+                    'applicable_from_date' => $w->applicable_from_date ? $w->applicable_from_date->format('d M Y') : 'N/A',
+                    'applicable_month_key' => $w->applicable_from_date ? $w->applicable_from_date->format('Y-m') : '',
+                    'waiver_amount' => (float) $w->waiver_amount,
+                    'waiver_amount_formatted' => '৳' . number_format($w->waiver_amount, 2),
+                    'description' => $w->description ?? 'No description provided.',
+                    'has_attachment' => !empty($w->attachment_path),
+                    'attachment_url' => $w->attachment_path ? route('waivers.attachment', $w->id) : null,
+                    'attachment_name' => $w->attachment_name ?? 'Attachment',
+                    'created_by' => $creator ?? 'System',
+                ];
+            });
 
         return response()->json([
             'client_id' => $client->client_id,
             'client_name' => $client->client_name,
             'modality' => $modality,
             'header_title' => "Outstanding Summary of {$client->client_name}-{$modality}",
-            'credit_period_note' => $creditPeriod ? "*{$creditPeriod}" : '*Standard Credit Period Client',
+            'billing_modality_kpi' => $billingModalityKpi,
+            'credit_period_note' => "*Billing Modality: {$billingModalityKpi}",
             'security_coverage' => $securityCoverage,
+            'waivers' => $waivers,
             'rows' => $monthlySummaryRows,
         ]);
     }
@@ -397,6 +579,12 @@ class ClientController extends Controller
             ];
         })->values();
 
+        $latestRow = $rows->last();
+        $latestMonthDate = $latestRow?->summary_month ? $latestRow->summary_month->toDateString() : now()->toDateString();
+        $latestOs = (float) ($latestRow?->total_latest_os ?? $latestRow?->latest_os ?? 0);
+        $latestMrc = (float) ($latestRow?->total_mrc ?? $latestRow?->mrc ?? 0);
+        $defMetrics = \App\Models\MonthlySummary::getDeferredMetrics($client, $latestMonthDate, $latestOs, $latestMrc);
+
         return response()->json([
             'labels' => $rows->map(
                 fn ($row) => $row->summary_month ? $row->summary_month->format('M y') : ''
@@ -414,6 +602,10 @@ class ClientController extends Controller
             'service_discontinuation_date' => $client->service_discontinuation_date?->format('Y-m-d') ?? 'N/A',
             'opening_rating_category' => $rows->first()?->opening_rating_category ?? 'N/A',
             'latest_rating_category' => $rows->last()?->latest_rating_category ?? 'N/A',
+            'deferred_days' => ((int) ($client->deferred_period ?? 0)) . ' Days',
+            'deferred_os_formatted' => number_format($defMetrics['deferred_os'] / 1000000, 2) . 'M',
+            'maturity_mrc_formatted' => number_format($defMetrics['maturity_mrc'] / 1000000, 2) . 'M',
+            'payment_plan_summary' => $client->payment_plan ?? 'N/A',
         ]);
     }
 
@@ -469,6 +661,8 @@ class ClientController extends Controller
             'service_discontinuation_date' => $client->service_discontinuation_date?->format('Y-m-d') ?? 'N/A',
             'opening_rating_category' => 'N/A',
             'latest_rating_category' => 'N/A',
+            'deferred_days' => ((int) ($client->deferred_period ?? 0)) . ' Days',
+            'payment_plan_summary' => $client->payment_plan ?? 'N/A',
         ]);
     }
 }
