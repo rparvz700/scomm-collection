@@ -118,6 +118,9 @@ class ClientController extends Controller
             $client->mrc_change_pct = $mrcChangePct;
             $client->cr_change_val = $crChangeVal;
 
+            $client->overall_agreement_health = $client->overall_agreement_health;
+            $client->formatted_security_coverage = $client->formatted_security_coverage;
+
             if ($trendStatus === 'improving') {
                 $improvingCount++;
             } elseif ($trendStatus === 'declining') {
@@ -139,7 +142,7 @@ class ClientController extends Controller
             'total' => (clone $unscopedClientQuery)->count(),
             'active' => (clone $unscopedClientQuery)->whereRaw('LOWER(client_status) = ?', ['active'])->count(),
             'discontinued' => (clone $unscopedClientQuery)->whereRaw('LOWER(client_status) = ?', ['discontinued'])->count(),
-            'barred' => (clone $unscopedClientQuery)->where('barring_percentage', '>', 0)->where('barring_percentage', '<', 100)->count(),
+            'barred' => (clone $unscopedClientQuery)->where('barring_percentage', '>', 0)->count(),
             'highRisk' => $latestMonth ? \App\Models\MonthlySummary::whereDate('summary_month', $latestMonth)->where('latest_cr', '>=', 2.51)->count() : 0,
             'declining' => \App\Models\ClientGrowthTrend::where('trend_status', 'declining')->count(),
             'improving' => \App\Models\ClientGrowthTrend::where('trend_status', 'improving')->count(),
@@ -594,6 +597,8 @@ class ClientController extends Controller
             'closing_cr' => $rows->pluck('latest_cr')->map(fn ($v) => (float) ($v ?? 0))->values(),
             'closing_os' => $rows->map(fn ($row) => (float) ($row->total_latest_os ?? $row->latest_os ?? 0))->values(),
             'mrc' => $rows->map(fn ($row) => (float) ($row->total_mrc ?? $row->mrc ?? 0))->values(),
+            'mrc_maturity' => $rows->map(fn ($row) => (float) ($row->total_maturity ?: ($row->total_mrc ?? $row->mrc ?? 0)))->values(),
+            'total_maturity' => $rows->map(fn ($row) => (float) ($row->total_maturity ?: ($row->total_mrc ?? $row->mrc ?? 0)))->values(),
             'backlog' => $rows->map(fn ($row) => (float) ($row->net_backlog_total ?? $row->backlog ?? 0))->values(),
             'collection' => $rows->map(fn ($row) => (float) ($row->total_collection ?? $row->collection_amount ?? 0))->values(),
             'logs' => $logs,
@@ -603,6 +608,7 @@ class ClientController extends Controller
             'opening_rating_category' => $rows->first()?->opening_rating_category ?? 'N/A',
             'latest_rating_category' => $rows->last()?->latest_rating_category ?? 'N/A',
             'deferred_days' => ((int) ($client->deferred_period ?? 0)) . ' Days',
+            'barring_percentage' => (float) ($client->barring_percentage ?? 0),
             'deferred_os_formatted' => number_format($defMetrics['deferred_os'] / 1000000, 2) . 'M',
             'maturity_mrc_formatted' => number_format($defMetrics['maturity_mrc'] / 1000000, 2) . 'M',
             'payment_plan_summary' => $client->payment_plan ?? 'N/A',
@@ -655,6 +661,9 @@ class ClientController extends Controller
             'closing_os' => $rows->map(fn ($row) => (float) ($row->latest_os ?? $row->total_latest_os ?? 0))->values(),
             'collection' => $rows->map(fn ($row) => (float) ($row->collection_amount ?? $row->total_collection ?? 0))->values(),
             'unbilled_total' => $rows->pluck('unbilled_total')->map(fn ($v) => (float) ($v ?? 0))->values(),
+            'mrc' => $rows->map(fn ($row) => (float) ($row->total_mrc ?? $row->mrc ?? 0))->values(),
+            'mrc_maturity' => $rows->map(fn ($row) => (float) ($row->total_maturity ?: ($row->total_mrc ?? $row->mrc ?? 0)))->values(),
+            'total_maturity' => $rows->map(fn ($row) => (float) ($row->total_maturity ?: ($row->total_mrc ?? $row->mrc ?? 0)))->values(),
             'logs' => $logs,
             'snapshots' => $snapshots,
             'client_status' => $client->client_status ?? 'N/A',
@@ -662,6 +671,7 @@ class ClientController extends Controller
             'opening_rating_category' => 'N/A',
             'latest_rating_category' => 'N/A',
             'deferred_days' => ((int) ($client->deferred_period ?? 0)) . ' Days',
+            'barring_percentage' => (float) ($client->barring_percentage ?? 0),
             'payment_plan_summary' => $client->payment_plan ?? 'N/A',
         ]);
     }

@@ -83,9 +83,18 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             break;
         }
     }
+    if (!$summaryMonth && preg_match('/_([A-Za-z]{3,4})\'([0-9]{2})/i', $fileToProcess, $matches)) {
+        $mStr = strtolower(substr($matches[1], 0, 3));
+        $yStr = $matches[2];
+        if (isset($monthsMap[$mStr])) {
+            $mNum = $monthsMap[$mStr];
+            $yNum = "20" . $yStr;
+            $summaryMonth = date('Y-m-t', strtotime("$yNum-$mNum-01"));
+        }
+    }
     
     if (!$summaryMonth || !file_exists($excelFile)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid file name or file not found.']);
+        echo json_encode(['success' => false, 'message' => "Invalid file name or file not found at $excelFile (month: $summaryMonth)."]);
         exit;
     }
     
@@ -834,6 +843,18 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                         $discSummaryFields['client_iig_itc_billing_kam'] = $client->iig_itc_billing_kam;
                         $discSummaryFields['client_nttn_billing_commencement_date'] = $client->nttn_billing_commencement_date;
                         $discSummaryFields['client_iig_itc_billing_commencement_date'] = $client->iig_itc_billing_commencement_date;
+                        $discSummaryFields['client_deferred_period'] = (int)($client->deferred_period ?? 0);
+                        $discSummaryFields['client_sm_kam_id'] = $client->sm_kam_id ?? null;
+                        $discSummaryFields['client_sm_supervisor'] = $client->sm_supervisor ?? null;
+                        $discSummaryFields['client_sm_supervisor_id'] = $client->sm_supervisor_id ?? null;
+                        $discSummaryFields['client_collection_kam_id'] = $client->collection_kam_id ?? null;
+                        $discSummaryFields['client_collection_supervisor_id'] = $client->collection_supervisor_id ?? null;
+                        $discSummaryFields['client_collection_team_name'] = $client->collection_team_name ?? null;
+                        $discSummaryFields['client_nttn_billing_kam_id'] = $client->nttn_billing_kam_id ?? null;
+                        $discSummaryFields['client_iig_itc_billing_kam_id'] = $client->iig_itc_billing_kam_id ?? null;
+                        $discSummaryFields['client_barred_at'] = $client->barred_at ?? null;
+                        $discSummaryFields['client_barring_percentage'] = $client->barring_percentage ?? 0.00;
+                        $discSummaryFields['client_barring_workflow_status'] = $client->barring_workflow_status ?? 'none';
 
                         $aggregatedDisc[$cid] = $discSummaryFields;
                         
@@ -990,6 +1011,28 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             }
         }
 
+        $colPostpaidLatestOs     = 36;
+        $colPostpaidLatestOsNttn = 37;
+        $colPostpaidLatestOsIig  = 38;
+        $colPostpaidLatestOsItc  = 39;
+        $colPostpaidLatestOsNix  = 40;
+        foreach ([$postPaidRows[1] ?? [], $postPaidRows[2] ?? []] as $r) {
+            foreach ($r as $cIdx => $val) {
+                $vClean = strtolower(trim($val));
+                if (strpos($vClean, 'latest os balance') !== false) {
+                    $colPostpaidLatestOs = $cIdx;
+                } elseif ($vClean === 'nttn os' && $cIdx >= 30 && $cIdx <= 60) {
+                    $colPostpaidLatestOsNttn = $cIdx;
+                } elseif ($vClean === 'iig os' && $cIdx >= 30 && $cIdx <= 60) {
+                    $colPostpaidLatestOsIig = $cIdx;
+                } elseif ($vClean === 'itc os' && $cIdx >= 30 && $cIdx <= 60) {
+                    $colPostpaidLatestOsItc = $cIdx;
+                } elseif ($vClean === 'nix os' && $cIdx >= 30 && $cIdx <= 60) {
+                    $colPostpaidLatestOsNix = $cIdx;
+                }
+            }
+        }
+
         foreach ($postPaidRows as $rowNum => $row) {
             if ($rowNum < 3) continue; // Headers
             
@@ -1048,7 +1091,11 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             $m['shortfall_mrc_postpaid']      = isset($row[34]) && is_numeric($row[34]) ? (float)$row[34] : 0;
             $m['shortfall_maturity_postpaid'] = isset($row[35]) && is_numeric($row[35]) ? (float)$row[35] : 0;
             
-            $m['latest_os_balance_postpaid'] = isset($row[36]) && is_numeric($row[36]) ? (float)$row[36] : 0;
+            $m['latest_os_balance_postpaid'] = isset($row[$colPostpaidLatestOs]) && is_numeric($row[$colPostpaidLatestOs]) ? (float)$row[$colPostpaidLatestOs] : 0;
+            $m['latest_os_postpaid_nttn']    = isset($row[$colPostpaidLatestOsNttn]) && is_numeric($row[$colPostpaidLatestOsNttn]) ? (float)$row[$colPostpaidLatestOsNttn] : 0;
+            $m['latest_os_postpaid_iig']     = isset($row[$colPostpaidLatestOsIig]) && is_numeric($row[$colPostpaidLatestOsIig]) ? (float)$row[$colPostpaidLatestOsIig] : 0;
+            $m['latest_os_postpaid_itc']     = isset($row[$colPostpaidLatestOsItc]) && is_numeric($row[$colPostpaidLatestOsItc]) ? (float)$row[$colPostpaidLatestOsItc] : 0;
+            $m['latest_os_postpaid_nix']     = isset($row[$colPostpaidLatestOsNix]) && is_numeric($row[$colPostpaidLatestOsNix]) ? (float)$row[$colPostpaidLatestOsNix] : 0;
             
             $m['pdc']                     = isset($row[43]) && is_numeric($row[43]) ? (float)$row[43] : 0;
             $m['payment_plan_description'] = isset($row[44]) ? trim($row[44]) : null;
@@ -1078,6 +1125,28 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 $colPrepaidItc = $colIdx;
             } elseif ($headerValClean === 'nix payment') {
                 $colPrepaidNix = $colIdx;
+            }
+        }
+
+        $colPrepaidLatestOs     = 206;
+        $colPrepaidLatestOsNttn = 207;
+        $colPrepaidLatestOsIig  = 208;
+        $colPrepaidLatestOsItc  = 209;
+        $colPrepaidLatestOsNix  = 210;
+        foreach ([$prePaidRows[1] ?? [], $prePaidRows[2] ?? []] as $r) {
+            foreach ($r as $cIdx => $val) {
+                $vClean = strtolower(trim($val));
+                if (strpos($vClean, 'latest os balance') !== false) {
+                    $colPrepaidLatestOs = $cIdx;
+                } elseif ($vClean === 'nttn os' && $cIdx > 150) {
+                    $colPrepaidLatestOsNttn = $cIdx;
+                } elseif ($vClean === 'iig os' && $cIdx > 150) {
+                    $colPrepaidLatestOsIig = $cIdx;
+                } elseif ($vClean === 'itc os' && $cIdx > 150) {
+                    $colPrepaidLatestOsItc = $cIdx;
+                } elseif ($vClean === 'nix os' && $cIdx > 150) {
+                    $colPrepaidLatestOsNix = $cIdx;
+                }
             }
         }
 
@@ -1139,7 +1208,11 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             $m['shortfall_mrc_prepaid']      = isset($row[204]) && is_numeric($row[204]) ? (float)$row[204] : 0;
             $m['shortfall_maturity_prepaid'] = isset($row[205]) && is_numeric($row[205]) ? (float)$row[205] : 0;
             
-            $m['latest_os_balance_prepaid'] = isset($row[206]) && is_numeric($row[206]) ? (float)$row[206] : 0;
+            $m['latest_os_balance_prepaid'] = isset($row[$colPrepaidLatestOs]) && is_numeric($row[$colPrepaidLatestOs]) ? (float)$row[$colPrepaidLatestOs] : 0;
+            $m['latest_os_prepaid_nttn']    = isset($row[$colPrepaidLatestOsNttn]) && is_numeric($row[$colPrepaidLatestOsNttn]) ? (float)$row[$colPrepaidLatestOsNttn] : 0;
+            $m['latest_os_prepaid_iig']     = isset($row[$colPrepaidLatestOsIig]) && is_numeric($row[$colPrepaidLatestOsIig]) ? (float)$row[$colPrepaidLatestOsIig] : 0;
+            $m['latest_os_prepaid_itc']     = isset($row[$colPrepaidLatestOsItc]) && is_numeric($row[$colPrepaidLatestOsItc]) ? (float)$row[$colPrepaidLatestOsItc] : 0;
+            $m['latest_os_prepaid_nix']     = isset($row[$colPrepaidLatestOsNix]) && is_numeric($row[$colPrepaidLatestOsNix]) ? (float)$row[$colPrepaidLatestOsNix] : 0;
             
             $m['pdc']         = (isset($m['pdc']) ? $m['pdc'] : 0) + (isset($row[213]) && is_numeric($row[213]) ? (float)$row[213] : 0);
             $m['udc']         = isset($row[214]) && is_numeric($row[214]) ? (float)$row[214] : 0;
@@ -1181,6 +1254,8 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
             'shortfall_maturity_postpaid', 'shortfall_maturity_prepaid', 'total_shortfall_maturity',
             'shortfall_payment_plan_postpaid', 'shortfall_payment_plan_prepaid', 'total_shortfall_payment_plan',
             'latest_os_balance_postpaid', 'latest_os_balance_prepaid', 'total_latest_os',
+            'latest_os_postpaid_nttn', 'latest_os_postpaid_iig_nttn', 'latest_os_postpaid_iig', 'latest_os_postpaid_itc', 'latest_os_postpaid_nix',
+            'latest_os_prepaid_nttn', 'latest_os_prepaid_iig_nttn', 'latest_os_prepaid_iig', 'latest_os_prepaid_itc', 'latest_os_prepaid_nix',
             'nttn_tds_amount', 'balance_after_recovery',
             'collection_postpaid_nttn', 'collection_postpaid_nttn_iig', 'collection_postpaid_iig', 'collection_postpaid_itc', 'collection_postpaid_nix',
             'collection_prepaid_nttn', 'collection_prepaid_nttn_iig', 'collection_prepaid_iig', 'collection_prepaid_itc', 'collection_prepaid_nix',
@@ -1273,6 +1348,43 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 $insertData['client_iig_itc_billing_kam'] = $client->iig_itc_billing_kam;
                 $insertData['client_nttn_billing_commencement_date'] = $client->nttn_billing_commencement_date;
                 $insertData['client_iig_itc_billing_commencement_date'] = $client->iig_itc_billing_commencement_date;
+                $insertData['client_deferred_period'] = (int)($client->deferred_period ?? 0);
+                $insertData['client_sm_kam_id'] = $client->sm_kam_id ?? null;
+                $insertData['client_sm_supervisor'] = $client->sm_supervisor ?? null;
+                $insertData['client_sm_supervisor_id'] = $client->sm_supervisor_id ?? null;
+                $insertData['client_collection_kam_id'] = $client->collection_kam_id ?? null;
+                $insertData['client_collection_supervisor_id'] = $client->collection_supervisor_id ?? null;
+                $insertData['client_collection_team_name'] = $client->collection_team_name ?? null;
+                $insertData['client_nttn_billing_kam_id'] = $client->nttn_billing_kam_id ?? null;
+                $insertData['client_iig_itc_billing_kam_id'] = $client->iig_itc_billing_kam_id ?? null;
+                $insertData['client_barred_at'] = $client->barred_at ?? null;
+                $insertData['client_barring_percentage'] = $client->barring_percentage ?? 0.00;
+                $insertData['client_barring_workflow_status'] = $client->barring_workflow_status ?? 'none';
+
+                // Calculate Deferred CR and Maturity if client has deferred_period > 0
+                $deferredDays = (int)($client->deferred_period ?? 0);
+                if ($deferredDays > 0) {
+                    $defMetrics = \App\Models\MonthlySummary::getDeferredMetrics(
+                        $client,
+                        $summaryMonth,
+                        (float)$insertData['total_latest_os'],
+                        (float)$insertData['total_mrc'],
+                        (float)$insertData['total_collection']
+                    );
+                    $defOpeningOs = (float)$defMetrics['deferred_opening_os'];
+                    $defClosingOs = (float)$defMetrics['deferred_closing_os'];
+                    $maturityMrc  = (float)$defMetrics['maturity_mrc'];
+
+                    $insertData['total_maturity'] = $maturityMrc;
+
+                    $opCr = $maturityMrc > 0 ? round($defOpeningOs / $maturityMrc, 2) : 0.00;
+                    $insertData['opening_cr'] = $opCr;
+                    $insertData['opening_rating_category'] = $getRatingCategory($opCr);
+
+                    $latCr = $maturityMrc > 0 ? round($defClosingOs / $maturityMrc, 2) : 0.00;
+                    $insertData['latest_cr'] = $latCr;
+                    $insertData['latest_rating_category'] = $getRatingCategory($latCr);
+                }
 
                 DB::table('monthly_summary')->updateOrInsert(
                     [
@@ -1335,7 +1447,10 @@ if (isset($_GET['ajax']) && isset($_GET['file'])) {
                 $residueInsertCount++;
             }
         }
-        
+
+        // Synchronize and recalculate deferred summaries across months for all deferred clients
+        \App\Models\MonthlySummary::syncDeferredSummaries();
+
         DB::commit();
         $zip->close();
         

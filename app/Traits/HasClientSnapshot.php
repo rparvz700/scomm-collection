@@ -12,6 +12,50 @@ trait HasClientSnapshot
     protected $clientMockInstance;
 
     /**
+     * Helper to extract client snapshot array from a Client model instance.
+     */
+    public static function extractClientSnapshotData(Client $client): array
+    {
+        return [
+            'client_opus_id' => $client->opus_id,
+            'client_name' => $client->client_name,
+            'client_status' => $client->client_status,
+            'client_agreement_status' => is_array($client->agreement_status) ? json_encode($client->agreement_status) : $client->agreement_status,
+            'client_barring_priority' => $client->barring_priority,
+            'client_btrc_license_discontinuation_date' => $client->btrc_license_discontinuation_date,
+            'client_legal' => $client->legal,
+            'client_service_discontinuation_date' => $client->service_discontinuation_date,
+            'client_billing_modality_kpi' => $client->billing_modality_kpi,
+            'client_service_type_billing' => $client->service_type_billing,
+            'client_license_billing' => $client->license_billing,
+            'client_btrc_letter' => $client->btrc_letter,
+            'client_security_coverage' => $client->security_coverage,
+            'client_payment_plan' => $client->payment_plan,
+            'client_deferred_period' => $client->deferred_period ?? 0,
+            'client_other_upstream' => $client->other_upstream ? 1 : 0,
+            'client_sm_kam' => $client->sm_kam,
+            'client_sm_kam_id' => $client->sm_kam_id,
+            'client_team_name' => $client->team_name,
+            'client_sm_supervisor' => $client->sm_supervisor,
+            'client_sm_supervisor_id' => $client->sm_supervisor_id,
+            'client_collection_kam' => $client->collection_kam,
+            'client_collection_kam_id' => $client->collection_kam_id,
+            'client_collection_supervisor' => $client->collection_supervisor,
+            'client_collection_supervisor_id' => $client->collection_supervisor_id,
+            'client_collection_team_name' => $client->collection_team_name,
+            'client_nttn_billing_kam' => $client->nttn_billing_kam,
+            'client_nttn_billing_kam_id' => $client->nttn_billing_kam_id,
+            'client_iig_itc_billing_kam' => $client->iig_itc_billing_kam,
+            'client_iig_itc_billing_kam_id' => $client->iig_itc_billing_kam_id,
+            'client_nttn_billing_commencement_date' => $client->nttn_billing_commencement_date,
+            'client_iig_itc_billing_commencement_date' => $client->iig_itc_billing_commencement_date,
+            'client_barred_at' => $client->barred_at,
+            'client_barring_percentage' => $client->barring_percentage ?? 0.00,
+            'client_barring_workflow_status' => $client->barring_workflow_status ?? 'none',
+        ];
+    }
+
+    /**
      * Boot the trait.
      */
     protected static function bootHasClientSnapshot()
@@ -20,32 +64,9 @@ trait HasClientSnapshot
             if ($model->client_id && !$model->client_name) {
                 $client = Client::find($model->client_id);
                 if ($client) {
-                    $model->client_opus_id = $client->opus_id;
-                    $model->client_name = $client->client_name;
-                    $model->client_status = $client->client_status;
-                    $model->client_agreement_status = $client->agreement_status;
-                    $model->client_barring_priority = $client->barring_priority;
-                    $model->client_btrc_license_discontinuation_date = $client->btrc_license_discontinuation_date;
-                    $model->client_legal = $client->legal;
-                    $model->client_service_discontinuation_date = $client->service_discontinuation_date;
-                    $model->client_billing_modality_kpi = $client->billing_modality_kpi;
-                    $model->client_service_type_billing = $client->service_type_billing;
-                    $model->client_license_billing = $client->license_billing;
-                    $model->client_btrc_letter = $client->btrc_letter;
-                    $model->client_security_coverage = $client->security_coverage;
-                    $model->client_payment_plan = $client->payment_plan;
-                    $model->client_other_upstream = $client->other_upstream;
-                    $model->client_sm_kam = $client->sm_kam;
-                    $model->client_team_name = $client->team_name;
-                    $model->client_collection_kam = $client->collection_kam;
-                    $model->client_collection_supervisor = $client->collection_supervisor;
-                    $model->client_nttn_billing_kam = $client->nttn_billing_kam;
-                    $model->client_iig_itc_billing_kam = $client->iig_itc_billing_kam;
-                    $model->client_nttn_billing_commencement_date = $client->nttn_billing_commencement_date;
-                    $model->client_iig_itc_billing_commencement_date = $client->iig_itc_billing_commencement_date;
-                    $model->client_barred_at = $client->barred_at;
-                    $model->client_barring_percentage = $client->barring_percentage;
-                    $model->client_barring_workflow_status = $client->barring_workflow_status;
+                    foreach (static::extractClientSnapshotData($client) as $column => $value) {
+                        $model->{$column} = $value;
+                    }
                 }
             }
         });
@@ -86,13 +107,22 @@ trait HasClientSnapshot
         $client->btrc_letter = $this->client_btrc_letter;
         $client->security_coverage = $this->client_security_coverage;
         $client->payment_plan = $this->client_payment_plan;
+        $client->deferred_period = $this->client_deferred_period ?? 0;
         $client->other_upstream = $this->client_other_upstream;
         $client->sm_kam = $this->client_sm_kam;
+        $client->sm_kam_id = $this->client_sm_kam_id;
         $client->team_name = $this->client_team_name;
+        $client->sm_supervisor = $this->client_sm_supervisor;
+        $client->sm_supervisor_id = $this->client_sm_supervisor_id;
         $client->collection_kam = $this->client_collection_kam;
+        $client->collection_kam_id = $this->client_collection_kam_id;
         $client->collection_supervisor = $this->client_collection_supervisor;
+        $client->collection_supervisor_id = $this->client_collection_supervisor_id;
+        $client->collection_team_name = $this->client_collection_team_name;
         $client->nttn_billing_kam = $this->client_nttn_billing_kam;
+        $client->nttn_billing_kam_id = $this->client_nttn_billing_kam_id;
         $client->iig_itc_billing_kam = $this->client_iig_itc_billing_kam;
+        $client->iig_itc_billing_kam_id = $this->client_iig_itc_billing_kam_id;
         $client->nttn_billing_commencement_date = $this->client_nttn_billing_commencement_date;
         $client->iig_itc_billing_commencement_date = $this->client_iig_itc_billing_commencement_date;
         $client->barred_at = $this->client_barred_at;

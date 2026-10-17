@@ -559,7 +559,7 @@
                         </button>
                     @endif
                 </div>
-                <p class="brand-subtitle">{{ auth()->user()->name ?? auth()->user()->email }}</p>
+                <p class="brand-subtitle">{{ auth()->user()?->name ?? auth()->user()?->email ?? 'Guest' }}</p>
             </div>
         </div>
 
@@ -644,8 +644,6 @@
 
         @yield('content')
     </main>
-
-    @stack('scripts')
 
     @if($latestHousekeepingCount > 0)
         {{-- GLOSSARY-STYLE HOUSEKEEPING & DATA INTEGRITY DOCUMENT MODAL --}}
@@ -734,5 +732,6 @@
         </script>
     @endif
 
+    @stack('scripts')
 </body>
 </html>

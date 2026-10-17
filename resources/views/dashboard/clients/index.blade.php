@@ -537,6 +537,7 @@
                                     'client_status' => $actualClient->client_status,
                                     'agreement_status' => $actualClient->agreement_status,
                                     'barring_priority' => $actualClient->barring_priority,
+                                    'barring_percentage' => number_format((float) ($c->barring_percentage ?: ($c->client_barring_percentage ?: ($actualClient->barring_percentage ?? 0))), 0) . '%',
                                     'btrc_license_discontinuation_date' => $actualClient->btrc_license_discontinuation_date?->format('Y-m-d'),
                                     'legal' => $actualClient->legal ?: 'N/A',
                                     'billing_modality_kpi' => $actualClient->billing_modality_kpi,
@@ -576,6 +577,7 @@
                                     'client_status' => $previousClientStates[$c->client_id]['client_status'] ?? 'N/A',
                                     'agreement_status' => $previousClientStates[$c->client_id]['agreement_status'] ?? 'N/A',
                                     'barring_priority' => $previousClientStates[$c->client_id]['barring_priority'] ?? 'N/A',
+                                    'barring_percentage' => number_format((float) ($previousClientStates[$c->client_id]['barring_percentage'] ?? ($prevSummary->barring_percentage ?: ($prevSummary->client_barring_percentage ?: 0))), 0) . '%',
                                     'btrc_license_discontinuation_date' => $previousClientStates[$c->client_id]['btrc_license_discontinuation_date'] ?? 'N/A',
                                     'legal' => $previousClientStates[$c->client_id]['legal'] ?? 'No',
                                     'billing_modality_kpi' => $previousClientStates[$c->client_id]['billing_modality_kpi'] ?? 'N/A',
@@ -721,6 +723,10 @@
                 <span id="statLatestRating" class="modal-client-badge" style="font-size: 13px; padding: 4px 12px; font-weight: 800; text-transform: uppercase; display: inline-block;">N/A</span>
             </div>
             <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--line); text-align: center;">
+                <span style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">Barring Percentage</span>
+                <strong id="statBarringPercentage" style="font-size: 14px; color: #64748b; font-weight: 800;">0%</strong>
+            </div>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--line); text-align: center;">
                 <span style="font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 800; display: block; margin-bottom: 6px; letter-spacing: 0.5px;">Deferred Period</span>
                 <strong id="statDeferredDays" style="font-size: 14px; color: #0f766e; font-weight: 800;">0 Days</strong>
             </div>
@@ -747,6 +753,9 @@
 
             <input type="checkbox" id="metric-mrc" value="mrc" hidden>
             <label for="metric-mrc">MRC</label>
+
+            <input type="checkbox" id="metric-mrc-maturity" value="mrc_maturity" hidden>
+            <label for="metric-mrc-maturity">MRC (Maturity)</label>
 
             <input type="checkbox" id="metric-backlog" value="backlog" hidden>
             <label for="metric-backlog">Backlog</label>
@@ -820,6 +829,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span class="modal-client-badge" id="m-clientStatus">Status</span>
+                <span class="modal-client-badge" id="m-barringPercentageBadge" style="display: none;"></span>
                 <span class="modal-client-badge" id="m-growthTrendBadge" style="display: none;"></span>
             </div>
         </div>
@@ -879,7 +889,7 @@
         `.trend-btn[data-client="${activeClientId}"]`
     );
 
-    const url = activeButton.dataset.url;
+    const url = activeButton ? activeButton.dataset.url : `{{ url('/dashboard/clients') }}/${activeClientId}/trend`;
 
     const response = await fetch(url);
 
@@ -924,6 +934,14 @@
             data: trendData.mrc,
             borderColor: '#014e5a',
             backgroundColor: '#014e5a',
+            yAxisID: 'y',
+        },
+
+        mrc_maturity: {
+            label: 'MRC (Maturity)',
+            data: trendData.mrc_maturity,
+            borderColor: '#06b6d4',
+            backgroundColor: '#06b6d4',
             yAxisID: 'y',
         },
 
@@ -1114,6 +1132,13 @@
         const latestVal = trendData.latest_rating_category || 'N/A';
         statLatest.innerText = latestVal;
         statLatest.className = 'modal-client-badge ' + getRatingBadgeClass(latestVal);
+    }
+
+    const statBarring = document.getElementById('statBarringPercentage');
+    if (statBarring) {
+        const bp = parseFloat(trendData.barring_percentage || 0);
+        statBarring.innerText = (bp > 0 ? bp.toFixed(0) : '0') + '%';
+        statBarring.style.color = bp > 0 ? '#ea580c' : '#64748b';
     }
 
     const statDeferred = document.getElementById('statDeferredDays');
@@ -1401,6 +1426,10 @@ function showWaiverPopover(e, waiversJsonStr) {
                         <span class="details-value">${monthData.barring_priority || 'N/A'}</span>
                     </div>
                     <div class="details-row">
+                        <span class="details-label">Barring Percentage:</span>
+                        <span class="details-value" style="color: ${parseFloat(monthData.barring_percentage || 0) > 0 ? '#ea580c' : '#64748b'}; font-weight: 800;">${monthData.barring_percentage || '0%'}</span>
+                    </div>
+                    <div class="details-row">
                         <span class="details-label">Legal Status / Notes:</span>
                         <span class="details-value">${monthData.legal || 'N/A'}</span>
                     </div>
@@ -1498,6 +1527,34 @@ function showWaiverPopover(e, waiversJsonStr) {
         badge.style.display = 'inline-flex';
     }
 
+    function updateBarringBadge(barringPercentage) {
+        const badge = document.getElementById('m-barringPercentageBadge');
+        if (!badge) return;
+
+        const pct = parseFloat(barringPercentage || 0) || 0;
+        if (pct > 0) {
+            badge.innerText = `Barred: ${pct.toFixed(0)}%`;
+            badge.className = 'modal-client-badge';
+            if (pct >= 100) {
+                badge.style.setProperty('background-color', '#fee2e2', 'important');
+                badge.style.setProperty('color', '#b91c1c', 'important');
+                badge.style.setProperty('border', '1px solid #fca5a5', 'important');
+            } else {
+                badge.style.setProperty('background-color', '#ffedd5', 'important');
+                badge.style.setProperty('color', '#ea580c', 'important');
+                badge.style.setProperty('border', '1px solid #fed7aa', 'important');
+            }
+            badge.style.display = 'inline-flex';
+        } else {
+            badge.innerText = `Barred: 0%`;
+            badge.className = 'modal-client-badge';
+            badge.style.setProperty('background-color', '#f1f5f9', 'important');
+            badge.style.setProperty('color', '#64748b', 'important');
+            badge.style.setProperty('border', '1px solid #e2e8f0', 'important');
+            badge.style.display = 'inline-flex';
+        }
+    }
+
     document.querySelectorAll('.client-detail-link').forEach(link => {
         link.addEventListener('click', function() {
             const data = JSON.parse(this.dataset.summary);
@@ -1507,6 +1564,7 @@ function showWaiverPopover(e, waiversJsonStr) {
             
             document.getElementById('m-clientName').innerText = data.client_name || 'N/A';
             updateStatusBadge(data.current.client_status);
+            updateBarringBadge(data.current.barring_percentage);
             updateGrowthTrendBadge(data.growth_trend);
             
             // Set data for history button
@@ -1705,10 +1763,12 @@ function showWaiverPopover(e, waiversJsonStr) {
                 body.innerHTML = renderModalBody(activeClientDetail.previous);
                 this.innerText = 'Current Month Data';
                 updateStatusBadge(activeClientDetail.previous.client_status);
+                updateBarringBadge(activeClientDetail.previous.barring_percentage);
             } else {
                 body.innerHTML = renderModalBody(activeClientDetail.current);
                 this.innerText = 'Last Month Data';
                 updateStatusBadge(activeClientDetail.current.client_status);
+                updateBarringBadge(activeClientDetail.current.barring_percentage);
             }
         });
     }

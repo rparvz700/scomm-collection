@@ -142,6 +142,10 @@ Route::middleware('auth')->group(function () {
         ->middleware(['role:collection_kam|collection_supervisor|collection_hod|admin'])
         ->name('waivers.store');
 
+    Route::get('/waivers/client-breakdown/{client}', [\App\Http\Controllers\WaiverController::class, 'clientBreakdown'])
+        ->middleware(['role:collection_kam|collection_supervisor|collection_hod|admin'])
+        ->name('waivers.client-breakdown');
+
     Route::put('/waivers/{waiver}', [\App\Http\Controllers\WaiverController::class, 'update'])
         ->middleware(['role:collection_supervisor|collection_hod|admin'])
         ->name('waivers.update');
@@ -579,6 +583,26 @@ Route::get('/api/sync-live-isp-data', function (\Illuminate\Http\Request $reques
         'stats' => $stats
     ]);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

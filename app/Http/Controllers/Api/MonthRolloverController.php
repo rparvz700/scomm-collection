@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Traits\HasClientSnapshot;
 
 class MonthRolloverController extends Controller
 {
@@ -53,6 +54,16 @@ class MonthRolloverController extends Controller
         $sourceDiscSummaries = MonthlySummaryDiscontinued::whereDate('summary_month', $sourceMonthDate)
             ->get()
             ->keyBy('client_id');
+
+        $sourceMonthStart = Carbon::parse($sourceMonthDate)->startOfMonth()->toDateString();
+
+        // Fetch qualifying waivers that have subtract_from_next_month_os enabled
+        // Strictly applies ONLY if applicable_from_date is in current month or future (>= $sourceMonthStart)
+        $qualifyingWaivers = \App\Models\Waiver::where('subtract_from_next_month_os', true)
+            ->whereDate('applicable_from_date', '>=', $sourceMonthStart)
+            ->whereDate('applicable_from_date', '<=', $targetMonthDate)
+            ->get()
+            ->groupBy('client_id');
 
         $activeCreated = 0;
         $activeSkipped = 0;
@@ -102,6 +113,38 @@ class MonthRolloverController extends Controller
                 }
             }
 
+            // Apply qualifying waiver deductions if any
+            $clientWaivers = $qualifyingWaivers->get($client->client_id);
+            if ($clientWaivers && $clientWaivers->isNotEmpty()) {
+                $compDeductions = array_fill_keys($components, 0.00);
+                foreach ($clientWaivers as $waiver) {
+                    $config = $waiver->breakdown_config;
+                    if (!empty($config['components']) && is_array($config['components'])) {
+                        foreach ($config['components'] as $compKey => $cData) {
+                            if (isset($compDeductions[$compKey])) {
+                                $compDeductions[$compKey] += (float) ($cData['waiver_amount'] ?? 0);
+                            }
+                        }
+                    } else {
+                        // Fallback: proportional deduction based on latest OS of each component
+                        $totalWaiver = (float) $waiver->waiver_amount;
+                        $prevTotalLatestOs = (float) ($sourceSummary->total_latest_os ?? 0);
+                        if ($prevTotalLatestOs > 0 && $totalWaiver > 0) {
+                            foreach ($components as $comp) {
+                                $latestOsCol = 'latest_os_' . $comp;
+                                $compVal = (float) ($sourceSummary->$latestOsCol ?? 0);
+                                $compDeductions[$comp] += round(($compVal / $prevTotalLatestOs) * $totalWaiver, 2);
+                            }
+                        }
+                    }
+                }
+                foreach ($components as $comp) {
+                    $backlogCol = 'backlog_' . $comp;
+                    $deduction = $compDeductions[$comp] ?? 0.00;
+                    $backlogData[$backlogCol] = max(0.00, $backlogData[$backlogCol] - $deduction);
+                }
+            }
+
             // Calculate Opening OS components = mrc + backlog
             $openingOsData = [];
             foreach ($components as $comp) {
@@ -145,6 +188,8 @@ class MonthRolloverController extends Controller
             $latestCr = $openingCr;
             $latestRating = $openingRating;
 
+            $snapshotData = HasClientSnapshot::extractClientSnapshotData($client);
+
             $data = array_merge([
                 'client_id' => $client->client_id,
                 'summary_month' => $targetMonthDate,
@@ -173,7 +218,7 @@ class MonthRolloverController extends Controller
                 'latest_rating_category' => $latestRating,
                 'barring_percentage' => (float) ($client->barring_percentage ?? 0.00),
                 'created_at' => $now,
-            ], $mrcData, $backlogData, $openingOsData, $latestOsData);
+            ], $snapshotData, $mrcData, $backlogData, $openingOsData, $latestOsData);
 
             $activeRowsToInsert[] = $data;
             $activeCreated++;
@@ -192,13 +237,18 @@ class MonthRolloverController extends Controller
             $sourceActive = $sourceActiveSummaries->get($client->client_id);
 
             $prevClosingOs = $sourceDisc ? (float) $sourceDisc->latest_os : ($sourceActive ? (float) $sourceActive->total_latest_os : 0.00);
-            $openingOs = $prevClosingOs;
+
+            // Apply qualifying waiver deduction for discontinued client
+            $clientWaivers = $qualifyingWaivers->get($client->client_id);
+            $totalWaiver = $clientWaivers ? (float) $clientWaivers->sum('waiver_amount') : 0.00;
+
+            $openingOs = max(0.00, $prevClosingOs - $totalWaiver);
             $latestOs = $openingOs;
 
-            $discRowsToInsert[] = [
+            $discSnapshotData = HasClientSnapshot::extractClientSnapshotData($client);
+
+            $discRowsToInsert[] = array_merge($discSnapshotData, [
                 'client_id' => $client->client_id,
-                'client_name' => $client->client_name,
-                'client_status' => $client->client_status,
                 'summary_month' => $targetMonthDate,
                 'opening_os' => $openingOs,
                 'collection_amount' => 0.00,
@@ -206,11 +256,10 @@ class MonthRolloverController extends Controller
                 'mrc_shortfall' => 0.00,
                 'backlog_shortfall' => $openingOs,
                 'barring_percentage' => (float) ($client->barring_percentage ?? 0.00),
-                'client_legal' => $client->legal ? 1 : 0,
                 'visit_remarks' => $sourceDisc?->visit_remarks,
                 'payment_plan_description' => $sourceDisc?->payment_plan_description,
                 'created_at' => $now,
-            ];
+            ]);
 
             $discontinuedCreated++;
         }

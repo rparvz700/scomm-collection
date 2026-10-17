@@ -13,6 +13,8 @@ class Waiver extends Model
         'client_id',
         'applicable_from_date',
         'waiver_amount',
+        'subtract_from_next_month_os',
+        'breakdown_config',
         'description',
         'attachment_path',
         'attachment_name',
@@ -22,6 +24,8 @@ class Waiver extends Model
     protected $casts = [
         'applicable_from_date' => 'date',
         'waiver_amount' => 'decimal:2',
+        'subtract_from_next_month_os' => 'boolean',
+        'breakdown_config' => 'array',
     ];
 
     public function client(): BelongsTo

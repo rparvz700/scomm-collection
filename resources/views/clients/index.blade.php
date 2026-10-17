@@ -327,7 +327,7 @@
                     <div style="font-size: 22px; font-weight: 800; color: #991b1b; margin-top: 4px;">{{ $companyMetrics['discontinued'] ?? 0 }}</div>
                 </div>
                 <div class="summary-card" data-filter-type="barred" style="flex: 1; min-width: 130px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
-                    <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">Barred (<100%) (Company)</div>
+                    <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">Barred (> 0%) (Company)</div>
                     <div style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">{{ $companyMetrics['barred'] ?? 0 }}</div>
                 </div>
                 <div class="summary-card" data-filter-type="highRisk" style="flex: 1; min-width: 130px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
@@ -399,9 +399,9 @@
             <div class="summary-card" data-filter-type="barred" style="flex: 1; min-width: 130px; background: #fff5f5; border: 1px solid #fee2e2; border-radius: 8px; padding: 12px 16px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s ease;">
                 <div style="font-size: 11px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px;">
                     @if($isTeamScoped)
-                        {{ ($viewScope ?? 'team') === 'my' ? 'My Barred (<100%)' : 'My Team Barred (<100%)' }}
+                        {{ ($viewScope ?? 'team') === 'my' ? 'My Barred (> 0%)' : 'My Team Barred (> 0%)' }}
                     @else
-                        Barred (<100%)
+                        Barred (> 0%)
                     @endif
                 </div>
                 <div id="sumBarredCount" style="font-size: 22px; font-weight: 800; color: #b91c1c; margin-top: 4px;">0</div>
@@ -439,64 +439,189 @@
         </section>
     </div>
 
-    <section class="filter-bar">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Show</span>
-            <select id="pageSizeSelect" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
-                <option value="10">10</option>
-                <option value="15" selected>15</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-            </select>
-            <span style="font-size: 13px; font-weight: 700; color: var(--muted);">entries</span>
+    @php
+        $uniqueSmTeams = $clients->pluck('team_name')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        $uniqueCollectionTeams = $clients->pluck('collection_team_name')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        $uniqueSmKams = $clients->pluck('sm_kam')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        $uniqueCollectionKams = $clients->pluck('collection_kam')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        $crRanges = config('risk.ranges') ?? [];
+        $riskCategories = collect($crRanges)->pluck('category')->unique()->filter()->values();
+    @endphp
+
+    <section class="filter-panel" style="background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 20px; box-shadow: var(--shadow);">
+        <!-- Top Toolbar: Search with Icon, Filter Toggle, Clear Filters, and Page Size -->
+        <div id="filterPanelToolbar" style="display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 0; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; max-width: 640px; min-width: 260px; flex-wrap: wrap;">
+                <!-- Search Field with Preceding Search Icon -->
+                <div style="position: relative; flex: 1; min-width: 240px; display: flex; align-items: center;">
+                    <span style="position: absolute; left: 12px; display: flex; align-items: center; pointer-events: none; color: var(--muted); z-index: 2;" title="Search">
+                        <svg style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input class="filter-input" id="clientSearch" type="text" placeholder="Search across all columns in real-time..." style="width: 100%; height: 38px; padding-left: 36px; border: 1px solid var(--line); border-radius: 8px;">
+                </div>
+
+                <!-- Toggle Filters Button (Collapsible / Expandable) -->
+                <button id="toggleFiltersBtn" class="button" type="button" style="height: 38px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; font-weight: 700; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; user-select: none;" title="Toggle filter dropdowns">
+                    <svg style="width: 15px; height: 15px; color: var(--muted);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                    </svg>
+                    <span id="filterToggleText">Filters</span>
+                    <span id="activeFilterBadge" style="display: none; background: var(--primary); color: #ffffff; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; line-height: 1.4;"></span>
+                    <svg id="filterToggleIcon" style="width: 14px; height: 14px; color: var(--muted); transition: transform 0.25s ease;" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <button class="button" id="clearSearch" type="button" style="display: none; height: 38px; padding: 0 14px; white-space: nowrap; font-weight: 700;">Reset Filters</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Show</span>
+                <select id="pageSizeSelect" style="height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="10">10</option>
+                    <option value="15" selected>15</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">entries</span>
+            </div>
         </div>
-        
-        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Status:</span>
-                <select id="statusFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+
+        <!-- Collapsible Filter Dropdowns Grid -->
+        <div id="filterGridCollapse" style="display: none; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; align-items: flex-end; padding-top: 14px; border-top: 1px solid #edf1f7; transition: all 0.25s ease;">
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Status</label>
+                <select id="statusFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
                     <option value="All">All Statuses</option>
                     <option value="Active">Active</option>
                     <option value="Discontinued">Discontinued</option>
                 </select>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Barring:</span>
-                <select id="barringFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
-                    <option value="All">All Barring</option>
-                    <option value="Barred">Barred (<100%)</option>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Barring Priority</label>
+                <select id="priorityFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Barring Priorities</option>
+                    <option value="P1">P1 (High)</option>
+                    <option value="P2">P2 (Normal)</option>
+                    <option value="None">Unassigned (None)</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Barring</label>
+                <select id="barringFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All</option>
+                    <option value="Barred">Barred (&gt; 0%)</option>
                     <option value="Unbarred">Unbarred (0%)</option>
                 </select>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Risk:</span>
-                @php
-                    $crRanges = config('risk.ranges') ?? [];
-                    $riskCategories = collect($crRanges)->pluck('category')->unique()->filter()->values();
-                @endphp
-                <select id="riskFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Risk Segment</label>
+                <select id="riskFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
                     <option value="All">All Risk Levels</option>
-                    <option value="High Risk">High Risk (Risky/High/Most)</option>
+                    <option value="High Risk">High Risk</option>
                     @foreach($riskCategories as $cat)
                         <option value="{{ $cat }}">{{ $cat }}</option>
                     @endforeach
                 </select>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 13px; font-weight: 700; color: var(--muted);">Trend:</span>
-                <select id="growthTrendFilter" style="height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 14px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Growth Trend</label>
+                <select id="growthTrendFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
                     <option value="All">All Trends</option>
                     <option value="improving">Improving</option>
                     <option value="declining">Declining</option>
                     <option value="stable">Stable</option>
                 </select>
             </div>
-        </div>
 
-        <div class="filter-form">
-            <input class="filter-input" id="clientSearch" type="text" placeholder="Search across all columns in real-time..." style="width: 300px;">
-            <button class="button" id="clearSearch" type="button" style="display: none;">Clear</button>
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">S&amp;M Team</label>
+                <select id="smTeamFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All S&amp;M Teams</option>
+                    @foreach($uniqueSmTeams as $tm)
+                        <option value="{{ $tm }}">{{ $tm }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Collection Team</label>
+                <select id="collectionTeamFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Collection Teams</option>
+                    @foreach($uniqueCollectionTeams as $ctm)
+                        <option value="{{ $ctm }}">{{ $ctm }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">S&amp;M KAM</label>
+                <select id="smKamFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All S&amp;M KAMs</option>
+                    @foreach($uniqueSmKams as $skm)
+                        <option value="{{ $skm }}">{{ $skm }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Collection KAM</label>
+                <select id="collectionKamFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Collection KAMs</option>
+                    @foreach($uniqueCollectionKams as $ckm)
+                        <option value="{{ $ckm }}">{{ $ckm }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Service Billing</label>
+                <select id="serviceTypeFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Services</option>
+                    <option value="NTTN">NTTN</option>
+                    <option value="IIG">IIG</option>
+                    <option value="ITC">ITC</option>
+                    <option value="NIX">NIX</option>
+                </select>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.3px;">Misc</label>
+                <select id="miscFilter" style="width: 100%; height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 13px; background: #ffffff; outline: none; cursor: pointer; font-family: inherit; font-weight: 700; color: var(--ink);">
+                    <option value="All">All Misc</option>
+                    <option value="legal">Has Legal Action</option>
+                    <option value="deferred">Has Deferred Period (>0d)</option>
+                    <option value="agreement_expired">Agreement Expired</option>
+                    <option value="btrc_license_expired">BTRC License Expired</option>
+                </select>
+            </div>
         </div>
     </section>
 
@@ -508,9 +633,10 @@
                     <th class="sortable" data-sort="opus_id">OPUS ID</th>
                     <th class="sortable" data-sort="client_status">Status</th>
                     <th class="sortable" data-sort="license_billing">License Billing</th>
-                    <th class="sortable" data-sort="team_name">Team Name</th>
+                    <th class="sortable" data-sort="team_name">S&M Team</th>
                     <th class="sortable" data-sort="collection_kam">Collection KAM</th>
                     <th class="sortable" data-sort="current_month_cr">Current Month CR</th>
+                    <th class="sortable" data-sort="growth_trend">Growth Trend</th>
                     <th class="sortable" data-sort="risk_segment">Risk Segment</th>
                     <th style="width: 150px;">Actions</th>
                 </tr>
@@ -578,6 +704,10 @@
                 <button class="button primary" type="button" onclick="closeLogsModal()">Close</button>
             </div>
         </div>
+    </div>
+
+    {{-- CLIENT SUMMARY TOOLTIP (POPOVER ON 2s HOVER) --}}
+    <div id="clientInfoTooltip" style="position: fixed; display: none; z-index: 99999; width: 600px; max-width: 92vw; background: #ffffff; border-radius: 10px; border: 2px solid #0f172a; box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.24), 0 8px 16px -6px rgba(15, 23, 42, 0.14); padding: 16px 20px; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; opacity: 0; transform: translateY(6px); font-family: inherit;">
     </div>
 @endsection
 
@@ -783,7 +913,7 @@
                             <th class="sortable ${sortField === 'opus_id' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="opus_id">OPUS ID</th>
                             <th class="sortable ${sortField === 'client_status' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="client_status">Status</th>
                             <th class="sortable ${sortField === 'license_billing' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="license_billing">License Billing</th>
-                            <th class="sortable ${sortField === 'team_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="team_name">Team Name</th>
+                            <th class="sortable ${sortField === 'team_name' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="team_name">S&M Team</th>
                             <th class="sortable ${sortField === 'collection_kam' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="collection_kam">Collection KAM</th>
                             <th class="sortable ${sortField === 'current_month_cr' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="current_month_cr">Current Month CR</th>
                             <th class="sortable ${sortField === 'growth_trend' ? (sortDirection === 'asc' ? 'sort-asc' : 'sort-desc') : ''}" data-sort="growth_trend">Growth Trend</th>
@@ -822,15 +952,24 @@
                 // 1. Filter
                 const query = searchInput.value.toLowerCase().trim();
                 const selectedStatus = document.getElementById('statusFilter').value;
+                const selectedPriority = document.getElementById('priorityFilter').value;
                 const selectedBarring = document.getElementById('barringFilter').value;
                 const selectedRisk = document.getElementById('riskFilter').value;
                 const selectedTrend = document.getElementById('growthTrendFilter').value;
+                const selectedSmTeam = document.getElementById('smTeamFilter') ? document.getElementById('smTeamFilter').value : 'All';
+                const selectedCollectionTeam = document.getElementById('collectionTeamFilter') ? document.getElementById('collectionTeamFilter').value : 'All';
+                const selectedSmKam = document.getElementById('smKamFilter') ? document.getElementById('smKamFilter').value : 'All';
+                const selectedCollectionKam = document.getElementById('collectionKamFilter') ? document.getElementById('collectionKamFilter').value : 'All';
+                const selectedService = document.getElementById('serviceTypeFilter').value;
+                const selectedMisc = document.getElementById('miscFilter') ? document.getElementById('miscFilter').value : (document.getElementById('complianceFilter') ? document.getElementById('complianceFilter').value : 'All');
 
-                updateTableHeader(selectedStatus);
+                const activeTableStatus = (selectedBarring === 'Barred') ? 'Barred' : selectedStatus;
+                updateTableHeader(activeTableStatus);
 
                 filteredClients = clients.filter(client => {
                     const clientTrend = getClientTrendStatus(client);
                     const barringPct = parseFloat(client.barring_percentage) || 0;
+                    const priorityVal = (client.barring_priority || '').trim().toUpperCase();
 
                     // Check search query
                     if (query) {
@@ -838,8 +977,12 @@
                                (client.client_name && String(client.client_name).toLowerCase().includes(query)) ||
                                (client.opus_id && String(client.opus_id).toLowerCase().includes(query)) ||
                                (client.client_status && String(client.client_status).toLowerCase().includes(query)) ||
+                               (client.barring_priority && String(client.barring_priority).toLowerCase().includes(query)) ||
                                (client.license_billing && String(client.license_billing).toLowerCase().includes(query)) ||
+                               (client.service_type_billing && String(client.service_type_billing).toLowerCase().includes(query)) ||
                                (client.team_name && String(client.team_name).toLowerCase().includes(query)) ||
+                               (client.collection_team_name && String(client.collection_team_name).toLowerCase().includes(query)) ||
+                               (client.sm_kam && String(client.sm_kam).toLowerCase().includes(query)) ||
                                (client.collection_kam && String(client.collection_kam).toLowerCase().includes(query)) ||
                                (client.current_month_cr && String(client.current_month_cr).toLowerCase().includes(query)) ||
                                (clientTrend && clientTrend.toLowerCase().includes(query)) ||
@@ -853,10 +996,20 @@
                         if (!statusMatch) return false;
                     }
 
+                    // Check barring priority filter
+                    if (selectedPriority && selectedPriority !== 'All') {
+                        if (selectedPriority === 'None') {
+                            const isNone = (!client.barring_priority || priorityVal === '' || priorityVal === 'NONE' || priorityVal === 'N/A' || priorityVal === 'NULL');
+                            if (!isNone) return false;
+                        } else {
+                            if (priorityVal !== selectedPriority.toUpperCase()) return false;
+                        }
+                    }
+
                     // Check barring status filter
                     if (selectedBarring && selectedBarring !== 'All') {
                         if (selectedBarring === 'Barred') {
-                            if (!(barringPct > 0 && barringPct < 100)) return false;
+                            if (barringPct <= 0) return false;
                         } else if (selectedBarring === 'Unbarred') {
                             if (barringPct !== 0) return false;
                         }
@@ -879,6 +1032,85 @@
                         if (!trendMatch) return false;
                     }
 
+                    // Check S&M Team filter
+                    if (selectedSmTeam && selectedSmTeam !== 'All') {
+                        const clientSmTeam = (client.team_name || '').trim();
+                        if (clientSmTeam !== selectedSmTeam) return false;
+                    }
+
+                    // Check Collection Team filter
+                    if (selectedCollectionTeam && selectedCollectionTeam !== 'All') {
+                        const clientColTeam = (client.collection_team_name || '').trim();
+                        if (clientColTeam !== selectedCollectionTeam) return false;
+                    }
+
+                    // Check S&M KAM filter
+                    if (selectedSmKam && selectedSmKam !== 'All') {
+                        const clientSmKam = (client.sm_kam || '').trim();
+                        if (clientSmKam !== selectedSmKam) return false;
+                    }
+
+                    // Check Collection KAM filter
+                    if (selectedCollectionKam && selectedCollectionKam !== 'All') {
+                        const clientColKam = (client.collection_kam || '').trim();
+                        if (clientColKam !== selectedCollectionKam) return false;
+                    }
+
+                    // Check Service Type Billing filter
+                    if (selectedService && selectedService !== 'All') {
+                        const combinedBilling = ((client.service_type_billing || '') + ' ' + (client.license_billing || '')).toUpperCase();
+                        if (!combinedBilling.includes(selectedService.toUpperCase())) return false;
+                    }
+
+                    // Check Misc filter
+                    if (selectedMisc && selectedMisc !== 'All') {
+                        if (selectedMisc === 'legal') {
+                            const leg = String(client.legal || '').trim().toLowerCase();
+                            if (!leg || leg === 'no' || leg === 'n/a' || leg === '0' || leg === 'false' || leg === 'none') return false;
+                        } else if (selectedMisc === 'deferred') {
+                            const def = parseInt(client.deferred_period) || 0;
+                            if (def <= 0) return false;
+                        } else if (selectedMisc === 'agreement_expired') {
+                            let isExpired = false;
+                            if (client.overall_agreement_health && String(client.overall_agreement_health).toLowerCase() === 'expired') {
+                                isExpired = true;
+                            } else {
+                                let items = client.agreement_status;
+                                if (typeof items === 'string') {
+                                    try { items = JSON.parse(items); } catch(e) {}
+                                }
+                                if (typeof items === 'string') {
+                                    try { items = JSON.parse(items); } catch(e) {}
+                                }
+                                if (Array.isArray(items) && items.length > 0) {
+                                    const todayStr = new Date().toISOString().slice(0, 10);
+                                    for (const item of items) {
+                                        if (!item) continue;
+                                        const st = String(item.status || item.ref_status || item.ref_no || '').toLowerCase();
+                                        if (st.includes('expired')) {
+                                            isExpired = true;
+                                            break;
+                                        }
+                                        if (item.expiry_date) {
+                                            const exp = String(item.expiry_date).slice(0, 10);
+                                            if (exp && exp <= todayStr) {
+                                                isExpired = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (!isExpired) return false;
+                        } else if (selectedMisc === 'btrc_license_expired') {
+                            if (!client.btrc_license_discontinuation_date) return false;
+                            const rawDate = String(client.btrc_license_discontinuation_date).slice(0, 10);
+                            if (!rawDate || rawDate === '0000-00-00') return false;
+                            const todayStr = new Date().toISOString().slice(0, 10);
+                            if (rawDate > todayStr) return false;
+                        }
+                    }
+
                     return true;
                 });
 
@@ -894,13 +1126,13 @@
                     const status = (client.client_status || '').toLowerCase();
                     const barringPct = parseFloat(client.barring_percentage) || 0;
 
-                    if (status === 'discontinued' || barringPct >= 100) {
+                    if (status === 'discontinued') {
                         discontinuedCount++;
                     } else {
                         activeCount++;
                     }
 
-                    if (barringPct > 0 && barringPct < 100) {
+                    if (barringPct > 0) {
                         barredCount++;
                     }
 
@@ -921,16 +1153,45 @@
                 document.getElementById('sumDecliningCount').textContent = decliningCount;
                 document.getElementById('sumImprovingCount').textContent = improvingCount;
 
-                if (query || (selectedStatus && selectedStatus !== 'All') || (selectedBarring && selectedBarring !== 'All') || (selectedRisk && selectedRisk !== 'All') || (selectedTrend && selectedTrend !== 'All')) {
-                    clearBtn.style.display = 'inline-block';
-                } else {
-                    clearBtn.style.display = 'none';
+                let activeDropdownCount = 0;
+                if (selectedStatus && selectedStatus !== 'All') activeDropdownCount++;
+                if (selectedPriority && selectedPriority !== 'All') activeDropdownCount++;
+                if (selectedBarring && selectedBarring !== 'All') activeDropdownCount++;
+                if (selectedRisk && selectedRisk !== 'All') activeDropdownCount++;
+                if (selectedTrend && selectedTrend !== 'All') activeDropdownCount++;
+                if (selectedSmTeam && selectedSmTeam !== 'All') activeDropdownCount++;
+                if (selectedCollectionTeam && selectedCollectionTeam !== 'All') activeDropdownCount++;
+                if (selectedSmKam && selectedSmKam !== 'All') activeDropdownCount++;
+                if (selectedCollectionKam && selectedCollectionKam !== 'All') activeDropdownCount++;
+                if (selectedService && selectedService !== 'All') activeDropdownCount++;
+                if (selectedMisc && selectedMisc !== 'All') activeDropdownCount++;
+
+                const activeFilterBadge = document.getElementById('activeFilterBadge');
+                if (activeFilterBadge) {
+                    if (activeDropdownCount > 0) {
+                        activeFilterBadge.style.display = 'inline-block';
+                        activeFilterBadge.textContent = activeDropdownCount;
+                    } else {
+                        activeFilterBadge.style.display = 'none';
+                    }
                 }
+
+                const hasActiveFilters = Boolean(query || activeDropdownCount > 0);
+                clearBtn.style.display = hasActiveFilters ? 'inline-block' : 'none';
 
                 // 2. Sort
                 filteredClients.sort((a, b) => {
                     let valA = a[sortField];
                     let valB = b[sortField];
+
+                    if (sortField === 'barring_priority') {
+                        const prioRank = { 'P1': 1, 'P2': 2, 'NONE': 99, '': 99 };
+                        const rankA = prioRank[(a.barring_priority || '').trim().toUpperCase()] || 99;
+                        const rankB = prioRank[(b.barring_priority || '').trim().toUpperCase()] || 99;
+                        if (rankA < rankB) return sortDirection === 'asc' ? -1 : 1;
+                        if (rankA > rankB) return sortDirection === 'asc' ? 1 : -1;
+                        return 0;
+                    }
 
                     if (sortField === 'current_month_cr' || sortField === 'barring_percentage') {
                         const numA = valA === 'N/A' || valA === null || valA === undefined ? -999999 : parseFloat(valA);
@@ -1000,6 +1261,14 @@
                     // Determine status class and badge HTML
                     const barringPct = parseFloat(client.barring_percentage) || 0;
                     const statusLower = (client.client_status || '').toLowerCase();
+                    const priorityVal = (client.barring_priority || '').trim().toUpperCase();
+                    let priorityBadge = '';
+                    if (priorityVal === 'P1') {
+                        priorityBadge = `<span style="display: inline-block; font-size: 10px; font-weight: 900; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; border: 1px solid #fca5a5; margin-left: 4px; vertical-align: middle;" title="Barring Priority: P1">P1</span>`;
+                    } else if (priorityVal === 'P2') {
+                        priorityBadge = `<span style="display: inline-block; font-size: 10px; font-weight: 900; color: #0284c7; background: #e0f2fe; padding: 1px 5px; border-radius: 4px; border: 1px solid #bae6fd; margin-left: 4px; vertical-align: middle;" title="Barring Priority: P2">P2</span>`;
+                    }
+
                     let statusHtml = '';
                     if (statusLower.includes('discontinued') || barringPct >= 100) {
                         statusHtml = `<span class="status-badge status-discontinued">Discontinued</span>`;
@@ -1008,6 +1277,9 @@
                         if (barringPct > 0) {
                             statusHtml += `<span style="font-size: 11px; font-weight: 700; color: #b91c1c; background: #fef2f2; padding: 2px 6px; border-radius: 4px; border: 1px solid #fecaca; margin-left: 4px;" title="Partially Barred ${barringPct}%">(${barringPct}%)</span>`;
                         }
+                    }
+                    if (priorityBadge) {
+                        statusHtml += priorityBadge;
                     }
 
                     // Build actions HTML
@@ -1067,7 +1339,7 @@
 
                         tr.innerHTML = `
                             <td style="font-weight: 700;">
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link client-name-link" data-client-id="${client.client_id}" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
                                     ${client.client_name || 'N/A'}
                                 </a>
                             </td>
@@ -1081,10 +1353,44 @@
                             <td>${client.risk_segment || 'N/A'}</td>
                             <td>${actionsHtml}</td>
                         `;
+                    } else if (activeTableStatus === 'Barred') {
+                        const barredPctFormatted = barringPct > 0 ? `${barringPct.toFixed(2)}%` : '0%';
+                        let agingStr = 'N/A';
+                        if (client.barred_at) {
+                            try {
+                                const d = new Date(client.barred_at);
+                                if (!isNaN(d.getTime())) {
+                                    const diffDays = Math.max(0, Math.round((new Date() - d) / (1000 * 60 * 60 * 24)));
+                                    const diffMonths = (diffDays / 30.4).toFixed(1);
+                                    agingStr = `${diffDays}d (${diffMonths}m)`;
+                                }
+                            } catch(e) {}
+                        }
+
+                        tr.innerHTML = `
+                            <td style="font-weight: 700;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link client-name-link" data-client-id="${client.client_id}" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                    ${client.client_name || 'N/A'}
+                                </a>
+                            </td>
+                            <td>${client.opus_id || 'N/A'}</td>
+                            <td>${statusHtml}</td>
+                            <td>
+                                <span class="status-badge" style="background: #fee2e2; color: #b91c1c; font-weight: 800; font-size: 11px;">
+                                    ${barredPctFormatted}
+                                </span>
+                            </td>
+                            <td style="font-weight: 700; color: #b91c1c;">${agingStr}</td>
+                            <td>${client.collection_kam || 'N/A'}</td>
+                            <td>${client.current_month_cr || 'N/A'}</td>
+                            <td>${trendBadge}</td>
+                            <td>${client.risk_segment || 'N/A'}</td>
+                            <td>${actionsHtml}</td>
+                        `;
                     } else {
                         tr.innerHTML = `
                             <td style="font-weight: 700;">
-                                <a href="${drilldownLink}" target="_blank" class="action-link" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
+                                <a href="${drilldownLink}" target="_blank" class="action-link client-name-link" data-client-id="${client.client_id}" style="border-bottom: 1px dashed var(--primary); text-decoration: none;">
                                     ${client.client_name || 'N/A'}
                                 </a>
                             </td>
@@ -1281,28 +1587,123 @@
                 });
             });
 
+            // Collapsible Filter Div Controller
+            const filterGrid = document.getElementById('filterGridCollapse');
+            const filterToggleBtn = document.getElementById('toggleFiltersBtn');
+            const filterToggleIcon = document.getElementById('filterToggleIcon');
+            const filterPanelToolbar = document.getElementById('filterPanelToolbar');
+
+            let isFilterCollapsed = true;
+
+            function setFilterCollapse(collapsed, save = false) {
+                isFilterCollapsed = collapsed;
+                if (!filterGrid) return;
+
+                if (collapsed) {
+                    filterGrid.style.display = 'none';
+                    if (filterToggleIcon) filterToggleIcon.style.transform = 'rotate(0deg)';
+                    if (filterPanelToolbar) filterPanelToolbar.style.marginBottom = '0';
+                } else {
+                    filterGrid.style.display = 'grid';
+                    if (filterToggleIcon) filterToggleIcon.style.transform = 'rotate(180deg)';
+                    if (filterPanelToolbar) filterPanelToolbar.style.marginBottom = '14px';
+                }
+
+                if (save) {
+                    try {
+                        localStorage.setItem('clients_filter_panel_collapsed', collapsed ? 'true' : 'false');
+                    } catch(e) {}
+                }
+            }
+
+            if (filterToggleBtn) {
+                filterToggleBtn.addEventListener('click', () => {
+                    setFilterCollapse(!isFilterCollapsed, true);
+                });
+            }
+
+            // Always collapsed by default on page load
+            setFilterCollapse(true, false);
+
+            // Helper to reset all filter controls
+            function resetAllFilters() {
+                searchInput.value = '';
+                if (document.getElementById('statusFilter')) document.getElementById('statusFilter').value = 'All';
+                if (document.getElementById('priorityFilter')) document.getElementById('priorityFilter').value = 'All';
+                if (document.getElementById('barringFilter')) document.getElementById('barringFilter').value = 'All';
+                if (document.getElementById('riskFilter')) document.getElementById('riskFilter').value = 'All';
+                if (document.getElementById('growthTrendFilter')) document.getElementById('growthTrendFilter').value = 'All';
+                if (document.getElementById('smTeamFilter')) document.getElementById('smTeamFilter').value = 'All';
+                if (document.getElementById('collectionTeamFilter')) document.getElementById('collectionTeamFilter').value = 'All';
+                if (document.getElementById('smKamFilter')) document.getElementById('smKamFilter').value = 'All';
+                if (document.getElementById('collectionKamFilter')) document.getElementById('collectionKamFilter').value = 'All';
+                if (document.getElementById('serviceTypeFilter')) document.getElementById('serviceTypeFilter').value = 'All';
+                if (document.getElementById('miscFilter')) document.getElementById('miscFilter').value = 'All';
+                if (document.getElementById('complianceFilter')) document.getElementById('complianceFilter').value = 'All';
+                const activeFilterBadge = document.getElementById('activeFilterBadge');
+                if (activeFilterBadge) activeFilterBadge.style.display = 'none';
+            }
+
             // Parse URL search parameters on load
             const urlParams = new URLSearchParams(window.location.search);
             const statusParam = urlParams.get('status');
+            const priorityParam = urlParams.get('priority');
             const barringParam = urlParams.get('barring');
             const riskParam = urlParams.get('risk');
             const trendParam = urlParams.get('trend');
+            const smTeamParam = urlParams.get('sm_team') || urlParams.get('team');
+            const collectionTeamParam = urlParams.get('collection_team');
+            const smKamParam = urlParams.get('sm_kam');
+            const collectionKamParam = urlParams.get('collection_kam') || urlParams.get('kam');
+            const serviceParam = urlParams.get('service');
+            const miscParam = urlParams.get('misc') || urlParams.get('compliance');
 
-            if (statusParam) {
-                document.getElementById('statusFilter').value = statusParam;
-            }
-            if (barringParam) {
+            if (barringParam && document.getElementById('barringFilter')) {
                 document.getElementById('barringFilter').value = barringParam;
             }
-            if (riskParam) {
+            if (statusParam) {
+                if (statusParam.toLowerCase() === 'barred') {
+                    if (document.getElementById('barringFilter')) document.getElementById('barringFilter').value = 'Barred';
+                } else if (document.getElementById('statusFilter')) {
+                    document.getElementById('statusFilter').value = statusParam;
+                }
+            }
+            if (priorityParam && document.getElementById('priorityFilter')) {
+                document.getElementById('priorityFilter').value = priorityParam;
+            }
+            if (riskParam && document.getElementById('riskFilter')) {
                 document.getElementById('riskFilter').value = riskParam;
             }
-            if (trendParam) {
+            if (trendParam && document.getElementById('growthTrendFilter')) {
                 document.getElementById('growthTrendFilter').value = trendParam;
             }
+            if (smTeamParam && document.getElementById('smTeamFilter')) {
+                document.getElementById('smTeamFilter').value = smTeamParam;
+            }
+            if (collectionTeamParam && document.getElementById('collectionTeamFilter')) {
+                document.getElementById('collectionTeamFilter').value = collectionTeamParam;
+            }
+            if (smKamParam && document.getElementById('smKamFilter')) {
+                document.getElementById('smKamFilter').value = smKamParam;
+            }
+            if (collectionKamParam && document.getElementById('collectionKamFilter')) {
+                document.getElementById('collectionKamFilter').value = collectionKamParam;
+            }
+            if (serviceParam && document.getElementById('serviceTypeFilter')) {
+                document.getElementById('serviceTypeFilter').value = serviceParam;
+            }
+            if (miscParam) {
+                if (document.getElementById('miscFilter')) document.getElementById('miscFilter').value = miscParam;
+                if (document.getElementById('complianceFilter')) document.getElementById('complianceFilter').value = miscParam;
+            }
 
-            // Bind change events
-            $('#statusFilter, #barringFilter, #riskFilter, #growthTrendFilter').on('change', () => {
+            // If active filter params are provided via URL, ensure filter panel is expanded
+            if (statusParam || priorityParam || barringParam || riskParam || trendParam || smTeamParam || collectionTeamParam || smKamParam || collectionKamParam || serviceParam || miscParam) {
+                setFilterCollapse(false);
+            }
+
+            // Bind change events for all 11 filters
+            $('#statusFilter, #priorityFilter, #barringFilter, #riskFilter, #growthTrendFilter, #smTeamFilter, #collectionTeamFilter, #smKamFilter, #collectionKamFilter, #serviceTypeFilter, #miscFilter, #complianceFilter').on('change', () => {
                 currentPage = 1;
                 render();
             });
@@ -1312,19 +1713,18 @@
                 const type = $(this).data('filter-type');
 
                 // 1. First clear all search inputs and filter dropdowns
-                searchInput.value = '';
-                document.getElementById('statusFilter').value = 'All';
-                document.getElementById('barringFilter').value = 'All';
-                document.getElementById('riskFilter').value = 'All';
-                document.getElementById('growthTrendFilter').value = 'All';
+                resetAllFilters();
 
-                // 2. Apply the specific filter corresponding to the clicked card
+                // 2. Auto-expand filter panel so user sees the active filter
+                setFilterCollapse(false);
+
+                // 3. Apply the specific filter corresponding to the clicked card
                 if (type === 'active') {
                     document.getElementById('statusFilter').value = 'Active';
                 } else if (type === 'discontinued') {
                     document.getElementById('statusFilter').value = 'Discontinued';
                 } else if (type === 'barred') {
-                    document.getElementById('barringFilter').value = 'Barred';
+                    if (document.getElementById('barringFilter')) document.getElementById('barringFilter').value = 'Barred';
                 } else if (type === 'highRisk') {
                     document.getElementById('riskFilter').value = 'High Risk';
                 } else if (type === 'declining') {
@@ -1345,11 +1745,7 @@
 
             // Clear button listener
             clearBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                document.getElementById('statusFilter').value = 'All';
-                document.getElementById('barringFilter').value = 'All';
-                document.getElementById('riskFilter').value = 'All';
-                document.getElementById('growthTrendFilter').value = 'All';
+                resetAllFilters();
                 currentPage = 1;
                 render();
             });
@@ -1363,6 +1759,297 @@
 
             // Initial render
             render();
+
+            // --- Client Info Hover Tooltip (2-second delay) ---
+            function formatTooltipDate(dateStr) {
+                if (!dateStr) return 'N/A';
+                try {
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return 'N/A';
+                    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                } catch(e) {
+                    return 'N/A';
+                }
+            }
+
+            function formatSecurityCoverage(val) {
+                if (val === null || val === undefined) return 'N/A';
+                const str = String(val).trim();
+                if (!str || str === '#DIV/0!' || str.toUpperCase() === 'N/A' || str === 'null') {
+                    return 'N/A';
+                }
+                if (str.endsWith('%')) {
+                    return str;
+                }
+                const num = parseFloat(str);
+                if (isNaN(num)) {
+                    return str;
+                }
+                let pct;
+                if (num >= 0 && num <= 1) {
+                    pct = Math.round(num * 10000) / 100;
+                } else {
+                    pct = Math.round(num * 100) / 100;
+                }
+                return `${pct}%`;
+            }
+
+            function buildClientTooltipHtml(client) {
+                const statusLower = String(client.client_status || '').toLowerCase();
+                const barringPct = parseFloat(client.barring_percentage) || 0;
+                const priorityVal = (client.barring_priority || '').trim().toUpperCase();
+
+                let statusBadgeHtml = '';
+                if (statusLower.includes('discontinued') || barringPct >= 100) {
+                    statusBadgeHtml = `<span style="display: inline-block; font-size: 11px; font-weight: 800; color: #991b1b; background: #fee2e2; padding: 2px 8px; border-radius: 999px;">Discontinued</span>`;
+                } else if (barringPct > 0) {
+                    statusBadgeHtml = `<span style="display: inline-block; font-size: 11px; font-weight: 800; color: #b91c1c; background: #fef2f2; padding: 2px 8px; border-radius: 999px; border: 1px solid #fecaca;">Barred (${barringPct}%)</span>`;
+                } else {
+                    statusBadgeHtml = `<span style="display: inline-block; font-size: 11px; font-weight: 800; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 999px;">Active</span>`;
+                }
+
+                let priorityBadge = '';
+                if (priorityVal === 'P1') {
+                    priorityBadge = `<span style="display: inline-block; font-size: 10px; font-weight: 900; color: #b91c1c; background: #fee2e2; padding: 1px 6px; border-radius: 4px; border: 1px solid #fca5a5;">P1 Priority</span>`;
+                } else if (priorityVal === 'P2') {
+                    priorityBadge = `<span style="display: inline-block; font-size: 10px; font-weight: 900; color: #0284c7; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; border: 1px solid #bae6fd;">P2 Priority</span>`;
+                }
+
+                const riskVal = client.risk_segment || 'N/A';
+                let riskBadgeColor = '#64748b';
+                let riskBadgeBg = '#f1f5f9';
+                if (['Risky', 'High Risky', 'Most Risky'].includes(riskVal)) {
+                    riskBadgeColor = '#b91c1c';
+                    riskBadgeBg = '#fee2e2';
+                } else if (['Best', 'Good'].includes(riskVal)) {
+                    riskBadgeColor = '#15803d';
+                    riskBadgeBg = '#dcfce7';
+                } else if (riskVal === 'Moderate') {
+                    riskBadgeColor = '#b45309';
+                    riskBadgeBg = '#fef3c7';
+                }
+
+                const trendBadge = getGrowthTrendBadge(client);
+
+                let agreementHealth = client.overall_agreement_health;
+                if (!agreementHealth) {
+                    let items = client.agreement_status;
+                    if (typeof items === 'string') {
+                        try { items = JSON.parse(items); } catch(e) {}
+                    }
+                    if (typeof items === 'string') {
+                        try { items = JSON.parse(items); } catch(e) {}
+                    }
+                    if (Array.isArray(items) && items.length > 0) {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        let hasExpired = false;
+                        for (const it of items) {
+                            if (!it) continue;
+                            const st = String(it.status || it.ref_status || it.ref_no || '').toLowerCase();
+                            if (st.includes('expired') || (it.expiry_date && String(it.expiry_date).slice(0, 10) <= todayStr)) {
+                                hasExpired = true;
+                                break;
+                            }
+                        }
+                        agreementHealth = hasExpired ? 'Expired' : 'Valid';
+                    } else {
+                        agreementHealth = 'No Record';
+                    }
+                }
+
+                let agreementColor = '#15803d';
+                let agreementBg = '#dcfce7';
+                if (agreementHealth.includes('Expired')) {
+                    agreementColor = '#b91c1c';
+                    agreementBg = '#fee2e2';
+                } else if (agreementHealth.includes('Renewal') || agreementHealth.includes('Due')) {
+                    agreementColor = '#b45309';
+                    agreementBg = '#fef3c7';
+                } else if (agreementHealth === 'No Record') {
+                    agreementColor = '#64748b';
+                    agreementBg = '#f1f5f9';
+                }
+
+                const btrcExpireFormatted = formatTooltipDate(client.btrc_license_discontinuation_date);
+                const secCoverage = formatSecurityCoverage(client.formatted_security_coverage || client.security_coverage);
+                const defPeriod = parseInt(client.deferred_period) || 0;
+                const defText = defPeriod > 0 ? `${defPeriod} days` : '0 days';
+                const hasLegal = Boolean(client.legal && !['no', '0', 'none', 'n/a', 'false'].includes(String(client.legal).trim().toLowerCase()));
+
+                const rawService = client.service_type_billing;
+                let serviceTypes = rawService ? (Array.isArray(rawService) ? rawService.join(', ') : rawService) : (client.license_billing || 'N/A');
+
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 14px; font-weight: 800; color: #0f172a; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(client.client_name || 'N/A')}">
+                                ${escapeHtml(client.client_name || 'N/A')}
+                            </div>
+                            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">
+                                OPUS ID: <span style="color: var(--primary-dark); font-weight: 800;">${escapeHtml(client.opus_id || 'N/A')}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0;">
+                            ${statusBadgeHtml}
+                            ${priorityBadge}
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 11.5px; margin-bottom: 12px;">
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">S&M Team / KAM</div>
+                            <div style="font-weight: 700; color: #1e293b; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${escapeHtml(client.team_name || 'N/A')} / <span style="color: #0284c7;">${escapeHtml(client.sm_kam || 'N/A')}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Collection Team / KAM</div>
+                            <div style="font-weight: 700; color: #1e293b; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${escapeHtml(client.collection_team_name || 'N/A')} / <span style="color: #0d9488;">${escapeHtml(client.collection_kam || 'N/A')}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Current CR & Risk</div>
+                            <div style="font-weight: 800; color: #1e293b; margin-top: 1px; display: flex; align-items: center; gap: 5px;">
+                                <span>${client.current_month_cr || 'N/A'}</span>
+                                <span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background: ${riskBadgeBg}; color: ${riskBadgeColor}; font-weight: 700;">${riskVal}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Growth Trend</div>
+                            <div style="margin-top: 1px;">
+                                ${trendBadge}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Agreement Health</div>
+                            <div style="margin-top: 1px;">
+                                <span style="font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: ${agreementBg}; color: ${agreementColor}; font-weight: 800;">${agreementHealth}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">BTRC License Expire</div>
+                            <div style="font-weight: 700; color: #1e293b; margin-top: 1px;">
+                                ${btrcExpireFormatted}
+                            </div>
+                        </div>
+
+                        <div style="grid-column: span 2;">
+                            <div style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">Service / License Billing</div>
+                            <div style="font-weight: 700; color: #1e293b; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                ${escapeHtml(serviceTypes)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        <div><span style="color: #64748b; font-weight: 700;">Sec. Coverage:</span> <span style="font-weight: 800; color: #1e293b;">${escapeHtml(secCoverage)}</span></div>
+                        <div><span style="color: #64748b; font-weight: 700;">Deferred:</span> <span style="font-weight: 800; color: #1e293b;">${defText}</span></div>
+                        <div><span style="color: #64748b; font-weight: 700;">Legal:</span> <span style="font-weight: 800; color: ${hasLegal ? '#b91c1c' : '#64748b'};">${hasLegal ? 'Yes' : 'No'}</span></div>
+                    </div>
+                `;
+            }
+
+            const tooltipEl = document.getElementById('clientInfoTooltip');
+            let hoverTimeout = null;
+            let hideTimeout = null;
+            let currentHoveredClientId = null;
+            let isHoveringTooltip = false;
+
+            function hideClientTooltip() {
+                if (!tooltipEl) return;
+                tooltipEl.style.opacity = '0';
+                tooltipEl.style.transform = 'translateY(6px)';
+                tooltipEl.style.pointerEvents = 'none';
+                setTimeout(() => {
+                    if (tooltipEl.style.opacity === '0') {
+                        tooltipEl.style.display = 'none';
+                    }
+                }, 200);
+            }
+
+            function showClientTooltip(clientId, targetEl) {
+                const client = clients.find(c => String(c.client_id) === String(clientId));
+                if (!client || !tooltipEl) return;
+
+                tooltipEl.innerHTML = buildClientTooltipHtml(client);
+                tooltipEl.style.display = 'block';
+
+                const rect = targetEl.getBoundingClientRect();
+                const tooltipRect = tooltipEl.getBoundingClientRect();
+
+                const tooltipWidth = tooltipRect.width || 600;
+                const tooltipHeight = tooltipRect.height || 240;
+
+                let left = rect.left;
+                let top = rect.bottom + 8; // below link by default
+
+                // If overflowing right edge of window
+                if (left + tooltipWidth > window.innerWidth - 16) {
+                    left = window.innerWidth - tooltipWidth - 16;
+                }
+                if (left < 16) {
+                    left = 16;
+                }
+
+                // If overflowing bottom edge of window, show above
+                if (top + tooltipHeight > window.innerHeight - 16) {
+                    top = rect.top - tooltipHeight - 8;
+                    if (top < 16) {
+                        top = 16;
+                    }
+                }
+
+                tooltipEl.style.left = `${left}px`;
+                tooltipEl.style.top = `${top}px`;
+                tooltipEl.style.opacity = '1';
+                tooltipEl.style.transform = 'translateY(0)';
+                tooltipEl.style.pointerEvents = 'auto';
+            }
+
+            $(document).on('mouseenter', '.client-name-link', function() {
+                const target = this;
+                const clientId = $(target).data('client-id');
+                currentHoveredClientId = clientId;
+
+                clearTimeout(hideTimeout);
+                clearTimeout(hoverTimeout);
+
+                // 2 second hover timer requirement
+                hoverTimeout = setTimeout(() => {
+                    if (currentHoveredClientId === clientId) {
+                        showClientTooltip(clientId, target);
+                    }
+                }, 2000);
+            });
+
+            $(document).on('mouseleave', '.client-name-link', function() {
+                clearTimeout(hoverTimeout);
+                currentHoveredClientId = null;
+                hideTimeout = setTimeout(() => {
+                    if (!isHoveringTooltip) {
+                        hideClientTooltip();
+                    }
+                }, 150);
+            });
+
+            if (tooltipEl) {
+                tooltipEl.addEventListener('mouseenter', () => {
+                    isHoveringTooltip = true;
+                    clearTimeout(hideTimeout);
+                });
+                tooltipEl.addEventListener('mouseleave', () => {
+                    isHoveringTooltip = false;
+                    hideClientTooltip();
+                });
+            }
+
+            window.addEventListener('scroll', () => {
+                clearTimeout(hoverTimeout);
+                hideClientTooltip();
+            }, { passive: true });
         });
     </script>
 @endpush

@@ -30,11 +30,26 @@ class MonthlySummary extends Model
             'client_service_discontinuation_date' => 'date',
             'client_nttn_billing_commencement_date' => 'date',
             'client_iig_itc_billing_commencement_date' => 'date',
-            'client_legal' => 'boolean',
             'client_other_upstream' => 'boolean',
             'client_barred_at' => 'datetime',
             'client_barring_percentage' => 'decimal:2',
+            'client_deferred_period' => 'integer',
         ];
+    }
+
+    public function getClientAgreementStatusAttribute($value)
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (is_string($value) && !empty($value)) {
+            $decoded = json_decode($value, true);
+            if (is_string($decoded)) {
+                $decoded = json_decode($decoded, true);
+            }
+            return is_array($decoded) ? $decoded : $value;
+        }
+        return $value;
     }
 
     public function client(): BelongsTo

@@ -47,6 +47,7 @@ class DashboardOptimizedController extends Controller
         $untracedCollectionTotal = 0.0;
         $discontinuedCollection = 0.0;
         $discontinuedOpeningOs = 0.0;
+        $discontinuedLatestOs = 0.0;
 
         if ($latestMonth) {
             $billedMrcTotal = (float) MonthlySummary::whereDate('summary_month', $latestMonth)->sum('total_mrc');
@@ -58,25 +59,22 @@ class DashboardOptimizedController extends Controller
             $untracedCollectionTotal = $this->currentMonthUntracedCollectionTotal($latestMonth);
             $discontinuedCollection = (float) \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->sum('collection_amount');
             $discontinuedOpeningOs = (float) \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->sum('opening_os');
+            $discontinuedLatestOs = (float) \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->sum('latest_os');
         }
 
         $currentMonthLabel = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('F Y') : 'Current Month';
 
         $barredClientsList = MonthlySummary::whereDate('summary_month', $latestMonth)
             ->where(function ($q) {
-                $q->where(function ($b) {
-                    $b->where('barring_percentage', '>', 0)
-                      ->where('barring_percentage', '<', 100);
-                })->orWhere('client_status', 'Barred');
+                $q->where('barring_percentage', '>', 0)
+                  ->orWhere('client_barring_percentage', '>', 0);
             })
             ->get()
             ->merge(
                 \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
                     ->where(function ($q) {
-                        $q->where(function ($b) {
-                            $b->where('barring_percentage', '>', 0)
-                              ->where('barring_percentage', '<', 100);
-                        })->orWhere('client_status', 'Barred');
+                        $q->where('barring_percentage', '>', 0)
+                          ->orWhere('client_barring_percentage', '>', 0);
                     })
                     ->get()
             );
@@ -139,7 +137,7 @@ class DashboardOptimizedController extends Controller
         $monthParam = $latestMonth ? \Carbon\Carbon::parse($latestMonth)->format('Y-m') : now()->format('Y-m');
 
         $combinedShortfalls = $combinedShortfallsList
-            ->map(function ($item) use ($ranges, $monthParam, $latestGuidanceMap) {
+            ->map(function ($item) use ($ranges, $monthParam, $latestGuidanceMap, $realClientsMap) {
                 $cr = (float)$item->latest_cr;
                 $rangeLabel = '0.00 - 1.50';
                 foreach ($ranges as $r) {
@@ -159,12 +157,21 @@ class DashboardOptimizedController extends Controller
                 $billing = $item->client->license_billing ?? '';
                 $segment = (stripos($billing, 'iig') !== false) ? 'IIG' : 'ISP & Other Operators';
 
+                $realClient = $realClientsMap->get($item->client_id);
+                $deferredPeriod = (int) ($item->client_deferred_period ?? $item->client?->deferred_period ?? $realClient?->deferred_period ?? 0);
+                $barringPriority = $item->client_barring_priority ?? $item->client?->barring_priority ?? $realClient?->barring_priority ?? 'None';
+                if (empty($barringPriority) || trim($barringPriority) === '') {
+                    $barringPriority = 'None';
+                }
+                $barringPercentage = (float) ($item->barring_percentage ?: ($item->client_barring_percentage ?: ($item->client?->barring_percentage ?? ($realClient?->barring_percentage ?? 0))));
+
                 return [
                     'client_id' => $item->client_id,
                     'client_name' => $item->client->client_name ?? $item->client_name,
                     'status' => 'Active',
                     'os' => (float)$item->total_latest_os,
                     'mrc' => (float)$item->total_mrc,
+                    'matured_mrc' => (float)($item->total_maturity ?: $item->total_mrc),
                     'mrc_shortfall' => (float)$item->mrc_shortfall,
                     'backlog_shortfall' => (float)$item->backlog_shortfall,
                     'shortfall_from_commitment' => max(0.0, ((float)$item->total_maturity + (float)$item->total_payment_plan) - (float)$item->total_collection),
@@ -174,6 +181,9 @@ class DashboardOptimizedController extends Controller
                     'range' => $rangeLabel,
                     'month_param' => $monthParam,
                     'latest_guidance' => $latestGuidanceMap[$item->client_id] ?? '',
+                    'deferred_period' => $deferredPeriod,
+                    'barring_priority' => $barringPriority,
+                    'barring_percentage' => $barringPercentage,
                 ];
             });
 
@@ -206,22 +216,22 @@ class DashboardOptimizedController extends Controller
             ->where('client_status', 'Active')
             ->count();
 
-        $discontinuedSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
-            ->where(function($q) {
-                $q->where('client_status', 'Discontinued')
-                  ->orWhere('client_status', 'like', '%discontinued%');
-            })
-            ->count();
-
-        $barredSubCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
-            ->where(function($q) {
-                $q->where('client_status', 'Barred')
-                  ->orWhere('client_status', 'like', '%barred%')
-                  ->orWhere('client_status', 'like', '%barring%');
-            })
-            ->count();
-
         $discontinuedClientCount = \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)->count();
+
+        $barredSubCount = MonthlySummary::whereDate('summary_month', $latestMonth)
+            ->where(function ($q) {
+                $q->where('barring_percentage', '>', 0)
+                  ->orWhere('client_barring_percentage', '>', 0);
+            })
+            ->count()
+            + \App\Models\MonthlySummaryDiscontinued::whereDate('summary_month', $latestMonth)
+            ->where(function ($q) {
+                $q->where('barring_percentage', '>', 0)
+                  ->orWhere('client_barring_percentage', '>', 0);
+            })
+            ->count();
+
+        $discontinuedSubCount = $discontinuedClientCount;
 
         $maxCollectionDate = \Illuminate\Support\Facades\DB::table('collection')->max('collection_datetime');
         $maxCollectionCreated = \Illuminate\Support\Facades\DB::table('collection')->max('created_at');
@@ -303,7 +313,9 @@ class DashboardOptimizedController extends Controller
             'dynamicInsights' => $this->dynamicInsights($latestMonth),
             'discontinuedCollection' => $discontinuedCollection,
             'discontinuedOpeningOs' => $discontinuedOpeningOs,
+            'discontinuedLatestOs' => $discontinuedLatestOs,
             'discontinuedComparison' => $this->discontinuedMetricComparison($latestMonth),
+            'barredDiscontinuedComparison' => $this->barredDiscontinuedMetricComparison($latestMonth),
             'discontinuedAnalysis' => $this->discontinuedAnalysisOptimized($latestMonth),
             'elapsedTimeMs' => round((microtime(true) - $startTime) * 1000, 2),
             
@@ -381,6 +393,7 @@ class DashboardOptimizedController extends Controller
                 SUM(total_opening_os) as total_opening_os,
                 SUM(total_collection) as total_collection,
                 SUM(total_mrc) as total_mrc,
+                SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as total_maturity,
                 SUM(collection_mrc) as collection_mrc,
                 SUM(net_backlog_total) as net_backlog_total,
                 SUM(collection_backlog) as collection_backlog,
@@ -395,6 +408,7 @@ class DashboardOptimizedController extends Controller
             'total_opening_os' => $rows->map(fn ($row) => (float) $row->total_opening_os / 1000000)->values(),
             'total_collection' => $rows->map(fn ($row) => (float) $row->total_collection / 1000000)->values(),
             'total_mrc' => $rows->map(fn ($row) => (float) $row->total_mrc / 1000000)->values(),
+            'total_maturity' => $rows->map(fn ($row) => (float) $row->total_maturity / 1000000)->values(),
             'collection_mrc' => $rows->map(fn ($row) => (float) $row->collection_mrc / 1000000)->values(),
             'net_backlog_total' => $rows->map(fn ($row) => (float) $row->net_backlog_total / 1000000)->values(),
             'collection_backlog' => $rows->map(fn ($row) => (float) $row->collection_backlog / 1000000)->values(),
@@ -452,6 +466,7 @@ class DashboardOptimizedController extends Controller
                         COUNT(*) as clients_count,
                         SUM(total_opening_os) as opening_os_sum,
                         SUM(total_mrc) as mrc_sum,
+                        SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity_sum,
                         SUM(net_backlog_total) as backlog_sum,
                         AVG(opening_cr) as opening_cr_avg,
                         SUM(total_latest_os) as latest_os_sum,
@@ -464,6 +479,7 @@ class DashboardOptimizedController extends Controller
                     'clients_count' => (int) ($comp?->clients_count ?? 0),
                     'opening_os_sum' => (float) ($comp?->opening_os_sum ?? 0),
                     'mrc_sum' => (float) ($comp?->mrc_sum ?? 0),
+                    'maturity_sum' => (float) ($comp?->maturity_sum ?? 0),
                     'backlog_sum' => (float) ($comp?->backlog_sum ?? 0),
                     'opening_cr_avg' => (float) ($comp?->opening_cr_avg ?? 0),
                     'latest_os_sum' => (float) ($comp?->latest_os_sum ?? 0),
@@ -480,6 +496,10 @@ class DashboardOptimizedController extends Controller
             $totalMrcQuery = MonthlySummary::query()->whereDate('summary_month', $latestMonthDate);
             $applySegmentFilter($totalMrcQuery);
             $totalMrc = (float) $totalMrcQuery->sum('total_mrc');
+
+            $totalMaturityQuery = MonthlySummary::query()->whereDate('summary_month', $latestMonthDate);
+            $applySegmentFilter($totalMaturityQuery);
+            $totalMaturity = (float) $totalMaturityQuery->selectRaw('SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as m')->value('m');
 
             foreach ($this->crRanges() as $range) {
                 $min = $range['min'];
@@ -503,16 +523,18 @@ class DashboardOptimizedController extends Controller
                     AVG(opening_cr) as opening_avg_cr,
                     SUM(total_opening_os) as opening_os_sum,
                     SUM(total_mrc) as latest_mrc_sum,
+                    SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as latest_maturity_sum,
                     SUM(net_backlog_total) as net_backlog_sum,
                     SUM(total_collection) as collection_this_month,
                     SUM(total_latest_os) as closing_os_sum,
                     AVG(latest_cr) as closing_avg_cr,
                     SUM(CASE WHEN latest_cr >= 2.51 THEN 1 ELSE 0 END) as cr_above_251,
-                    SUM(CASE WHEN client_status LIKE "%barred%" OR client_status LIKE "%barring%" THEN 1 ELSE 0 END) as already_barred
+                    SUM(CASE WHEN (barring_percentage > 0 OR client_barring_percentage > 0) THEN 1 ELSE 0 END) as already_barred
                 ')->first();
 
                 $netBacklogSum = (float) ($stats?->net_backlog_sum ?? 0);
                 $mrcSum = (float) ($stats?->latest_mrc_sum ?? 0);
+                $maturitySum = (float) ($stats?->latest_maturity_sum ?? 0);
 
                 $rows[] = [
                     'cr_range' => $range['label'],
@@ -521,6 +543,7 @@ class DashboardOptimizedController extends Controller
                     'opening_avg_cr' => (float) ($stats?->opening_avg_cr ?? 0),
                     'opening_os_sum' => (float) ($stats?->opening_os_sum ?? 0),
                     'latest_mrc_sum' => $mrcSum,
+                    'latest_maturity_sum' => $maturitySum,
                     'net_backlog_sum' => $netBacklogSum,
                     'collection_this_month' => (float) ($stats?->collection_this_month ?? 0),
                     'closing_os_sum' => (float) ($stats?->closing_os_sum ?? 0),
@@ -528,6 +551,7 @@ class DashboardOptimizedController extends Controller
                     'total_net_backlog' => $totalNetBacklog,
                     'percentage_total_net_backlog' => $totalNetBacklog > 0 ? ($netBacklogSum / $totalNetBacklog) * 100 : 0,
                     'percentage_total_mrc' => $totalMrc > 0 ? ($mrcSum / $totalMrc) * 100 : 0,
+                    'percentage_total_maturity' => $totalMaturity > 0 ? ($maturitySum / $totalMaturity) * 100 : 0,
                     'cr_above_251' => (int) ($stats?->cr_above_251 ?? 0),
                     'proposed_for_barring' => (int) ($stats?->cr_above_251 ?? 0),
                     'already_barred' => (int) ($stats?->already_barred ?? 0),
@@ -562,6 +586,7 @@ class DashboardOptimizedController extends Controller
                     COUNT(*) as clients_count,
                     SUM(total_opening_os) as opening_os_sum,
                     SUM(total_mrc) as mrc_sum,
+                    SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity_sum,
                     SUM(net_backlog_total) as backlog_sum,
                     AVG(opening_cr) as opening_cr_avg,
                     SUM(total_latest_os) as latest_os_sum,
@@ -574,6 +599,7 @@ class DashboardOptimizedController extends Controller
                 'clients_count' => (int) ($comp?->clients_count ?? 0),
                 'opening_os_sum' => (float) ($comp?->opening_os_sum ?? 0),
                 'mrc_sum' => (float) ($comp?->mrc_sum ?? 0),
+                'maturity_sum' => (float) ($comp?->maturity_sum ?? 0),
                 'backlog_sum' => (float) ($comp?->backlog_sum ?? 0),
                 'opening_cr_avg' => (float) ($comp?->opening_cr_avg ?? 0),
                 'latest_os_sum' => (float) ($comp?->latest_os_sum ?? 0),
@@ -602,6 +628,7 @@ class DashboardOptimizedController extends Controller
                 COUNT(*) as client_count,
                 SUM(total_latest_os) as latest_os_sum,
                 SUM(total_mrc) as mrc_sum,
+                SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity_sum,
                 SUM(net_backlog_total) as backlog_sum
             ')
             ->first();
@@ -609,6 +636,7 @@ class DashboardOptimizedController extends Controller
         $totalClients = (int) ($totals?->client_count ?? 0);
         $totalLatestOs = (float) ($totals?->latest_os_sum ?? 0);
         $totalMrc = (float) ($totals?->mrc_sum ?? 0);
+        $totalMaturity = (float) ($totals?->maturity_sum ?? 0);
         $totalBacklog = (float) ($totals?->backlog_sum ?? 0);
 
         foreach ($ranges as $range) {
@@ -631,12 +659,14 @@ class DashboardOptimizedController extends Controller
                 COUNT(*) as client_count,
                 SUM(total_latest_os) as latest_os_sum,
                 SUM(total_mrc) as mrc_sum,
+                SUM(CASE WHEN total_maturity IS NOT NULL AND total_maturity > 0 THEN total_maturity ELSE total_mrc END) as maturity_sum,
                 SUM(net_backlog_total) as backlog_sum
             ')->first();
 
             $clientCount = (int) ($stats?->client_count ?? 0);
             $latestOsSum = (float) ($stats?->latest_os_sum ?? 0);
             $mrcSum = (float) ($stats?->mrc_sum ?? 0);
+            $maturitySum = (float) ($stats?->maturity_sum ?? 0);
             $backlogSum = (float) ($stats?->backlog_sum ?? 0);
 
             $rows[] = [
@@ -645,8 +675,10 @@ class DashboardOptimizedController extends Controller
                 'client_count' => $clientCount,
                 'latest_os_sum' => $latestOsSum,
                 'mrc_sum' => $mrcSum,
+                'maturity_sum' => $maturitySum,
                 'backlog_sum' => $backlogSum,
                 'mrc_percentage' => $totalMrc > 0 ? ($mrcSum / $totalMrc) * 100 : 0,
+                'maturity_percentage' => $totalMaturity > 0 ? ($maturitySum / $totalMaturity) * 100 : 0,
                 'backlog_percentage' => $totalBacklog > 0 ? ($backlogSum / $totalBacklog) * 100 : 0,
             ];
         }
@@ -657,6 +689,7 @@ class DashboardOptimizedController extends Controller
                 'client_count' => $totalClients,
                 'latest_os_sum' => $totalLatestOs,
                 'mrc_sum' => $totalMrc,
+                'maturity_sum' => $totalMaturity,
                 'backlog_sum' => $totalBacklog,
             ]
         ];
@@ -699,9 +732,9 @@ class DashboardOptimizedController extends Controller
 
     private function isAlreadyBarred(MonthlySummary $summary): bool
     {
-        $status = strtolower((string) $summary->client?->client_status);
+        $barringPct = (float) ($summary->barring_percentage ?: ($summary->client_barring_percentage ?? ($summary->client?->barring_percentage ?? 0)));
 
-        return str_contains($status, 'barred') || str_contains($status, 'barring');
+        return $barringPct > 0;
     }
 
     /**
@@ -1017,6 +1050,7 @@ class DashboardOptimizedController extends Controller
             ->selectRaw('
                 summary_month,
                 SUM(collection_amount) as total_collection,
+                SUM(latest_os) as total_latest_os,
                 SUM(opening_os) as total_opening_os
             ');
 
@@ -1029,40 +1063,156 @@ class DashboardOptimizedController extends Controller
             ->take(6)
             ->get();
 
+        $emptyComp = ['mom' => 0.0, 'mom_diff' => 0.0, 'qoq' => 0.0, 'qoq_diff' => 0.0];
         if ($monthly->isEmpty()) {
-            return ['mom' => 0.0, 'mom_diff' => 0.0, 'qoq' => 0.0, 'qoq_diff' => 0.0];
+            return [
+                'collection' => $emptyComp,
+                'latest_os' => $emptyComp,
+                'mom' => 0.0,
+                'mom_diff' => 0.0,
+                'qoq' => 0.0,
+                'qoq_diff' => 0.0,
+            ];
         }
 
-        $ratios = $monthly->map(function ($row) {
-            $col = (float) $row->total_collection;
-            $os = (float) $row->total_opening_os;
-            return [
-                'summary_month' => $row->summary_month,
-                'ratio' => $os > 0 ? ($col / $os) * 100 : 0.0,
-                'collection' => $col,
-                'opening_os' => $os,
-            ];
-        });
+        $latest = $monthly->get(0);
+        $previous = $monthly->get(1);
 
-        $latest = $ratios->get(0);
-        $previous = $ratios->get(1);
+        // Collection comparisons
+        $latestCol = (float) ($latest?->total_collection ?? 0);
+        $prevCol = (float) ($previous?->total_collection ?? 0);
+        $latestQCol = (float) $monthly->take(3)->sum('total_collection');
+        $prevQCol = (float) $monthly->slice(3, 3)->sum('total_collection');
 
-        $latestQuarterCollection = $ratios->take(3)->sum('collection');
-        $latestQuarterOs = $ratios->take(3)->sum('opening_os');
-        $latestQuarterRatio = $latestQuarterOs > 0 ? ($latestQuarterCollection / $latestQuarterOs) * 100 : 0.0;
+        // Latest OS comparisons
+        $latestOs = (float) ($latest?->total_latest_os ?? 0);
+        $prevOs = (float) ($previous?->total_latest_os ?? 0);
+        $latestQOs = (float) $monthly->take(3)->sum('total_latest_os');
+        $prevQOs = (float) $monthly->slice(3, 3)->sum('total_latest_os');
 
-        $previousQuarterCollection = $ratios->slice(3, 3)->sum('collection');
-        $previousQuarterOs = $ratios->slice(3, 3)->sum('opening_os');
-        $previousQuarterRatio = $previousQuarterOs > 0 ? ($previousQuarterCollection / $previousQuarterOs) * 100 : 0.0;
+        $colComp = [
+            'mom' => $this->percentageChange($latestCol, $prevCol),
+            'mom_diff' => $latestCol - $prevCol,
+            'qoq' => $this->percentageChange($latestQCol, $prevQCol),
+            'qoq_diff' => $latestQCol - $prevQCol,
+        ];
 
-        $latestValue = $latest ? $latest['ratio'] : 0.0;
-        $previousValue = $previous ? $previous['ratio'] : 0.0;
+        $osComp = [
+            'mom' => $this->percentageChange($latestOs, $prevOs),
+            'mom_diff' => $latestOs - $prevOs,
+            'qoq' => $this->percentageChange($latestQOs, $prevQOs),
+            'qoq_diff' => $latestQOs - $prevQOs,
+        ];
 
         return [
-            'mom' => $this->percentageChange($latestValue, $previousValue),
-            'mom_diff' => $latestValue - $previousValue,
-            'qoq' => $this->percentageChange($latestQuarterRatio, $previousQuarterRatio),
-            'qoq_diff' => $latestQuarterRatio - $previousQuarterRatio,
+            'collection' => $colComp,
+            'latest_os' => $osComp,
+            'mom' => $colComp['mom'],
+            'mom_diff' => $colComp['mom_diff'],
+            'qoq' => $colComp['qoq'],
+            'qoq_diff' => $colComp['qoq_diff'],
+        ];
+    }
+
+    private function barredDiscontinuedMetricComparison($targetMonth = null): array
+    {
+        $monthsQuery = MonthlySummary::query()->select('summary_month')->distinct();
+        if ($targetMonth) {
+            $monthsQuery->whereDate('summary_month', '<=', $targetMonth);
+        }
+        $months = $monthsQuery->orderByDesc('summary_month')->take(6)->pluck('summary_month');
+
+        $emptyComp = ['mom' => 0.0, 'mom_diff' => 0.0, 'qoq' => 0.0, 'qoq_diff' => 0.0];
+        if ($months->isEmpty()) {
+            return [
+                'barred' => $emptyComp,
+                'discontinued' => $emptyComp,
+                'combined' => $emptyComp,
+                'mom' => 0.0,
+                'mom_diff' => 0.0,
+                'qoq' => 0.0,
+                'qoq_diff' => 0.0,
+            ];
+        }
+
+        $barredActive = MonthlySummary::whereIn('summary_month', $months)
+            ->where(function ($q) {
+                $q->where('barring_percentage', '>', 0)
+                  ->orWhere('client_barring_percentage', '>', 0);
+            })
+            ->selectRaw('summary_month, COUNT(*) as cnt')
+            ->groupBy('summary_month')
+            ->pluck('cnt', 'summary_month');
+
+        $barredDiscontinued = \App\Models\MonthlySummaryDiscontinued::whereIn('summary_month', $months)
+            ->where(function ($q) {
+                $q->where('barring_percentage', '>', 0)
+                  ->orWhere('client_barring_percentage', '>', 0);
+            })
+            ->selectRaw('summary_month, COUNT(*) as cnt')
+            ->groupBy('summary_month')
+            ->pluck('cnt', 'summary_month');
+
+        $discontinuedCounts = \App\Models\MonthlySummaryDiscontinued::whereIn('summary_month', $months)
+            ->selectRaw('summary_month, COUNT(*) as cnt')
+            ->groupBy('summary_month')
+            ->pluck('cnt', 'summary_month');
+
+        $rows = [];
+        foreach ($months as $m) {
+            $mKey = \Carbon\Carbon::parse($m)->format('Y-m-d');
+            $bActive = 0;
+            $bDisc = 0;
+            $dCnt = 0;
+            foreach ($barredActive as $k => $v) {
+                if (\Carbon\Carbon::parse($k)->format('Y-m-d') === $mKey) $bActive = (int)$v;
+            }
+            foreach ($barredDiscontinued as $k => $v) {
+                if (\Carbon\Carbon::parse($k)->format('Y-m-d') === $mKey) $bDisc = (int)$v;
+            }
+            foreach ($discontinuedCounts as $k => $v) {
+                if (\Carbon\Carbon::parse($k)->format('Y-m-d') === $mKey) $dCnt = (int)$v;
+            }
+
+            $bTotal = $bActive + $bDisc;
+            $rows[] = [
+                'summary_month' => $m,
+                'barred' => $bTotal,
+                'discontinued' => $dCnt,
+                'combined' => $bTotal + $dCnt,
+            ];
+        }
+
+        $rows = collect($rows);
+        $latest = $rows->get(0);
+        $previous = $rows->get(1);
+
+        $calculateMetrics = function($metric) use ($rows, $latest, $previous) {
+            $latestVal = (float) ($latest[$metric] ?? 0);
+            $prevVal = (float) ($previous[$metric] ?? 0);
+            $latestQ = (float) $rows->take(3)->sum($metric);
+            $prevQ = (float) $rows->slice(3, 3)->sum($metric);
+
+            return [
+                'mom' => $this->percentageChange($latestVal, $prevVal),
+                'mom_diff' => $latestVal - $prevVal,
+                'qoq' => $this->percentageChange($latestQ, $prevQ),
+                'qoq_diff' => $latestQ - $prevQ,
+            ];
+        };
+
+        $barredComp = $calculateMetrics('barred');
+        $discComp = $calculateMetrics('discontinued');
+        $combComp = $calculateMetrics('combined');
+
+        return [
+            'barred' => $barredComp,
+            'discontinued' => $discComp,
+            'combined' => $combComp,
+            'mom' => $combComp['mom'],
+            'mom_diff' => $combComp['mom_diff'],
+            'qoq' => $combComp['qoq'],
+            'qoq_diff' => $combComp['qoq_diff'],
         ];
     }
 
@@ -1681,8 +1831,10 @@ class DashboardOptimizedController extends Controller
         $client->barring_workflow_status = $data['status'];
 
         if ($data['status'] === 'actioned') {
-            $client->client_status = 'Barred';
             $client->barred_at = now();
+            if (!$client->barring_percentage || $client->barring_percentage <= 0) {
+                $client->barring_percentage = 100.00;
+            }
         } elseif ($data['status'] === 'discontinued_actioned') {
             $client->client_status = 'Discontinued';
             $client->barring_workflow_status = 'discontinued';

@@ -14,6 +14,11 @@ class Client extends Model
 
     protected $primaryKey = 'client_id';
 
+    protected $appends = [
+        'formatted_security_coverage',
+        'overall_agreement_health',
+    ];
+
     protected $fillable = [
         'opus_id',
         'client_name',
